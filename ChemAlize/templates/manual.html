@@ -1,0 +1,300 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="content-section">
+    <legend class="border-bottom mb-4">
+        <i class="fas fa-cogs mr-2"></i>Manual Data Preprocessing
+    </legend>
+    
+    <!-- Current Analysis section -->
+    <div class="row mb-4">
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Current Dataset</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-7">
+                            File Name: {% if filename %} {{filename}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col">
+                            Rows: {% if no_of_rows %} {{no_of_rows}} {% else %} None {% endif %}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-7">
+                            Columns: {% if no_of_cols %} {{no_of_cols}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col">
+                            Dimension: {% if dim %} {{dim}} {% else %} None {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-12">
+                            Missing Values: {% if missing_values is defined %} {{missing_values}} {% else %} Unknown {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Processing Status</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <i class="fas {% if data_cleaned %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %} mr-2"></i>
+                            Data Cleaning
+                        </div>
+                        <div class="col-md-6">
+                            <i class="fas {% if target_transformed %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %} mr-2"></i>
+                            Target Transformation
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6">
+                            <i class="fas {% if features_transformed %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %} mr-2"></i>
+                            Feature Transformation
+                        </div>
+                        <div class="col-md-6">
+                            <i class="fas {% if features_selected %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %} mr-2"></i>
+                            Feature Selection
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Processing Options Accordion -->
+    <div class="accordion" id="processingAccordion">
+        <!-- Scaling Option -->
+        <div class="card">
+            <div class="card-header" id="headingScaling">
+                <h2 class="mb-0">
+                    <button class="btn btn-primary w-100 btn-block text-left" type="button" data-toggle="collapse" data-target="#collapseScaling" aria-expanded="true" aria-controls="collapseScaling">
+                        <i class="fas fa-balance-scale mr-2"></i> Data Scaling
+                    </button>
+                </h2>
+            </div>
+            <div id="collapseScaling" class="collapse" aria-labelledby="headingScaling" data-parent="#processingAccordion">
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('manual_process') }}">
+                        <input type="hidden" name="action_type" value="scale">
+                        <div class="form-group">
+                            <label for="scaling_method">Select Scaling Method:</label>
+                            <select class="form-control" id="scaling_method" name="scaling_method">
+                                <option value="standard">StandardScaler (Mean=0, StdDev=1)</option>
+                                <option value="minmax">MinMaxScaler (Range 0-1)</option>
+                                <option value="robust">RobustScaler (Based on Median & IQR)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <small class="form-text text-muted">
+                                <strong>Note:</strong> Scaling will be applied only to numeric columns.
+                            </small>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Apply Scaling</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Low Variance Option -->
+        <div class="card">
+            <div class="card-header" id="headingLowVariance">
+                <h2 class="mb-0">
+                    <button class="btn btn-primary w-100 btn-block text-left collapsed" type="button" data-toggle="collapse" data-target="#collapseLowVariance" aria-expanded="false" aria-controls="collapseLowVariance">
+                        <i class="fas fa-filter mr-2"></i> Remove Low Variance Columns
+                    </button>
+                </h2>
+            </div>
+            <div id="collapseLowVariance" class="collapse" aria-labelledby="headingLowVariance" data-parent="#processingAccordion">
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('manual_process') }}">
+                        <input type="hidden" name="action_type" value="remove_low_variance">
+                        <div class="form-group">
+                            <label for="variance_threshold">Variance Threshold:</label>
+                            <input type="range" class="custom-range" id="variance_threshold_slider" min="0" max="0.5" step="0.01" value="0.01" oninput="updateVarianceValue(this.value)">
+                            <div class="input-group mt-2">
+                                <input type="number" class="form-control" id="variance_threshold" name="variance_threshold" value="0.01" min="0" max="1" step="0.01" oninput="updateVarianceSlider(this.value)">
+                                <div class="input-group-append">
+                                    <span class="input-group-text">threshold</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <small class="form-text text-muted">
+                                <strong>Info:</strong> Columns with variance less than or equal to the threshold will be removed.
+                                {% if has_low_variance is defined and has_low_variance %}
+                                <br><strong>Dataset has columns with very low variance!</strong>
+                                {% endif %}
+                            </small>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Remove Low Variance Columns</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Correlation Option -->
+        <div class="card">
+            <div class="card-header" id="headingCorrelation">
+                <h2 class="mb-0">
+                    <button class="btn btn-primary w-100 btn-block text-left collapsed" type="button" data-toggle="collapse" data-target="#collapseCorrelation" aria-expanded="false" aria-controls="collapseCorrelation">
+                        <i class="fas fa-project-diagram mr-2"></i> Remove Highly Correlated Features
+                    </button>
+                </h2>
+            </div>
+            <div id="collapseCorrelation" class="collapse" aria-labelledby="headingCorrelation" data-parent="#processingAccordion">
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('manual_process') }}">
+                        <input type="hidden" name="action_type" value="remove_correlated">
+                        <div class="form-group">
+                            <label for="correlation_threshold">Correlation Threshold:</label>
+                            <input type="range" class="custom-range" id="correlation_threshold_slider" min="0.5" max="1" step="0.01" value="0.9" oninput="updateCorrelationValue(this.value)">
+                            <div class="input-group mt-2">
+                                <input type="number" class="form-control" id="correlation_threshold" name="correlation_threshold" value="0.9" min="0.5" max="1" step="0.01" oninput="updateCorrelationSlider(this.value)">
+                                <div class="input-group-append">
+                                    <span class="input-group-text">threshold</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <small class="form-text text-muted">
+                                <strong>Info:</strong> For each pair of columns with correlation greater than the threshold, one column will be removed.
+                                {% if max_correlation is defined and max_correlation > 0.9 %}
+                                <br><strong>Dataset has highly correlated features! Max correlation: {{ "%.2f"|format(max_correlation) }}</strong>
+                                {% endif %}
+                            </small>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Remove Correlated Features</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Missing Values Option -->
+        <div class="card">
+            <div class="card-header" id="headingMissing">
+                <h2 class="mb-0">
+                    <button class="btn btn-primary w-100 btn-block text-left collapsed" type="button" data-toggle="collapse" data-target="#collapseMissing" aria-expanded="false" aria-controls="collapseMissing">
+                        <i class="fas fa-trash-alt mr-2"></i> Handle Missing Values
+                    </button>
+                </h2>
+            </div>
+            <div id="collapseMissing" class="collapse" aria-labelledby="headingMissing" data-parent="#processingAccordion">
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('manual_process') }}">
+                        <input type="hidden" name="action_type" value="handle_missing">
+                        <div class="form-group">
+                            <label for="missing_method">Select Method:</label>
+                            <select class="form-control" id="missing_method" name="missing_method" onchange="toggleConstantInput()">
+                                <option value="drop_columns">Drop columns with missing values</option>
+                                <option value="drop_rows">Drop rows with missing values</option>
+                                <option value="fill_mean">Fill with column mean (numeric only)</option>
+                                <option value="fill_median">Fill with column median (numeric only)</option>
+                                <option value="fill_mode">Fill with column mode (most frequent value)</option>
+                                <option value="fill_constant">Fill with constant value</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="constant_value_group" style="display: none;">
+                            <label for="constant_value">Constant Value:</label>
+                            <input type="text" class="form-control" id="constant_value" name="constant_value" value="0">
+                        </div>
+                        <div class="form-group">
+                            <small class="form-text text-muted">
+                                <strong>Missing values:</strong> {{ missing_values if missing_values is defined else "Unknown" }}
+                            </small>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Handle Missing Values</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+<!-- Download & Next Step Section -->
+<div class="mt-4">
+    <div class="row">
+        <div class="col-md-6">
+        <!-- Formularz pobierania - zmień action na nowy endpoint -->
+        <form action="{{ url_for('download_temp_file') }}" method="get">
+            <button type="submit" class="btn btn-success">
+                <i class="fas fa-download"></i> Pobierz przetworzony plik
+            </button>
+        </form>
+        </div>
+        <div class="col-md-6">
+            <form method="POST" action="{{ url_for('manual_process') }}">
+                <input type="hidden" name="action_type" value="next_step">
+                <div class="input-group">
+                    <input type="text" class="form-control" name="new_filename" placeholder="Nowa nazwa pliku">
+                    <div class="input-group-append">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-arrow-right mr-2"></i> Zapisz i przejdź dalej
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // JavaScript to link sliders with input fields
+    function updateVarianceValue(val) {
+        document.getElementById('variance_threshold').value = val;
+    }
+    
+    function updateVarianceSlider(val) {
+        document.getElementById('variance_threshold_slider').value = val;
+    }
+    
+    function updateCorrelationValue(val) {
+        document.getElementById('correlation_threshold').value = val;
+    }
+    
+    function updateCorrelationSlider(val) {
+        document.getElementById('correlation_threshold_slider').value = val;
+    }
+    
+    function toggleConstantInput() {
+        var method = document.getElementById('missing_method').value;
+        var constantGroup = document.getElementById('constant_value_group');
+        
+        if (method === 'fill_constant') {
+            constantGroup.style.display = 'block';
+        } else {
+            constantGroup.style.display = 'none';
+        }
+    }
+    
+    // Zamiast czyszczenia przy opuszczaniu strony,
+    // dodaj czyszczenie przy kliknięciu konkretnych przycisków z opóźnieniem 5 sekund
+    document.addEventListener('DOMContentLoaded', function() {
+        // Znajdź formularze po ich ukrytych polach input
+        const forms = document.querySelectorAll('form[action="{{ url_for("manual_process") }}"]');
+        
+        forms.forEach(function(form) {
+            const actionTypeInput = form.querySelector('input[name="action_type"]');
+            if (actionTypeInput) {
+                // Sprawdź, czy to jeden z naszych docelowych formularzy
+                if (actionTypeInput.value === 'download' || actionTypeInput.value === 'next_step') {
+                    form.addEventListener('submit', function() {
+                        if ("{{ is_temp_file }}" === "True") {
+                            // Opóźnienie wykonania czyszczenia o 5 sekund
+                            setTimeout(function() {
+                                navigator.sendBeacon('/cleanup_temp', '');
+                            }, 5000); // 5000 ms = 5 sekund
+                        }
+                    });
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

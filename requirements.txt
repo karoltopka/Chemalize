@@ -1,0 +1,12 @@
+Flask==2.0.2
+matplotlib==3.7.1
+numpy==2.2.5
+pandas==2.2.3
+plotly==5.9.0
+PyYAML==6.0
+PyYAML==6.0.2
+reportlab==4.4.0
+scikit_learn==1.6.1
+scipy==1.15.3
+seaborn==0.13.2
+statsmodels==0.13.2

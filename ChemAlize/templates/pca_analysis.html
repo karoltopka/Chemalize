@@ -1,0 +1,278 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="content-section">
+    <legend class="border-bottom mb-4">
+        <i class="fas fa-compress-arrows-alt mr-2"></i>Principal Component Analysis (PCA)
+    </legend>
+    
+    <!-- Back button -->
+    <div class="mb-4">
+        <a href="{{ url_for('analysis_dashboard') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Analysis Dashboard
+        </a>
+    </div>
+    
+    <!-- Current Dataset Info -->
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Dataset Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <strong>File Name:</strong> {% if filename %} {{filename}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col-6">
+                            <strong>Rows:</strong> {% if no_of_rows %} {{no_of_rows}} {% else %} None {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-6">
+                            <strong>Columns:</strong> {% if no_of_cols %} {{no_of_cols}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col-6">
+                            <strong>Target:</strong> {% if target_var %} {{target_var}} {% else %} Not Set {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">PCA Description</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Principal Component Analysis (PCA) is a dimensionality reduction technique that transforms data into a new coordinate system of uncorrelated variables called principal components.
+                    </p>
+                    <p class="mb-0">
+                        <small class="text-muted">
+                            Use PCA to visualize high-dimensional data, reduce complexity, and identify patterns.
+                        </small>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- PCA Configuration Form -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">PCA Configuration</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('perform_pca') }}">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="n_components">Number of Components:</label>
+                            <input type="number" class="form-control" id="n_components" name="n_components" 
+                                   value="{% if n_components %}{{ n_components }}{% else %}2{% endif %}" 
+                                   min="2" max="{{ no_of_cols|int - 1 if no_of_cols else 2 }}">
+                            <small class="form-text text-muted">Select number of principal components to retain</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="scale_data" name="scale_data" 
+                                       {% if scale_data %}checked{% endif %}>
+                                <label class="custom-control-label" for="scale_data">Scale data before PCA</label>
+                                <small class="form-text text-muted">Recommended for variables with different scales</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Visualization Options:</label>
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="show_variance" name="show_variance" 
+                                       {% if show_variance %}checked{% endif %} checked>
+                                <label class="custom-control-label" for="show_variance">Explained Variance Plot</label>
+                            </div>
+                            
+                            <div class="custom-control custom-checkbox mt-2">
+                                <input type="checkbox" class="custom-control-input" id="show_scatter" name="show_scatter" 
+                                       {% if show_scatter %}checked{% endif %} checked>
+                                <label class="custom-control-label" for="show_scatter">PCA Scatter Plot</label>
+                            </div>
+                            
+                            <div class="custom-control custom-checkbox mt-2">
+                                <input type="checkbox" class="custom-control-input" id="show_loading" name="show_loading" 
+                                       {% if show_loading %}checked{% endif %} checked>
+                                <label class="custom-control-label" for="show_loading">Component Loadings Plot</label>
+                            </div>
+                            
+                            <div class="custom-control custom-checkbox mt-2">
+                                <input type="checkbox" class="custom-control-input" id="show_biplot" name="show_biplot" 
+                                       {% if show_biplot %}checked{% endif %} checked>
+                                <label class="custom-control-label" for="show_biplot">Biplot (Samples & Features)</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group mt-3">
+                    <label for="pc_color_by">Color scatter plot by:</label>
+                    <select class="form-control" id="pc_color_by" name="pc_color_by">
+                        <option value="">No coloring</option>
+                        {% if columns %}
+                            {% for col in columns %}
+                                <option value="{{ col }}" {% if pc_color_by == col %}selected{% endif %}>{{ col }}</option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                    <small class="form-text text-muted">Optional: color points by a categorical or numerical variable</small>
+                </div>
+                
+                <button type="submit" class="btn btn-primary mt-3">
+                    <i class="fas fa-play mr-2"></i>Run PCA Analysis
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- PCA Results Section (displayed if pca_performed is True) -->
+    {% if pca_performed %}
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">PCA Results</h5>
+        </div>
+        <div class="card-body">
+            <!-- PCA Summary Statistics -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <h6>Summary</h6>
+                    <table class="table table-bordered table-sm">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Component</th>
+                                <th>Eigenvalue</th>
+                                <th>Explained Variance (%)</th>
+                                <th>Cumulative Variance (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for i in range(pca_summary|length) %}
+                            <tr>
+                                <td>PC{{ i+1 }}</td>
+                                <td>{{ "%.3f"|format(pca_summary[i].eigenvalue) }}</td>
+                                <td>{{ "%.2f"|format(pca_summary[i].explained_variance) }}</td>
+                                <td>{{ "%.2f"|format(pca_summary[i].cumulative_variance) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Visualization Tabs -->
+            <ul class="nav nav-tabs" id="pcaResultTabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" id="variance-tab" data-toggle="tab" href="#variance" role="tab" 
+                       aria-controls="variance" aria-selected="true">Explained Variance</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="scatter-tab" data-toggle="tab" href="#scatter" role="tab" 
+                       aria-controls="scatter" aria-selected="false">PCA Scatter</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="loadings-tab" data-toggle="tab" href="#loadings" role="tab" 
+                       aria-controls="loadings" aria-selected="false">Component Loadings</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="biplot-tab" data-toggle="tab" href="#biplot" role="tab" 
+                       aria-controls="biplot" aria-selected="false">Biplot</a>
+                </li>
+            </ul>
+            
+            <div class="tab-content mt-3" id="pcaResultTabContent">
+                <!-- Explained Variance Tab -->
+                <div class="tab-pane fade show active" id="variance" role="tabpanel" aria-labelledby="variance-tab">
+                    {% if pca_variance_plot %}
+                    <div class="text-center">
+                        <img src="{{ pca_variance_plot }}" class="img-fluid" alt="Explained Variance">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Explained variance plot not available.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- PCA Scatter Tab -->
+                <div class="tab-pane fade" id="scatter" role="tabpanel" aria-labelledby="scatter-tab">
+                    {% if pca_scatter_plot %}
+                    <div class="text-center">
+                        <img src="{{ pca_scatter_plot }}" class="img-fluid" alt="PCA Scatter Plot">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        PCA scatter plot not available.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Component Loadings Tab -->
+                <div class="tab-pane fade" id="loadings" role="tabpanel" aria-labelledby="loadings-tab">
+                    {% if pca_loadings_plot %}
+                    <div class="text-center">
+                        <img src="{{ pca_loadings_plot }}" class="img-fluid" alt="Component Loadings">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Component loadings plot not available.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Biplot Tab -->
+                <div class="tab-pane fade" id="biplot" role="tabpanel" aria-labelledby="biplot-tab">
+                    {% if pca_biplot %}
+                    <div class="text-center">
+                        <img src="{{ pca_biplot }}" class="img-fluid" alt="PCA Biplot">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Biplot not available.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Download Section -->
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <h6>Download Results</h6>
+                    <div class="btn-group">
+                        <a href="{{ url_for('download_pca_components') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-download mr-2"></i>PC Scores
+                        </a>
+                        <a href="{{ url_for('download_pca_loadings') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-download mr-2"></i>PC Loadings
+                        </a>
+                        <a href="{{ url_for('download_pca_report') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-file-pdf mr-2"></i>PCA Report
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // JavaScript to control tab behavior
+    $(document).ready(function(){
+        $('#pcaResultTabs a').on('click', function (e) {
+            e.preventDefault();
+            $(this).tab('show');
+        });
+    });
+</script>
+{% endblock %}
