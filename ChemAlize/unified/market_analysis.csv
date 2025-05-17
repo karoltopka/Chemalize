@@ -1,0 +1,9 @@
+Factor,Trend,Negative impact force,Positive impact force,Probability
+Global Economic Conditions,Decrease,-3.0,,0.2
+Smartphone Market Growth,Increase,,4.0,0.45
+Consumer Electronics Demand,Increase,,4.0,0.45
+Display Panel Demand,Increase,,4.0,0.55
+Memory Chip Prices,Increase,,5.0,0.5
+Semiconductor Market Trends,Decrease,-4.0,,0.25
+Competition from Apple,Decrease,-3.0,,0.25
+Average,Increase,-3.333333333333333,17.0,0.3785714285714286

@@ -1,0 +1,798 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="content-section">
+    <legend class="border-bottom mb-4">
+        <i class="fas fa-chart-line mr-2"></i>Multiple Linear Regression Analysis
+    </legend>
+    
+    <!-- Back button -->
+    <div class="mb-4">
+        <a href="{{ url_for('analysis_dashboard') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Analysis Dashboard
+        </a>
+    </div>
+    
+    <!-- Current Dataset Info -->
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Dataset Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <strong>File Name:</strong> {% if filename %} {{filename}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col-6">
+                            <strong>Rows:</strong> {% if no_of_rows %} {{no_of_rows}} {% else %} None {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-6">
+                            <strong>Columns:</strong> {% if no_of_cols %} {{no_of_cols}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col-6">
+                            <strong>Target Variable:</strong> {% if target_var %} {{target_var}} {% else %} Not set {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">MLR Description</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Multiple Linear Regression (MLR) is a statistical technique that uses several explanatory variables to predict the outcome of a dependent variable.
+                    </p>
+                    <p class="mb-0">
+                        <small class="text-muted">
+                            Use MLR to understand relationships between variables and build predictive models.
+                        </small>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- MLR Configuration Form (shown only if analysis was not performed) -->
+    {% if not mlr_performed %}
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">MLR Configuration</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('perform_mlr') }}">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="target_var">Target Variable (Y):</label>
+                            <select class="form-control" id="target_var" name="target_var" required onchange="updateFeatureList()">
+                                <option value="" selected disabled>Select target variable</option>
+                                {% for column in all_data_columns %}
+                                <option value="{{ column }}" {% if target_var == column %}selected{% endif %}>
+                                    {{ column }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">Variable to predict (dependent variable)</small>
+                        </div>
+                        
+                        <div class="form-group mt-3">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="include_intercept" name="include_intercept" 
+                                       {% if include_intercept or include_intercept is not defined %}checked{% endif %}>
+                                <label class="custom-control-label" for="include_intercept">Include Intercept</label>
+                                <small class="form-text text-muted">Include a constant term in the regression equation</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Dataset Split Options -->
+                        <div class="form-group mt-4">
+                            <label>Dataset Split Method:</label>
+                            <div class="custom-control custom-radio">
+                                <input type="radio" id="split_random" name="split_method" value="random" class="custom-control-input" 
+                                    {% if split_method == 'random' or not split_method %}checked{% endif %} onchange="toggleSplitOptions()">
+                                <label class="custom-control-label" for="split_random">Random Split</label>
+                                <small class="form-text text-muted">Simple random split based on percentage</small>
+                            </div>
+                            
+                            <div class="custom-control custom-radio mt-2">
+                                <input type="radio" id="split_stratified" name="split_method" value="stratified" class="custom-control-input" 
+                                    {% if split_method == 'stratified' %}checked{% endif %} onchange="toggleSplitOptions()">
+                                <label class="custom-control-label" for="split_stratified">Stratified Split</label>
+                                <small class="form-text text-muted">Maintains target variable distribution in train/test sets</small>
+                            </div>
+                            
+                            <div class="custom-control custom-radio mt-2">
+                                <input type="radio" id="split_time" name="split_method" value="time" class="custom-control-input" 
+                                    {% if split_method == 'time' %}checked{% endif %} onchange="toggleSplitOptions()">
+                                <label class="custom-control-label" for="split_time">Time-based Split</label>
+                                <small class="form-text text-muted">Split based on a date/time column</small>
+                            </div>
+                            
+                            <div class="custom-control custom-radio mt-2">
+                                <input type="radio" id="split_kfold" name="split_method" value="kfold" class="custom-control-input" 
+                                    {% if split_method == 'kfold' %}checked{% endif %} onchange="toggleSplitOptions()">
+                                <label class="custom-control-label" for="split_kfold">K-Fold Cross-Validation</label>
+                                <small class="form-text text-muted">Evaluate model on multiple train/test splits</small>
+                            </div>
+                            
+                            <div class="custom-control custom-radio mt-2">
+                                <input type="radio" id="split_loocv" name="split_method" value="loocv" class="custom-control-input" 
+                                    {% if split_method == 'loocv' %}checked{% endif %} onchange="toggleSplitOptions()">
+                                <label class="custom-control-label" for="split_loocv">Leave-One-Out CV</label>
+                                <small class="form-text text-muted">Test on each sample individually (computationally intensive)</small>
+                            </div>
+                            
+                            <div class="custom-control custom-radio mt-2">
+                                <input type="radio" id="split_systematic" name="split_method" value="systematic" class="custom-control-input" 
+                                       {% if split_method == 'systematic' %}checked{% endif %} onchange="toggleSplitOptions()">
+                                <label class="custom-control-label" for="split_systematic">Systematic Sampling</label>
+                                <small class="form-text text-muted">Selects test samples after sorting Y values, ensuring representation across the entire data range</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Method-specific split options -->
+                        <div id="random_split_options" class="split-options" {% if split_method != 'random' and split_method %}style="display: none;"{% endif %}>
+                            <div class="form-group mt-3">
+                                <label for="test_size">Test Set Size:</label>
+                                <input type="range" class="custom-range" id="test_size" name="test_size" 
+                                       value="{% if test_size %}{{ test_size }}{% else %}0.2{% endif %}" 
+                                       min="0.1" max="0.5" step="0.05" oninput="updateTestSizeLabel()">
+                                <div class="d-flex justify-content-between">
+                                    <span>10%</span>
+                                    <span>20%</span>
+                                    <span>30%</span>
+                                    <span>40%</span>
+                                    <span>50%</span>
+                                </div>
+                                <p class="text-center mt-1" id="test_size_display">
+                                    {{ test_size|default(0.2, true) * 100 }}%
+                                </p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="shuffle" name="shuffle" 
+                                           {% if shuffle or shuffle is not defined %}checked{% endif %}>
+                                    <label class="custom-control-label" for="shuffle">Shuffle data before splitting</label>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="random_state">Random State (for reproducibility):</label>
+                                <input type="number" class="form-control" id="random_state" name="random_state" 
+                                       value="{% if random_state %}{{ random_state }}{% else %}42{% endif %}" min="0">
+                                <small class="form-text text-muted">Set a specific random seed for reproducible results</small>
+                            </div>
+                        </div>
+                        
+                        <div id="stratified_split_options" class="split-options" {% if split_method != 'stratified' %}style="display: none;"{% endif %}>
+                            <div class="form-group mt-3">
+                                <label for="strat_test_size">Test Set Size:</label>
+                                <input type="range" class="custom-range" id="strat_test_size" name="strat_test_size" 
+                                       value="{% if strat_test_size %}{{ strat_test_size }}{% else %}0.2{% endif %}" 
+                                       min="0.1" max="0.5" step="0.05" oninput="updateStratTestSizeLabel()">
+                                <div class="d-flex justify-content-between">
+                                    <span>10%</span>
+                                    <span>20%</span>
+                                    <span>30%</span>
+                                    <span>40%</span>
+                                    <span>50%</span>
+                                </div>
+                                <p class="text-center mt-1" id="strat_test_size_display">
+                                    {{ strat_test_size|default(0.2, true) * 100 }}%
+                                </p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="strat_bins">Number of bins for stratification:</label>
+                                <input type="number" class="form-control" id="strat_bins" name="strat_bins" 
+                                       value="{% if strat_bins %}{{ strat_bins }}{% else %}5{% endif %}" min="2" max="20">
+                                <small class="form-text text-muted">For continuous targets: number of bins to create balanced groups</small>
+                            </div>
+                        </div>
+                        
+                        <div id="time_split_options" class="split-options" {% if split_method != 'time' %}style="display: none;"{% endif %}>
+                            <div class="form-group mt-3">
+                                <label for="time_column">Date/Time Column:</label>
+                                <select class="form-control" id="time_column" name="time_column">
+                                    <option value="">Select column with date/time values</option>
+                                    {% for column in all_data_columns %}
+                                    <option value="{{ column }}" {% if time_column == column %}selected{% endif %}>
+                                        {{ column }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-text text-muted">Column containing date/time values for splitting</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="time_test_size">Test Set Size:</label>
+                                <input type="range" class="custom-range" id="time_test_size" name="time_test_size" 
+                                       value="{% if time_test_size %}{{ time_test_size }}{% else %}0.2{% endif %}" 
+                                       min="0.1" max="0.5" step="0.05" oninput="updateTimeTestSizeLabel()">
+                                <div class="d-flex justify-content-between">
+                                    <span>10%</span>
+                                    <span>20%</span>
+                                    <span>30%</span>
+                                    <span>40%</span>
+                                    <span>50%</span>
+                                </div>
+                                <p class="text-center mt-1" id="time_test_size_display">
+                                    {{ time_test_size|default(0.2, true) * 100 }}%
+                                </p>
+                                <small class="form-text text-muted">Latest data will be used for testing</small>
+                            </div>
+                        </div>
+                        
+                        <div id="kfold_split_options" class="split-options" {% if split_method != 'kfold' %}style="display: none;"{% endif %}>
+                            <div class="form-group mt-3">
+                                <label for="n_folds">Number of Folds:</label>
+                                <input type="number" class="form-control" id="n_folds" name="n_folds" 
+                                       value="{% if n_folds %}{{ n_folds }}{% else %}5{% endif %}" min="2" max="20">
+                                <small class="form-text text-muted">Higher values give more thorough evaluation but take longer</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="shuffle_kfold" name="shuffle_kfold" 
+                                           {% if shuffle_kfold or shuffle_kfold is not defined %}checked{% endif %}>
+                                    <label class="custom-control-label" for="shuffle_kfold">Shuffle data before splitting</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="systematic_split_options" class="split-options" {% if split_method != 'systematic' %}style="display: none;"{% endif %}>
+                            <div class="form-group mt-3">
+                                <label for="systematic_step">Indexing step (every nth index):</label>
+                                <input type="number" class="form-control" id="systematic_step" name="systematic_step" 
+                                       value="{% if systematic_step %}{{ systematic_step }}{% else %}3{% endif %}" min="2" max="10">
+                                <small class="form-text text-muted">Selects test points every specified number of indices (e.g., 3 = every third point)</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="include_last_point" name="include_last_point" 
+                                           {% if include_last_point or include_last_point is not defined %}checked{% endif %}>
+                                    <label class="custom-control-label" for="include_last_point">Include last point</label>
+                                    <small class="form-text text-muted">Adds the last point (with highest Y value) to the test set</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="selected_features">Select Features (X):</label>
+                            <div class="feature-selection-header mb-2">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="select_all_features" onchange="toggleAllFeatures()">
+                                    <label class="custom-control-label" for="select_all_features">Select All</label>
+                                </div>
+                            </div>
+                            <div class="feature-selection" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;">
+                                {% for column in all_data_columns %}
+                                <div class="custom-control custom-checkbox feature-item">
+                                    <input type="checkbox" class="custom-control-input feature-checkbox" 
+                                          id="feature_{{ loop.index }}" name="selected_features" value="{{ column }}"
+                                          {% if column in selected_features %}checked{% endif %}
+                                          {% if column == target_var %}disabled{% endif %}>
+                                    <label class="custom-control-label" for="feature_{{ loop.index }}">{{ column }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="form-text text-muted">Independent variables for the regression model</small>
+                        </div>
+                        
+                        <div class="form-group mt-3">
+                            <div class="card">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0">Additional Options</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input" id="scale_data" name="scale_data" 
+                                               {% if scale_data %}checked{% endif %}>
+                                        <label class="custom-control-label" for="scale_data">Scale features (standardize)</label>
+                                        <small class="form-text text-muted">Recommended for features with different scales</small>
+                                    </div>
+                                    
+                                    <div class="custom-control custom-checkbox mt-2">
+                                        <input type="checkbox" class="custom-control-input" id="check_assumptions" name="check_assumptions" 
+                                               {% if check_assumptions or check_assumptions is not defined %}checked{% endif %}>
+                                        <label class="custom-control-label" for="check_assumptions">Check regression assumptions</label>
+                                        <small class="form-text text-muted">Normality, homoscedasticity, etc.</small>
+                                    </div>
+                                    
+                                    <div class="custom-control custom-checkbox mt-2">
+                                        <input type="checkbox" class="custom-control-input" id="detect_outliers" name="detect_outliers" 
+                                               {% if detect_outliers %}checked{% endif %}>
+                                        <label class="custom-control-label" for="detect_outliers">Detect outliers and influential points</label>
+                                        <small class="form-text text-muted">Using Cook's distance, leverage, etc.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary mt-3">
+                    <i class="fas fa-play mr-2"></i>Run MLR Analysis
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- MLR Results Section (displayed if mlr_performed is True) -->
+    {% if mlr_performed %}
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">MLR Results</h5>
+        </div>
+        <div class="card-body">
+            <!-- Model Overview -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0">Regression Equation</h6>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>{{ target_var }} =</strong>
+                            {% for feature, coef in zip(feature_names, coefficients) %}
+                                {% if loop.index == 1 and 'Intercept' in feature_names %}
+                                    {{ "%.4f" | format(coef) }}
+                                {% else %}
+                                    {% if coef >= 0 %}+ {% else %}- {% endif %}
+                                    {{ "%.4f" | format(coef|abs) }} × {{ feature }}
+                                {% endif %}
+                            {% endfor %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0">Key Metrics</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm table-bordered">
+                                <tbody>
+                                    <tr>
+                                        <th>Training R²</th>
+                                        <td>{{ "%.4f" | format(train_r2) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Adjusted R²</th>
+                                        <td>{{ "%.4f" | format(adj_r2) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Test R²</th>
+                                        <td>{{ "%.4f" | format(test_r2) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Q²<sub>LOO</sub></th>
+                                        <td>{{ "%.4f" | format(q2_loo) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>F-statistic</th>
+                                        <td>{{ "%.4f" | format(f_statistic) }} (p={{ "%.6f" | format(f_pvalue) }})</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Visualization Tabs -->
+            <ul class="nav nav-tabs" id="mlrResultTabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" id="coefficients-tab" data-toggle="tab" href="#coefficients" role="tab" 
+                       aria-controls="coefficients" aria-selected="true">Coefficients</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="metrics-tab" data-toggle="tab" href="#metrics" role="tab" 
+                       aria-controls="metrics" aria-selected="false">Detailed Metrics</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="plots-tab" data-toggle="tab" href="#plots" role="tab" 
+                       aria-controls="plots" aria-selected="false">Diagnostic Plots</a>
+                </li>
+            </ul>
+            
+            <div class="tab-content mt-3" id="mlrResultTabContent">
+                <!-- Coefficients Tab -->
+                <div class="tab-pane fade show active" id="coefficients" role="tabpanel" aria-labelledby="coefficients-tab">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-bordered">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Feature</th>
+                                    <th>Coefficient</th>
+                                    <th>Std Error</th>
+                                    <th>t-value</th>
+                                    <th>p-value</th>
+                                    <th>Significance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for feature, coef, se, tval, pval in zip(feature_names, coefficients, std_errors, t_values, p_values) %}
+                                <tr>
+                                    <td>{{ feature }}</td>
+                                    <td>{{ "%.4f" | format(coef) }}</td>
+                                    <td>{{ "%.4f" | format(se) }}</td>
+                                    <td>{{ "%.4f" | format(tval) }}</td>
+                                    <td>{{ "%.6f" | format(pval) }}</td>
+                                    <td>
+                                        {% if pval <= 0.001 %}***
+                                        {% elif pval <= 0.01 %}**
+                                        {% elif pval <= 0.05 %}*
+                                        {% elif pval <= 0.1 %}.
+                                        {% else %}ns
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <p class="mt-2 small">
+                            Significance codes: 0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 'ns' 1
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Detailed Metrics Tab -->
+                <div class="tab-pane fade" id="metrics" role="tabpanel" aria-labelledby="metrics-tab">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0">Training Set Metrics</h6>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm table-bordered">
+                                        <tbody>
+                                            <tr>
+                                                <th>R²</th>
+                                                <td>{{ "%.4f" | format(train_r2) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Adjusted R²</th>
+                                                <td>{{ "%.4f" | format(adj_r2) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>RMSE</th>
+                                                <td>{{ "%.4f" | format(train_rmse) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>MAE</th>
+                                                <td>{{ "%.4f" | format(train_mae) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>F-statistic</th>
+                                                <td>{{ "%.4f" | format(f_statistic) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>F p-value</th>
+                                                <td>{{ "%.6f" | format(f_pvalue) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>AIC</th>
+                                                <td>{{ "%.4f" | format(aic) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>BIC</th>
+                                                <td>{{ "%.4f" | format(bic) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Durbin-Watson</th>
+                                                <td>{{ "%.4f" | format(dw_stat) }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0">Test Set & CV Metrics</h6>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm table-bordered">
+                                        <tbody>
+                                            <tr>
+                                                <th>R²ext</th>
+                                                <td>{{ "%.4f" | format(test_r2) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Q²ext</th>
+                                                <td>{{ "%.4f" | format(q2_test) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>RMSEp</th>
+                                                <td>{{ "%.4f" | format(test_rmse) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>MAEp</th>
+                                                <td>{{ "%.4f" | format(test_mae) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>CCCext</th>
+                                                <td>{{ "%.4f" | format(ccc_ext) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th colspan="2" class="bg-light">Cross-Validation</th>
+                                            </tr>
+                                            <tr>
+                                                <th>Q²<sub>LOO</sub></th>
+                                                <td>{{ "%.4f" | format(q2_loo) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>RMSE<sub>LOO</sub></th>
+                                                <td>{{ "%.4f" | format(rmse_loo) }}</td>
+                                            </tr>
+                                            {% if split_method == 'kfold' and cv_train_r2_mean is not none %}
+                                            <tr>
+                                                <th>CV R² (train)</th>
+                                                <td>{{ "%.4f" | format(cv_train_r2_mean) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>CV R² (test)</th>
+                                                <td>{{ "%.4f" | format(cv_test_r2_mean) }}</td>
+                                            </tr>
+                                            {% endif %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <!-- VIF Values -->
+                            <div class="card mt-3">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0">Variance Inflation Factors (VIF)</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        {% for feature, vif in vif_values.items() %}
+                                        <div class="col-lg-6 mb-2">
+                                            <div class="d-flex justify-content-between align-items-center p-2 border rounded">
+                                                <span>{{ feature }}</span>
+                                                <span class="badge 
+                                                    {% if vif > 10 %}badge-danger
+                                                    {% elif vif > 5 %}badge-warning
+                                                    {% else %}badge-success{% endif %}">
+                                                    {{ "%.2f" | format(vif) }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="mt-2 small">
+                                        <span class="badge badge-success">< 5: Low</span>
+                                        <span class="badge badge-warning ml-2">5-10: Moderate</span>
+                                        <span class="badge badge-danger ml-2">> 10: High</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+            <!-- Diagnostic Plots Tab -->
+            <div class="tab-pane fade" id="plots" role="tabpanel" aria-labelledby="plots-tab">
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0">Predicted vs Actual</h6>
+                            </div>
+                            <div class="card-body text-center">
+                                <img src="{{ mlr_pred_actual_plot }}" class="img-fluid" alt="Predicted vs Actual Plot">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0">Williams Plot (Applicability Domain)</h6>
+                            </div>
+                            <div class="card-body text-center">
+                                {% if mlr_williams_plot %}
+                                <img src="{{ mlr_williams_plot }}" class="img-fluid" alt="Williams Plot">
+                                <div class="mt-2">
+                                    <p class="mb-1"><strong>AD coverage (training set):</strong> {{ "%.2f"|format(AD_train) }}%</p>
+                                    <p class="mb-1"><strong>AD coverage (test set):</strong> {{ "%.2f"|format(AD_test) }}%</p>
+                                    <p class="mb-0 small text-muted">h* threshold: {{ "%.4f"|format(h_star) }}</p>
+                                </div>
+                                {% else %}
+                                <div class="alert alert-warning">
+                                    Williams Plot could not be generated. Please check the console for errors.
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0">Residuals Histogram</h6>
+                            </div>
+                            <div class="card-body text-center">
+                                <img src="{{ mlr_residuals_hist }}" class="img-fluid" alt="Residuals Histogram">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0">Q-Q Plot</h6>
+                            </div>
+                            <div class="card-body text-center">
+                                <img src="{{ mlr_qq_plot }}" class="img-fluid" alt="Q-Q Plot">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0">Residuals vs Predicted</h6>
+                            </div>
+                            <div class="card-body text-center">
+                                <img src="{{ mlr_residuals_plot }}" class="img-fluid" alt="Residuals Plot">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Download Section -->
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <h6>Download Results</h6>
+                    <div class="btn-group">
+                        <a href="{{ url_for('download_mlr_predictions') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-download mr-2"></i>Predictions
+                        </a>
+                        <a href="{{ url_for('download_mlr_model') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-file-csv mr-2"></i>Model Summary
+                        </a>
+                        <a href="{{ url_for('download_mlr_report') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-file-pdf mr-2"></i>Full Report
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Configure New Analysis button -->
+            <div class="mt-4">
+                <a href="{{ url_for('reset_mlr_analysis') }}" class="btn btn-secondary">
+                    <i class="fas fa-sync mr-2"></i>Configure New Analysis
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // JavaScript to control tab behavior and interactive elements
+    $(document).ready(function(){
+        // Tab functionality
+        $('#mlrResultTabs a').on('click', function (e) {
+            e.preventDefault();
+            $(this).tab('show');
+        });
+        
+        // Set initial test size displays
+        updateTestSizeLabel();
+        updateStratTestSizeLabel();
+        updateTimeTestSizeLabel();
+        
+        // Check "Select All" status initially
+        updateSelectAllStatus();
+        
+        // Initialize target variable effect on features
+        updateFeatureList();
+        
+        // Initial toggle of split options
+        toggleSplitOptions();
+    });
+    
+    // Update test size display labels
+    function updateTestSizeLabel() {
+        const testSize = document.getElementById('test_size').value;
+        document.getElementById('test_size_display').innerText = Math.round(testSize * 100) + '%';
+    }
+    
+    function updateStratTestSizeLabel() {
+        const testSize = document.getElementById('strat_test_size').value;
+        document.getElementById('strat_test_size_display').innerText = Math.round(testSize * 100) + '%';
+    }
+    
+    function updateTimeTestSizeLabel() {
+        const testSize = document.getElementById('time_test_size').value;
+        document.getElementById('time_test_size_display').innerText = Math.round(testSize * 100) + '%';
+    }
+    
+    // Toggle all feature checkboxes
+    function toggleAllFeatures() {
+        const selectAll = document.getElementById('select_all_features');
+        const featureCheckboxes = document.querySelectorAll('.feature-checkbox');
+        
+        featureCheckboxes.forEach(checkbox => {
+            if (!checkbox.disabled) {
+                checkbox.checked = selectAll.checked;
+            }
+        });
+    }
+    
+    // Update "Select All" checkbox state
+    function updateSelectAllStatus() {
+        const featureCheckboxes = document.querySelectorAll('.feature-checkbox:not(:disabled)');
+        const selectAllCheckbox = document.getElementById('select_all_features');
+        
+        if (featureCheckboxes.length > 0) {
+            const allChecked = Array.from(featureCheckboxes).every(cb => cb.checked);
+            selectAllCheckbox.checked = allChecked;
+        }
+    }
+    
+    // Update feature list based on target variable selection
+    function updateFeatureList() {
+        const targetVar = document.getElementById('target_var').value;
+        const featureCheckboxes = document.querySelectorAll('.feature-checkbox');
+        
+        featureCheckboxes.forEach(checkbox => {
+            if (checkbox.value === targetVar) {
+                checkbox.checked = false;
+                checkbox.disabled = true;
+                checkbox.closest('.feature-item').style.opacity = 0.5;
+            } else {
+                checkbox.disabled = false;
+                checkbox.closest('.feature-item').style.opacity = 1;
+            }
+        });
+        
+        // Update "Select All" status after changing availability
+        updateSelectAllStatus();
+    }
+    
+    // Toggle split method options// Toggle split method options
+    function toggleSplitOptions() {
+    // Hide all split method options
+    const splitOptions = document.querySelectorAll('.split-options');
+    splitOptions.forEach(option => {
+        option.style.display = 'none';
+    });
+    
+    // Show the appropriate options based on selected method
+    const selectedMethod = document.querySelector('input[name="split_method"]:checked').value;
+    
+    if (selectedMethod === 'random') {
+        document.getElementById('random_split_options').style.display = 'block';
+    } else if (selectedMethod === 'stratified') {
+        document.getElementById('stratified_split_options').style.display = 'block';
+    } else if (selectedMethod === 'time') {
+        document.getElementById('time_split_options').style.display = 'block';
+    } else if (selectedMethod === 'kfold') {
+        document.getElementById('kfold_split_options').style.display = 'block';
+    } else if (selectedMethod === 'one_vs_n') {
+        document.getElementById('onevn_split_options').style.display = 'block';
+    } else if (selectedMethod === 'systematic') {
+        document.getElementById('systematic_split_options').style.display = 'block';
+    }
+    // LOOCV nie potrzebuje dodatkowych opcji
+    }
+</script>
+{% endblock %}

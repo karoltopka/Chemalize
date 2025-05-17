@@ -1,0 +1,445 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="content-section">
+    <legend class="border-bottom mb-4">
+        <i class="fas fa-object-group mr-2"></i>Clustering Analysis
+    </legend>
+    
+    <!-- Back button -->
+    <div class="mb-4">
+        <a href="{{ url_for('analysis_dashboard') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Analysis Dashboard
+        </a>
+    </div>
+    
+    <!-- Current Dataset Info -->
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Dataset Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <strong>File Name:</strong> {% if filename %} {{filename}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col-6">
+                            <strong>Rows:</strong> {% if no_of_rows %} {{no_of_rows}} {% else %} None {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-6">
+                            <strong>Columns:</strong> {% if no_of_cols %} {{no_of_cols}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col-6">
+                            <strong>Dimension:</strong> {% if dim %} {{dim}} {% else %} None {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Clustering Description</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Clustering is an unsupervised machine learning technique that groups similar data points together based on their features.
+                    </p>
+                    <p class="mb-0">
+                        <small class="text-muted">
+                            Use clustering to discover natural patterns and segments in your data without predefined labels.
+                        </small>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Clustering Configuration Form -->
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">Clustering Configuration</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('perform_clustering') }}">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="clustering_method">Clustering Method:</label>
+                            <select class="form-control" id="clustering_method" name="clustering_method" onchange="toggleMethodOptions()">
+                                <option value="kmeans" {% if method == 'kmeans' %}selected{% endif %}>K-Means Clustering</option>
+                                <option value="dbscan" {% if method == 'dbscan' %}selected{% endif %}>DBSCAN</option>
+                                <option value="hierarchical" {% if method == 'hierarchical' %}selected{% endif %}>Hierarchical Clustering</option>
+                            </select>
+                            <small class="form-text text-muted">Select the clustering algorithm to use</small>
+                        </div>
+                        
+                        <!-- K-means specific options -->
+                        <div id="kmeans_options" class="method-options" {% if method != 'kmeans' and method %}style="display: none;"{% endif %}>
+                            <div class="form-group">
+                                <label for="n_clusters">Number of Clusters (K):</label>
+                                <input type="number" class="form-control" id="n_clusters" name="n_clusters" 
+                                       value="{% if n_clusters %}{{ n_clusters }}{% else %}3{% endif %}" min="2" max="20">
+                                <small class="form-text text-muted">Number of clusters to form</small>
+                            </div>
+                        </div>
+                        
+                        <!-- DBSCAN specific options -->
+                        <div id="dbscan_options" class="method-options" {% if method != 'dbscan' %}style="display: none;"{% endif %}>
+                            <div class="form-group">
+                                <label for="eps">Epsilon (ε):</label>
+                                <input type="number" class="form-control" id="eps" name="eps" 
+                                       value="{% if eps %}{{ eps }}{% else %}0.5{% endif %}" min="0.01" max="10" step="0.01">
+                                <small class="form-text text-muted">Maximum distance between samples for one to be considered as in the neighborhood of the other</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="min_samples">Minimum Samples:</label>
+                                <input type="number" class="form-control" id="min_samples" name="min_samples" 
+                                       value="{% if min_samples %}{{ min_samples }}{% else %}5{% endif %}" min="1" max="100">
+                                <small class="form-text text-muted">Number of samples in a neighborhood for a point to be considered as a core point</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Hierarchical specific options -->
+                        <div id="hierarchical_options" class="method-options" {% if method != 'hierarchical' %}style="display: none;"{% endif %}>
+                            <div class="form-group">
+                                <label for="h_n_clusters">Number of Clusters:</label>
+                                <input type="number" class="form-control" id="h_n_clusters" name="h_n_clusters" 
+                                       value="{% if h_n_clusters %}{{ h_n_clusters }}{% else %}3{% endif %}" min="2" max="20">
+                                <small class="form-text text-muted">Number of clusters to form</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="linkage_method">Linkage Method:</label>
+                                <select class="form-control" id="linkage_method" name="linkage_method">
+                                    <option value="ward" {% if linkage_method == 'ward' %}selected{% endif %}>Ward (minimizes variance)</option>
+                                    <option value="complete" {% if linkage_method == 'complete' %}selected{% endif %}>Complete (maximum distance)</option>
+                                    <option value="average" {% if linkage_method == 'average' %}selected{% endif %}>Average</option>
+                                    <option value="single" {% if linkage_method == 'single' %}selected{% endif %}>Single (minimum distance)</option>
+                                </select>
+                                <small class="form-text text-muted">Criterion for measuring distances between clusters</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="scale_data" name="scale_data" 
+                                       {% if scale_data or scale_data is not defined %}checked{% endif %}>
+                                <label class="custom-control-label" for="scale_data">Scale data before clustering</label>
+                                <small class="form-text text-muted">Recommended for variables with different scales</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mt-3">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="pca_visualization" name="pca_visualization" 
+                                       {% if pca_visualization or pca_visualization is not defined %}checked{% endif %}>
+                                <label class="custom-control-label" for="pca_visualization">Use PCA for visualization</label>
+                                <small class="form-text text-muted">Reduces dimensionality to 2D for better visualization of clusters</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mt-3">
+                            <label>Feature Selection:</label>
+                            <div class="custom-control custom-radio">
+                                <input type="radio" id="all_features" name="feature_selection" value="all" class="custom-control-input" 
+                                       {% if feature_selection == 'all' or not feature_selection %}checked{% endif %}>
+                                <label class="custom-control-label" for="all_features">Use all numeric features</label>
+                            </div>
+                            <div class="custom-control custom-radio mt-2">
+                                <input type="radio" id="select_features" name="feature_selection" value="select" class="custom-control-input" 
+                                       {% if feature_selection == 'select' %}checked{% endif %}>
+                                <label class="custom-control-label" for="select_features">Select specific features</label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mt-3" id="feature_selection_div" style="{% if feature_selection != 'select' %}display: none;{% endif %}">
+                            <label for="selected_features">Select Features:</label>
+                            <select multiple class="form-control" id="selected_features" name="selected_features" size="8">
+                                {% if columns %}
+                                    {% for col in columns %}
+                                        {% if col in numeric_columns %}
+                                            <option value="{{ col }}" {% if selected_features and col in selected_features %}selected{% endif %}>{{ col }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            </select>
+                            <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple features</small>
+                        </div>
+                        <div class="form-group mt-3">
+                            <label for="index_column">Plot Index Column (Optional):</label>
+                            <select class="form-control" id="index_column" name="index_column">
+                                <option value="">None (Use numeric indices)</option>
+                                {% if columns %}
+                                    {% for col in columns %}
+                                        <option value="{{ col }}" {% if index_column and col == index_column %}selected{% endif %}>{{ col }}</option>
+                                    {% endfor %}
+                                {% endif %}
+                            </select>
+                            <small class="form-text text-muted">Select a column to use as labels in the cluster visualization</small>
+                        </div>
+                        
+                        <div class="form-group mt-3" id="label_density_div" style="{% if not index_column %}display: none;{% endif %}">
+                            <label for="label_density">Label Density:</label>
+                            <input type="range" class="custom-range" id="label_density" name="label_density" 
+                                   value="{% if label_density %}{{ label_density }}{% else %}10{% endif %}" min="1" max="100">
+                            <small class="form-text text-muted">Percentage of points to label (lower values for clearer plots)</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-warning mt-3">
+                    <i class="fas fa-play mr-2"></i>Run Clustering Analysis
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Clustering Results Section (displayed if clustering_performed is True) -->
+    {% if clustering_performed %}
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Clustering Results</h5>
+        </div>
+        <div class="card-body">
+            <!-- Clustering Summary -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h6>Clustering Information</h6>
+                    <table class="table table-bordered table-sm">
+                        <tbody>
+                            <tr>
+                                <th>Method</th>
+                                <td>{{ method|capitalize }}</td>
+                            </tr>
+                            <tr>
+                                <th>Number of Clusters</th>
+                                <td>
+                                    {% if method == 'hierarchical' and h_n_clusters %}
+                                        {{ h_n_clusters }}
+                                    {% else %}
+                                        {{ n_clusters }}{% if method == 'dbscan' and n_noise %} (plus {{ n_noise }} noise points){% endif %}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% if silhouette is not none %}
+                            <tr>
+                                <th>Silhouette Score</th>
+                                <td>{{ "%.4f"|format(silhouette) }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if calinski is not none %}
+                            <tr>
+                                <th>Calinski-Harabasz Score</th>
+                                <td>{{ "%.4f"|format(calinski) }}</td>
+                            </tr>
+                            {% endif %}
+                            
+                            <!-- Method-specific metrics -->
+                            {% if method == 'kmeans' and inertia is not none %}
+                            <tr>
+                                <th>Inertia (within-cluster sum of squares)</th>
+                                <td>{{ "%.4f"|format(inertia) }}</td>
+                            </tr>
+                            {% elif method == 'dbscan' %}
+                            <tr>
+                                <th>Epsilon (ε)</th>
+                                <td>{{ "%.2f"|format(eps) }}</td>
+                            </tr>
+                            <tr>
+                                <th>Min Samples</th>
+                                <td>{{ min_samples }}</td>
+                            </tr>
+                            {% elif method == 'hierarchical' %}
+                            <tr>
+                                <th>Linkage Method</th>
+                                <td>{{ linkage_method }}</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="col-md-6">
+                    <h6>Cluster Distribution</h6>
+                    <!-- Display cluster size distribution plot -->
+                    {% if size_plot %}
+                    <div class="text-center">
+                        <img src="{{ size_plot }}" class="img-fluid" alt="Cluster Size Distribution">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Cluster size distribution not available.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Visualization Tabs -->
+            <ul class="nav nav-tabs" id="clusteringResultTabs" role="tablist">
+                <!-- PCA Visualization Tab -->
+                <li class="nav-item">
+                    <a class="nav-link active" id="visualization-tab" data-toggle="tab" href="#visualization" role="tab" 
+                       aria-controls="visualization" aria-selected="true">Cluster Visualization</a>
+                </li>
+                
+                <!-- Profiles Tab -->
+                <li class="nav-item">
+                    <a class="nav-link" id="profiles-tab" data-toggle="tab" href="#profiles" role="tab" 
+                       aria-controls="profiles" aria-selected="false">Cluster Profiles</a>
+                </li>
+                
+                <!-- Method-specific Tab -->
+                {% if method == 'kmeans' %}
+                <li class="nav-item">
+                    <a class="nav-link" id="elbow-tab" data-toggle="tab" href="#elbow" role="tab" 
+                       aria-controls="elbow" aria-selected="false">Elbow Method</a>
+                </li>
+                {% elif method == 'dbscan' %}
+                <li class="nav-item">
+                    <a class="nav-link" id="eps-tab" data-toggle="tab" href="#eps" role="tab" 
+                       aria-controls="eps" aria-selected="false">k-distance Graph</a>
+                </li>
+                {% elif method == 'hierarchical' %}
+                <li class="nav-item">
+                    <a class="nav-link" id="dendrogram-tab" data-toggle="tab" href="#dendrogram" role="tab" 
+                       aria-controls="dendrogram" aria-selected="false">Dendrogram</a>
+                </li>
+                {% endif %}
+            </ul>
+            
+            <div class="tab-content mt-3" id="clusteringResultTabContent">
+                <!-- Visualization Tab -->
+                <div class="tab-pane fade show active" id="visualization" role="tabpanel" aria-labelledby="visualization-tab">
+                    {% if cluster_plot %}
+                    <div class="text-center">
+                        <img src="{{ cluster_plot }}" class="img-fluid" alt="Cluster Visualization">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Cluster visualization not available.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Profiles Tab -->
+                <div class="tab-pane fade" id="profiles" role="tabpanel" aria-labelledby="profiles-tab">
+                    {% if profile_plot %}
+                    <div class="text-center">
+                        <img src="{{ profile_plot }}" class="img-fluid" alt="Cluster Profiles">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Cluster profiles not available.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Method-specific Tabs -->
+                {% if method == 'kmeans' %}
+                <div class="tab-pane fade" id="elbow" role="tabpanel" aria-labelledby="elbow-tab">
+                    {% if elbow_plot %}
+                    <div class="text-center">
+                        <img src="{{ elbow_plot }}" class="img-fluid" alt="Elbow Method">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Elbow plot not available.
+                    </div>
+                    {% endif %}
+                </div>
+                {% elif method == 'dbscan' %}
+                <div class="tab-pane fade" id="eps" role="tabpanel" aria-labelledby="eps-tab">
+                    {% if eps_plot %}
+                    <div class="text-center">
+                        <img src="{{ eps_plot }}" class="img-fluid" alt="k-distance Graph">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        k-distance graph not available.
+                    </div>
+                    {% endif %}
+                </div>
+                {% elif method == 'hierarchical' %}
+                <div class="tab-pane fade" id="dendrogram" role="tabpanel" aria-labelledby="dendrogram-tab">
+                    {% if dendrogram %}
+                    <div class="text-center">
+                        <img src="{{ dendrogram }}" class="img-fluid" alt="Hierarchical Clustering Dendrogram">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Dendrogram not available.
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Download Section -->
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <h6>Download Results</h6>
+                    <div class="btn-group">
+                        <a href="{{ url_for('download_clustering_results') }}" class="btn btn-outline-warning">
+                            <i class="fas fa-download mr-2"></i>Clustered Data
+                        </a>
+                        <a href="{{ url_for('download_clustering_report') }}" class="btn btn-outline-warning">
+                            <i class="fas fa-file-pdf mr-2"></i>Clustering Report
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // JavaScript to control tab behavior and toggle method options
+    $(document).ready(function(){
+        $('#clusteringResultTabs a').on('click', function (e) {
+            e.preventDefault();
+            $(this).tab('show');
+        });
+        
+            // Initialize feature selection visibility
+        if($('input[name="feature_selection"]:checked').val() == 'select'){
+            $('#feature_selection_div').show();
+        } else {
+            $('#feature_selection_div').hide();
+        }
+    
+        // Toggle feature selection div
+        $('input[name="feature_selection"]').change(function(){
+            if($(this).val() == 'select'){
+                $('#feature_selection_div').show();
+            } else {
+                $('#feature_selection_div').hide();
+            }
+        });
+        
+        // Initial toggle of method options
+        toggleMethodOptions();
+    });
+    
+    function toggleMethodOptions() {
+        // Hide all method options first
+        $('.method-options').hide();
+        
+        // Show the appropriate options based on the selected method
+        var method = $('#clustering_method').val();
+        if (method === 'kmeans') {
+            $('#kmeans_options').show();
+        } else if (method === 'dbscan') {
+            $('#dbscan_options').show();
+        } else if (method === 'hierarchical') {
+            $('#hierarchical_options').show();
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,385 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="content-section">
+    <legend class="border-bottom mb-4">
+        <i class="fas fa-chart-scatter mr-2"></i>Principal Component Regression (PCR)
+    </legend>
+    
+    <!-- Back button -->
+    <div class="mb-4">
+        <a href="{{ url_for('analysis_dashboard') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Analysis Dashboard
+        </a>
+    </div>
+    
+    <!-- Current Dataset Info -->
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Dataset Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <strong>File Name:</strong> {% if filename %} {{filename}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col-6">
+                            <strong>Rows:</strong> {% if no_of_rows %} {{no_of_rows}} {% else %} None {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-6">
+                            <strong>Columns:</strong> {% if no_of_cols %} {{no_of_cols}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col-6">
+                            <strong>Target:</strong> {% if target_var %} {{target_var}} {% else %} <span class="text-danger">Not Set</span> {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">PCR Description</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Principal Component Regression (PCR) combines PCA with regression by first reducing the dimensionality of the data and then performing regression on the principal components.
+                    </p>
+                    <p class="mb-0">
+                        <small class="text-muted">
+                            PCR is particularly useful when dealing with multicollinearity in the predictors.
+                        </small>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if not target_var %}
+    <!-- Warning message if target variable is not set -->
+    <div class="alert alert-warning mb-4">
+        <i class="fas fa-exclamation-triangle mr-2"></i>
+        <strong>Target variable not set!</strong> Please select a target variable in the Analysis Dashboard before performing PCR.
+        <a href="{{ url_for('analysis_dashboard') }}" class="btn btn-sm btn-warning ml-3">
+            Go to Dashboard
+        </a>
+    </div>
+    {% endif %}
+    
+    <!-- PCR Configuration Form -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">PCR Configuration</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('perform_pcr') }}" {% if not target_var %}onsubmit="return false;"{% endif %}>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="n_components">Number of Components:</label>
+                            <input type="number" class="form-control" id="n_components" name="n_components" 
+                                   value="{% if n_components %}{{ n_components }}{% else %}2{% endif %}" 
+                                   min="1" max="{{ no_of_cols|int - 1 if no_of_cols else 2 }}">
+                            <small class="form-text text-muted">Select number of principal components to use in regression</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="test_size">Test Set Size:</label>
+                            <input type="range" class="custom-range" id="test_size_slider" min="0.1" max="0.5" step="0.05" 
+                                   value="{% if test_size %}{{ test_size }}{% else %}0.2{% endif %}" 
+                                   oninput="updateTestSizeValue(this.value)">
+                            <div class="input-group mt-2">
+                                <input type="number" class="form-control" id="test_size" name="test_size" 
+                                       value="{% if test_size %}{{ test_size }}{% else %}0.2{% endif %}" 
+                                       min="0.1" max="0.5" step="0.05" oninput="updateTestSizeSlider(this.value)">
+                                <div class="input-group-append">
+                                    <span class="input-group-text">of data</span>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">Portion of data to use for testing the model</small>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Options:</label>
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="scale_data" name="scale_data" 
+                                       {% if scale_data %}checked{% endif %} checked>
+                                <label class="custom-control-label" for="scale_data">Scale data before PCR</label>
+                                <small class="form-text text-muted">Recommended for variables with different scales</small>
+                            </div>
+                            
+                            <div class="custom-control custom-checkbox mt-3">
+                                <input type="checkbox" class="custom-control-input" id="optimize_components" name="optimize_components" 
+                                       {% if optimize_components %}checked{% endif %}>
+                                <label class="custom-control-label" for="optimize_components">Optimize number of components</label>
+                                <small class="form-text text-muted">Find optimal number of components using cross-validation</small>
+                            </div>
+                            
+                            <div class="custom-control custom-checkbox mt-3">
+                                <input type="checkbox" class="custom-control-input" id="compare_with_linear" name="compare_with_linear" 
+                                       {% if compare_with_linear %}checked{% endif %} checked>
+                                <label class="custom-control-label" for="compare_with_linear">Compare with linear regression</label>
+                                <small class="form-text text-muted">Compare PCR performance with standard linear regression</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label>Select plots to generate:</label>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input" id="show_pca_variance" name="show_pca_variance" 
+                                               {% if show_pca_variance %}checked{% endif %} checked>
+                                        <label class="custom-control-label" for="show_pca_variance">Explained Variance</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input" id="show_pred_actual" name="show_pred_actual" 
+                                               {% if show_pred_actual %}checked{% endif %} checked>
+                                        <label class="custom-control-label" for="show_pred_actual">Predicted vs Actual</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input" id="show_residuals" name="show_residuals" 
+                                               {% if show_residuals %}checked{% endif %} checked>
+                                        <label class="custom-control-label" for="show_residuals">Residuals Plot</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-success mt-3" {% if not target_var %}disabled{% endif %}>
+                    <i class="fas fa-play mr-2"></i>Run PCR Analysis
+                </button>
+                
+                {% if not target_var %}
+                <small class="form-text text-danger mt-2">
+                    You must select a target variable before running PCR.
+                </small>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+    
+    <!-- PCR Results Section (displayed if pcr_performed is True) -->
+    {% if pcr_performed %}
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">PCR Results</h5>
+        </div>
+        <div class="card-body">
+            <!-- PCR Summary Statistics -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h6>Model Performance</h6>
+                    <table class="table table-bordered table-sm">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Metric</th>
+                                <th>PCR Model</th>
+                                {% if compare_with_linear %}
+                                <th>Linear Regression</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>R² (Training)</td>
+                                <td>{{ "%.4f"|format(pcr_train_r2) }}</td>
+                                {% if compare_with_linear %}
+                                <td>{{ "%.4f"|format(lr_train_r2) }}</td>
+                                {% endif %}
+                            </tr>
+                            <tr>
+                                <td>R² (Test)</td>
+                                <td>{{ "%.4f"|format(pcr_test_r2) }}</td>
+                                {% if compare_with_linear %}
+                                <td>{{ "%.4f"|format(lr_test_r2) }}</td>
+                                {% endif %}
+                            </tr>
+                            <tr>
+                                <td>RMSE (Training)</td>
+                                <td>{{ "%.4f"|format(pcr_train_rmse) }}</td>
+                                {% if compare_with_linear %}
+                                <td>{{ "%.4f"|format(lr_train_rmse) }}</td>
+                                {% endif %}
+                            </tr>
+                            <tr>
+                                <td>RMSE (Test)</td>
+                                <td>{{ "%.4f"|format(pcr_test_rmse) }}</td>
+                                {% if compare_with_linear %}
+                                <td>{{ "%.4f"|format(lr_test_rmse) }}</td>
+                                {% endif %}
+                            </tr>
+                            <tr>
+                                <td>MAE (Test)</td>
+                                <td>{{ "%.4f"|format(pcr_test_mae) }}</td>
+                                {% if compare_with_linear %}
+                                <td>{{ "%.4f"|format(lr_test_mae) }}</td>
+                                {% endif %}
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="col-md-6">
+                    <h6>Model Information</h6>
+                    <table class="table table-bordered table-sm">
+                        <tbody>
+                            <tr>
+                                <th>Target Variable</th>
+                                <td>{{ target_var }}</td>
+                            </tr>
+                            <tr>
+                                <th>Number of Components Used</th>
+                                <td>{{ n_components }}</td>
+                            </tr>
+                            <tr>
+                                <th>Total Variance Explained</th>
+                                <td>{{ "%.2f"|format(total_variance_explained) }}%</td>
+                            </tr>
+                            <tr>
+                                <th>Train/Test Split</th>
+                                <td>{{ "%.0f"|format((1-test_size)*100) }}% / {{ "%.0f"|format(test_size*100) }}%</td>
+                            </tr>
+                            <tr>
+                                <th>Data Scaled</th>
+                                <td>{% if scale_data %}Yes{% else %}No{% endif %}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Visualization Tabs -->
+            <ul class="nav nav-tabs" id="pcrResultTabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" id="variance-tab" data-toggle="tab" href="#variance" role="tab" 
+                       aria-controls="variance" aria-selected="true">Explained Variance</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="prediction-tab" data-toggle="tab" href="#prediction" role="tab" 
+                       aria-controls="prediction" aria-selected="false">Predicted vs Actual</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="residuals-tab" data-toggle="tab" href="#residuals" role="tab" 
+                       aria-controls="residuals" aria-selected="false">Residuals</a>
+                </li>
+                {% if optimize_components %}
+                <li class="nav-item">
+                    <a class="nav-link" id="optimization-tab" data-toggle="tab" href="#optimization" role="tab" 
+                       aria-controls="optimization" aria-selected="false">Component Optimization</a>
+                </li>
+                {% endif %}
+            </ul>
+            
+            <div class="tab-content mt-3" id="pcrResultTabContent">
+                <!-- Explained Variance Tab -->
+                <div class="tab-pane fade show active" id="variance" role="tabpanel" aria-labelledby="variance-tab">
+                    {% if pcr_variance_plot %}
+                    <div class="text-center">
+                        <img src="{{ pcr_variance_plot }}" class="img-fluid" alt="Explained Variance">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Explained variance plot not available.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Predicted vs Actual Tab -->
+                <div class="tab-pane fade" id="prediction" role="tabpanel" aria-labelledby="prediction-tab">
+                    {% if pcr_pred_actual_plot %}
+                    <div class="text-center">
+                        <img src="{{ pcr_pred_actual_plot }}" class="img-fluid" alt="Predicted vs Actual">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Predicted vs Actual plot not available.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Residuals Tab -->
+                <div class="tab-pane fade" id="residuals" role="tabpanel" aria-labelledby="residuals-tab">
+                    {% if pcr_residuals_plot %}
+                    <div class="text-center">
+                        <img src="{{ pcr_residuals_plot }}" class="img-fluid" alt="Residuals Plot">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Residuals plot not available.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Component Optimization Tab -->
+                {% if optimize_components %}
+                <div class="tab-pane fade" id="optimization" role="tabpanel" aria-labelledby="optimization-tab">
+                    {% if pcr_optimization_plot %}
+                    <div class="text-center">
+                        <img src="{{ pcr_optimization_plot }}" class="img-fluid" alt="Component Optimization">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Component optimization plot not available.
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Download Section -->
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <h6>Download Results</h6>
+                    <div class="btn-group">
+                        <a href="{{ url_for('download_pcr_predictions') }}" class="btn btn-outline-success">
+                            <i class="fas fa-download mr-2"></i>Predictions
+                        </a>
+                        <a href="{{ url_for('download_pcr_model') }}" class="btn btn-outline-success">
+                            <i class="fas fa-download mr-2"></i>Model Coefficients
+                        </a>
+                        <a href="{{ url_for('download_pcr_report') }}" class="btn btn-outline-success">
+                            <i class="fas fa-file-pdf mr-2"></i>PCR Report
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // JavaScript to control tab behavior and slider sync
+    $(document).ready(function(){
+        $('#pcrResultTabs a').on('click', function (e) {
+            e.preventDefault();
+            $(this).tab('show');
+        });
+    });
+    
+    function updateTestSizeValue(val) {
+        document.getElementById('test_size').value = val;
+    }
+    
+    function updateTestSizeSlider(val) {
+        document.getElementById('test_size_slider').value = val;
+    }
+</script>
+{% endblock %}

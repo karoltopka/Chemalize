@@ -1,0 +1,4 @@
+MLR Analysis Report
+Target Variable: logK HSA
+Features: LogS (pH = 7,40), TDB05i
+Include Intercept: Yes

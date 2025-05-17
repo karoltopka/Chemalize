@@ -1,0 +1,543 @@
+{% extends "layout.html" %} 
+
+{% block head %}
+<!-- Add Plotly.js to the head -->
+<script src="https://cdn.jsdelivr.net/npm/plotly.js@2.24.2/dist/plotly.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <!-- First column - Pair-plot Visualization -->
+        <div class="col-lg-6">
+            <div class="content-section">
+                <legend class="border-bottom mb-4">Pair-plot</legend>
+                <img src="/pairplot1.png" class="img-fluid cursor-pointer" alt="Pair plot visualization" 
+                     style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#imageModal"/>
+            </div>
+        </div>
+        
+        <div class="col-lg-6">
+            <div class="content-section">
+                <legend class="border-bottom mb-4">Scatter Plot</legend>
+                <form id="xy-visualization-form">
+                    <div class="container">
+                        <div class="row align-items-center">
+                            <div class="col-12 col-md-4 mb-3 mb-md-0">
+                                <label class="form-label">Select X</label>
+                                <select name="x_col" class="form-select">
+                                    {% for each in cols %}
+                                        <option value="{{each}}" {% if each == default_x %} selected {% endif %}>{{each}}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-4 mb-3 mb-md-0">
+                                <label class="form-label">Select Y</label>
+                                <select name="y_col" class="form-select">
+                                    {% for each in cols %}
+                                        <option value="{{each}}" {% if each == default_y %} selected {% endif %}>{{each}}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    Visualize
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+                
+                <div id="xy-plot-container" class="mt-4">
+                    {% if posted == 1 and data %}
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">{{ x_col_name }} vs {{ y_col_name }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="myChart1" width="100%" height="400"></canvas>
+                            </div>
+                        </div>
+                        
+                        <script type="text/javascript">
+                            // Initial render
+                            renderScatterPlot({{ data|safe }}, '{{ x_col_name }}', '{{ y_col_name }}');
+                        </script>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Histogram Visualization Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="content-section">
+                <legend class="border-bottom mb-4">Single Column Histogram</legend>
+                <form id="histogram-visualization-form">
+                    <div class="container">
+                        <div class="row align-items-center">
+                            <div class="col-12 col-md-8 mb-3 mb-md-0">
+                                <label class="form-label">Select Column</label>
+                                <select name="x_col" class="form-select">
+                                    {% for each in cols %}
+                                        <option value="{{each}}" {% if each == x_col %} selected {% endif %}>{{each}}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    Generate Histogram
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+                
+                <div id="histogram-container" class="mt-4">
+                    {% if posted == 1 and histogram_data %}
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Histogram for {{ x_col }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="histogram-plot" style="width: 100%; height: 400px;"></div>
+                            </div>
+                        </div>
+                        
+                        <script>
+                            // Initial render
+                            renderHistogram(JSON.parse('{{ histogram_data|safe }}'));
+                        </script>
+                    {% elif posted == 1 and plot_path %}
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Histogram for {{ x_col }}</h5>
+                            </div>
+                            <div class="card-body">
+                                <img src="{{ plot_path }}" class="img-fluid" alt="Histogram Visualization">
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="imageModalLabel">Pair-plot</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img src="/pairplot1.png" class="img-fluid" alt="Enlarged pair plot"/>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AJAX Functionality -->
+<script>
+// Ensure Chart.js is available
+if (typeof Chart === 'undefined') {
+    console.error('Chart.js is not loaded! Loading it now...');
+    const chartScript = document.createElement('script');
+    chartScript.src = 'https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js';
+    document.head.appendChild(chartScript);
+}
+
+// Ensure Plotly is available
+if (typeof Plotly === 'undefined') {
+    console.error('Plotly.js is not loaded! Loading it now...');
+    const plotlyScript = document.createElement('script');
+    plotlyScript.src = 'https://cdn.jsdelivr.net/npm/plotly.js@2.24.2/dist/plotly.min.js';
+    plotlyScript.onload = function() {
+        console.log('Plotly loaded successfully!');
+    };
+    document.head.appendChild(plotlyScript);
+}
+
+// Global chart rendering functions
+function renderScatterPlot(data, xLabel, yLabel) {
+    // Make sure Chart.js is available
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js not available for scatter plot');
+        return;
+    }
+
+    const ctx = document.getElementById("myChart1").getContext('2d');
+    new Chart.Scatter(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Scatter Plot',
+                data: data,
+                showLine: false,
+                borderColor: "blue",
+                backgroundColor: "blue"
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                yAxes: [{
+                    scaleLabel: {
+                        display: true,
+                        labelString: yLabel
+                    }
+                }],
+                xAxes: [{
+                    scaleLabel: {
+                        display: true,
+                        labelString: xLabel
+                    }
+                }]
+            }
+        }
+    });
+}
+
+function renderHistogram(histogramData) {
+    // Make sure Plotly is available
+    if (typeof Plotly === 'undefined') {
+        console.error('Plotly.js not available for histogram');
+        const plotElement = document.getElementById('histogram-plot');
+        if (plotElement) {
+            plotElement.innerHTML = '<div class="alert alert-danger">Plotly.js library is not loaded. Please refresh the page.</div>';
+        }
+        return;
+    }
+
+    // Create the appropriate chart based on data type
+    if (histogramData.is_numeric) {
+        // Numeric data - create a histogram
+        const data = [{
+            x: histogramData.values,
+            type: 'histogram',
+            marker: {
+                color: 'rgba(70, 130, 180, 0.7)',
+                line: {
+                    color: 'rgba(70, 130, 180, 1)',
+                    width: 1
+                }
+            },
+            hovertemplate: 'Value: %{x}<br>Count: %{y}<extra></extra>'
+        }];
+        
+        // Layout configuration
+        const layout = {
+            title: {
+                text: 'Distribution of ' + histogramData.column_name,
+                font: {
+                    size: 18
+                }
+            },
+            xaxis: {
+                title: histogramData.column_name,
+                gridcolor: 'rgba(230, 230, 230, 0.8)'
+            },
+            yaxis: {
+                title: 'Frequency',
+                gridcolor: 'rgba(230, 230, 230, 0.8)'
+            },
+            paper_bgcolor: 'rgba(0, 0, 0, 0)',
+            plot_bgcolor: 'rgba(0, 0, 0, 0)',
+            margin: {
+                l: 50,
+                r: 30,
+                b: 50,
+                t: 80,
+                pad: 4
+            },
+            bargap: 0.05
+        };
+        
+        // Render the plot
+        Plotly.newPlot('histogram-plot', data, layout, {
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+            displaylogo: false
+        });
+    } else {
+        // Categorical data - create a bar chart
+        const data = [{
+            x: histogramData.categories,
+            y: histogramData.counts,
+            type: 'bar',
+            marker: {
+                color: 'rgba(70, 130, 180, 0.7)',
+                line: {
+                    color: 'rgba(70, 130, 180, 1)',
+                    width: 1
+                }
+            },
+            hovertemplate: '%{x}<br>Count: %{y}<extra></extra>'
+        }];
+        
+        // Layout configuration
+        const layout = {
+            title: {
+                text: 'Distribution of ' + histogramData.column_name,
+                font: {
+                    size: 18
+                }
+            },
+            xaxis: {
+                title: histogramData.column_name,
+                gridcolor: 'rgba(230, 230, 230, 0.8)'
+            },
+            yaxis: {
+                title: 'Count',
+                gridcolor: 'rgba(230, 230, 230, 0.8)'
+            },
+            paper_bgcolor: 'rgba(0, 0, 0, 0)',
+            plot_bgcolor: 'rgba(0, 0, 0, 0)',
+            margin: {
+                l: 50,
+                r: 30,
+                b: 50,
+                t: 80,
+                pad: 4
+            }
+        };
+        
+        // Render the plot
+        Plotly.newPlot('histogram-plot', data, layout, {
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+            displaylogo: false
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Elements
+    const xyForm = document.getElementById('xy-visualization-form');
+    const histogramForm = document.getElementById('histogram-visualization-form');
+    const xyContainer = document.getElementById('xy-plot-container');
+    const histogramContainer = document.getElementById('histogram-container');
+    
+    // Flash message function
+    function showFlashMessage(message, category) {
+        const flashContainer = document.createElement('div');
+        flashContainer.className = `alert alert-${category} alert-dismissible fade show mt-3`;
+        flashContainer.role = 'alert';
+        
+        flashContainer.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        // Insert at the top of the container
+        const container = document.querySelector('.container');
+        container.insertBefore(flashContainer, container.firstChild);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            flashContainer.remove();
+        }, 5000);
+    }
+    
+    // Function to safely handle JSON responses or parse text responses
+    function safelyParseResponse(response) {
+        return response.text().then(text => {
+            try {
+                // Try to parse as JSON
+                return JSON.parse(text);
+            } catch (e) {
+                // If it's not JSON, check if it's an HTML error page
+                if (text.includes('<html') && text.includes('Error')) {
+                    // Extract error message from HTML if possible
+                    const errorMatch = text.match(/<div class="alert alert-danger">(.*?)<\/div>/);
+                    if (errorMatch && errorMatch[1]) {
+                        return {
+                            status: 'error',
+                            message: errorMatch[1].trim(),
+                            html_response: true
+                        };
+                    }
+                }
+                
+                // Default fallback
+                return {
+                    status: 'error',
+                    message: 'Server returned a non-JSON response. The page might have encountered an error.',
+                    html_response: true,
+                    responseText: text.substring(0, 500) + '...' // Include first 500 chars for debugging
+                };
+            }
+        });
+    }
+    
+    // Submit event for XY visualization
+    if (xyForm) {
+        xyForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(xyForm);
+            formData.append('Submit', 'XYVisualize');
+            
+            // Loading indicator
+            xyContainer.innerHTML = '<div class="text-center my-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Generating scatter plot...</p></div>';
+            
+            fetch('/visualize', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => safelyParseResponse(response))
+            .then(data => {
+                if (data.status === 'success') {
+                    // Update the XY plot container
+                    xyContainer.innerHTML = `
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Scatter Plot: ${data.x_col_name} vs ${data.y_col_name}</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="myChart1" width="100%" height="400"></canvas>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Render the new scatter plot
+                    renderScatterPlot(data.plot_data, data.x_col_name, data.y_col_name);
+                    
+                    if (data.message) {
+                        showFlashMessage(data.message, 'success');
+                    }
+                } else {
+                    // Show detailed error message
+                    let errorMsg = data.message || 'Unknown error occurred';
+                    
+                    if (data.html_response) {
+                        xyContainer.innerHTML = `
+                            <div class="alert alert-danger">
+                                <h5>Error Occurred</h5>
+                                <p>${errorMsg}</p>
+                                <button class="btn btn-sm btn-outline-secondary mt-2" onclick="window.location.reload()">Reload Page</button>
+                            </div>
+                        `;
+                    } else {
+                        xyContainer.innerHTML = `
+                            <div class="alert alert-danger">
+                                <h5>Visualization Error</h5>
+                                <p>${errorMsg}</p>
+                            </div>
+                        `;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                xyContainer.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5>Request Failed</h5>
+                        <p>An error occurred while communicating with the server: ${error.message}</p>
+                        <button class="btn btn-sm btn-outline-secondary mt-2" onclick="window.location.reload()">Reload Page</button>
+                    </div>
+                `;
+            });
+        });
+    }
+    
+    // Submit event for Histogram visualization
+    if (histogramForm) {
+        histogramForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(histogramForm);
+            formData.append('Submit', 'Visualize');
+            
+            // Loading indicator
+            histogramContainer.innerHTML = '<div class="text-center my-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Generating histogram...</p></div>';
+            
+            fetch('/visualize', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => safelyParseResponse(response))
+            .then(data => {
+                if (data.status === 'success') {
+                    if (data.histogram_data) {
+                        // Update the histogram container
+                        histogramContainer.innerHTML = `
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Interactive Histogram for ${data.x_col}</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="histogram-plot" style="width: 100%; height: 400px;"></div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Render the new histogram
+                        renderHistogram(data.histogram_data);
+                        
+                        if (data.message) {
+                            showFlashMessage(data.message, 'success');
+                        }
+                    } else if (data.plot_path) {
+                        // Fallback to static image
+                        histogramContainer.innerHTML = `
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Histogram for ${data.x_col}</h5>
+                                </div>
+                                <div class="card-body">
+                                    <img src="${data.plot_path}" class="img-fluid" alt="Histogram Visualization">
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        histogramContainer.innerHTML = `<div class="alert alert-warning">No visualization data available</div>`;
+                    }
+                } else {
+                    // Show detailed error message
+                    let errorMsg = data.message || 'Unknown error occurred';
+                    
+                    if (data.html_response) {
+                        histogramContainer.innerHTML = `
+                            <div class="alert alert-danger">
+                                <h5>Error Occurred</h5>
+                                <p>${errorMsg}</p>
+                                <button class="btn btn-sm btn-outline-secondary mt-2" onclick="window.location.reload()">Reload Page</button>
+                            </div>
+                        `;
+                    } else {
+                        histogramContainer.innerHTML = `
+                            <div class="alert alert-danger">
+                                <h5>Visualization Error</h5>
+                                <p>${errorMsg}</p>
+                            </div>
+                        `;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                histogramContainer.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5>Request Failed</h5>
+                        <p>An error occurred while communicating with the server: ${error.message}</p>
+                        <button class="btn btn-sm btn-outline-secondary mt-2" onclick="window.location.reload()">Reload Page</button>
+                    </div>
+                `;
+            });
+        });
+    }
+});
+</script>
+{% endblock content %}
