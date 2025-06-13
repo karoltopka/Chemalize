@@ -6,55 +6,84 @@
 {% endblock %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container">
+    <!-- Page Title Section -->
+    <div class="modern-card animate-in">
+        <div class="title-content">
+            <div class="title-icon">
+                <i class="fas fa-chart-area"></i>
+            </div>
+            <div class="title-info">
+                <h3>Data Visualization Studio</h3>
+                <p class="title-subtitle">Explore your data through interactive visualizations</p>
+            </div>
+        </div>
+    </div>
+
     <div class="row">
-        <!-- First column - Pair-plot Visualization -->
+        <!-- Pair-plot Visualization -->
         <div class="col-lg-6">
-            <div class="content-section">
-                <legend class="border-bottom mb-4">Pair-plot</legend>
-                <img src="/pairplot1.png" class="img-fluid cursor-pointer" alt="Pair plot visualization" 
-                     style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#imageModal"/>
+            <div class="modern-card animate-in">
+                <h4><i class="fas fa-project-diagram"></i> Pair-plot Visualization</h4>
+                <p class="text-muted mb-3">Explore relationships between all numeric variables</p>
+                
+                <div class="visualization-container">
+                    <div class="image-preview" onclick="openImageModal()">
+                        <img src="/pairplot1.png" class="img-fluid visualization-image" alt="Pair plot visualization"/>
+                        <div class="image-overlay">
+                            <i class="fas fa-expand-arrows-alt"></i>
+                            <span>Click to enlarge</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
+        <!-- Scatter Plot -->
         <div class="col-lg-6">
-            <div class="content-section">
-                <legend class="border-bottom mb-4">Scatter Plot</legend>
-                <form id="xy-visualization-form">
-                    <div class="container">
-                        <div class="row align-items-center">
-                            <div class="col-12 col-md-4 mb-3 mb-md-0">
-                                <label class="form-label">Select X</label>
-                                <select name="x_col" class="form-select">
-                                    {% for each in cols %}
-                                        <option value="{{each}}" {% if each == default_x %} selected {% endif %}>{{each}}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-12 col-md-4 mb-3 mb-md-0">
-                                <label class="form-label">Select Y</label>
-                                <select name="y_col" class="form-select">
-                                    {% for each in cols %}
-                                        <option value="{{each}}" {% if each == default_y %} selected {% endif %}>{{each}}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-12 col-md-4">
-                                <button type="submit" class="btn btn-primary w-100">
-                                    Visualize
-                                </button>
-                            </div>
+            <div class="modern-card animate-in">
+                <h4><i class="fas fa-chart-scatter"></i> Interactive Scatter Plot</h4>
+                <p class="text-muted mb-3">Create custom scatter plots with any two variables</p>
+                
+                <form id="xy-visualization-form" class="visualization-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-arrows-alt-h"></i> X-Axis Variable
+                            </label>
+                            <select name="x_col" class="form-control">
+                                {% for each in cols %}
+                                    <option value="{{each}}" {% if each == default_x %} selected {% endif %}>{{each}}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-arrows-alt-v"></i> Y-Axis Variable
+                            </label>
+                            <select name="y_col" class="form-control">
+                                {% for each in cols %}
+                                    <option value="{{each}}" {% if each == default_y %} selected {% endif %}>{{each}}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <button type="submit" class="modern-btn btn-primary-modern w-100">
+                                <i class="fas fa-chart-scatter"></i> Generate Plot
+                            </button>
                         </div>
                     </div>
                 </form>
                 
-                <div id="xy-plot-container" class="mt-4">
+                <div id="xy-plot-container" class="plot-container">
                     {% if posted == 1 and data %}
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0">{{ x_col_name }} vs {{ y_col_name }}</h5>
+                        <div class="plot-card">
+                            <div class="plot-header">
+                                <h6><i class="fas fa-chart-scatter"></i> {{ x_col_name }} vs {{ y_col_name }}</h6>
                             </div>
-                            <div class="card-body">
+                            <div class="plot-body">
                                 <canvas id="myChart1" width="100%" height="400"></canvas>
                             </div>
                         </div>
@@ -70,70 +99,81 @@
     </div>
     
     <!-- Histogram Visualization Section -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="content-section">
-                <legend class="border-bottom mb-4">Single Column Histogram</legend>
-                <form id="histogram-visualization-form">
-                    <div class="container">
-                        <div class="row align-items-center">
-                            <div class="col-12 col-md-8 mb-3 mb-md-0">
-                                <label class="form-label">Select Column</label>
-                                <select name="x_col" class="form-select">
-                                    {% for each in cols %}
-                                        <option value="{{each}}" {% if each == x_col %} selected {% endif %}>{{each}}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="col-12 col-md-4">
-                                <button type="submit" class="btn btn-primary w-100">
-                                    Generate Histogram
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </form>
+    <div class="modern-card animate-in">
+        <h4><i class="fas fa-chart-bar"></i> Distribution Analysis</h4>
+        <p class="text-muted mb-4">Analyze the distribution of individual variables with interactive histograms</p>
+        
+        <form id="histogram-visualization-form" class="visualization-form">
+            <div class="form-row histogram-form">
+                <div class="form-group flex-grow-1">
+                    <label class="form-label">
+                        <i class="fas fa-columns"></i> Select Variable
+                    </label>
+                    <select name="x_col" class="form-control">
+                        {% for each in cols %}
+                            <option value="{{each}}" {% if each == x_col %} selected {% endif %}>{{each}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 
-                <div id="histogram-container" class="mt-4">
-                    {% if posted == 1 and histogram_data %}
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0">Histogram for {{ x_col }}</h5>
-                            </div>
-                            <div class="card-body">
-                                <div id="histogram-plot" style="width: 100%; height: 400px;"></div>
-                            </div>
-                        </div>
-                        
-                        <script>
-                            // Initial render
-                            renderHistogram(JSON.parse('{{ histogram_data|safe }}'));
-                        </script>
-                    {% elif posted == 1 and plot_path %}
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0">Histogram for {{ x_col }}</h5>
-                            </div>
-                            <div class="card-body">
-                                <img src="{{ plot_path }}" class="img-fluid" alt="Histogram Visualization">
-                            </div>
-                        </div>
-                    {% endif %}
+                <div class="form-group">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="modern-btn btn-success-modern w-100">
+                        <i class="fas fa-chart-bar"></i> Generate Histogram
+                    </button>
                 </div>
             </div>
+        </form>
+        
+        <div id="histogram-container" class="plot-container">
+            {% if posted == 1 and histogram_data %}
+                <div class="plot-card">
+                    <div class="plot-header">
+                        <h6><i class="fas fa-chart-bar"></i> Distribution of {{ x_col }}</h6>
+                    </div>
+                    <div class="plot-body">
+                        <div id="histogram-plot" style="width: 100%; height: 400px;"></div>
+                    </div>
+                </div>
+                
+                <script>
+                    // Initial render
+                    renderHistogram(JSON.parse('{{ histogram_data|safe }}'));
+                </script>
+            {% elif posted == 1 and plot_path %}
+                <div class="plot-card">
+                    <div class="plot-header">
+                        <h6><i class="fas fa-chart-bar"></i> Distribution of {{ x_col }}</h6>
+                    </div>
+                    <div class="plot-body">
+                        <img src="{{ plot_path }}" class="img-fluid" alt="Histogram Visualization">
+                    </div>
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>
 
+<!-- Enhanced Image Modal -->
 <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="imageModalLabel">Pair-plot</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="imageModalLabel">
+                    <i class="fas fa-project-diagram"></i> Pair-plot Visualization
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
             <div class="modal-body text-center">
-                <img src="/pairplot1.png" class="img-fluid" alt="Enlarged pair plot"/>
+                <img src="/pairplot1.png" class="img-fluid modal-image" alt="Enlarged pair plot"/>
+            </div>
+            <div class="modal-footer">
+                <div class="modal-info">
+                    <i class="fas fa-info-circle"></i>
+                    <span>This matrix shows correlations and distributions between all numeric variables</span>
+                </div>
             </div>
         </div>
     </div>
@@ -173,29 +213,60 @@ function renderScatterPlot(data, xLabel, yLabel) {
         type: 'scatter',
         data: {
             datasets: [{
-                label: 'Scatter Plot',
+                label: `${xLabel} vs ${yLabel}`,
                 data: data,
                 showLine: false,
-                borderColor: "blue",
-                backgroundColor: "blue"
+                borderColor: "#2563eb",
+                backgroundColor: "#2563eb",
+                pointBackgroundColor: "#2563eb",
+                pointBorderColor: "#764ba2",
+                pointRadius: 5,
+                pointHoverRadius: 8,
+                pointBorderWidth: 2
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            legend: {
+                display: true,
+                labels: {
+                    fontColor: '#1f2937',
+                    fontSize: 12,
+                    fontStyle: 'bold'
+                }
+            },
             scales: {
                 yAxes: [{
                     scaleLabel: {
                         display: true,
-                        labelString: yLabel
+                        labelString: yLabel,
+                        fontColor: '#1f2937',
+                        fontSize: 14,
+                        fontStyle: 'bold'
+                    },
+                    gridLines: {
+                        color: 'rgba(0,0,0,0.1)'
                     }
                 }],
                 xAxes: [{
                     scaleLabel: {
                         display: true,
-                        labelString: xLabel
+                        labelString: xLabel,
+                        fontColor: '#1f2937',
+                        fontSize: 14,
+                        fontStyle: 'bold'
+                    },
+                    gridLines: {
+                        color: 'rgba(0,0,0,0.1)'
                     }
                 }]
+            },
+            tooltips: {
+                backgroundColor: 'rgba(0,0,0,0.8)',
+                titleFontColor: 'white',
+                bodyFontColor: 'white',
+                cornerRadius: 6
             }
         }
     });
@@ -207,7 +278,7 @@ function renderHistogram(histogramData) {
         console.error('Plotly.js not available for histogram');
         const plotElement = document.getElementById('histogram-plot');
         if (plotElement) {
-            plotElement.innerHTML = '<div class="alert alert-danger">Plotly.js library is not loaded. Please refresh the page.</div>';
+            plotElement.innerHTML = '<div class="modern-alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Plotly.js library is not loaded. Please refresh the page.</div>';
         }
         return;
     }
@@ -219,10 +290,10 @@ function renderHistogram(histogramData) {
             x: histogramData.values,
             type: 'histogram',
             marker: {
-                color: 'rgba(70, 130, 180, 0.7)',
+                color: 'rgba(37, 99, 235, 0.7)',
                 line: {
-                    color: 'rgba(70, 130, 180, 1)',
-                    width: 1
+                    color: 'rgba(118, 75, 162, 1)',
+                    width: 2
                 }
             },
             hovertemplate: 'Value: %{x}<br>Count: %{y}<extra></extra>'
@@ -233,16 +304,26 @@ function renderHistogram(histogramData) {
             title: {
                 text: 'Distribution of ' + histogramData.column_name,
                 font: {
-                    size: 18
+                    size: 18,
+                    color: '#1f2937',
+                    family: 'Inter, sans-serif'
                 }
             },
             xaxis: {
                 title: histogramData.column_name,
-                gridcolor: 'rgba(230, 230, 230, 0.8)'
+                gridcolor: 'rgba(230, 230, 230, 0.8)',
+                titlefont: {
+                    color: '#1f2937',
+                    size: 14
+                }
             },
             yaxis: {
                 title: 'Frequency',
-                gridcolor: 'rgba(230, 230, 230, 0.8)'
+                gridcolor: 'rgba(230, 230, 230, 0.8)',
+                titlefont: {
+                    color: '#1f2937',
+                    size: 14
+                }
             },
             paper_bgcolor: 'rgba(0, 0, 0, 0)',
             plot_bgcolor: 'rgba(0, 0, 0, 0)',
@@ -270,10 +351,10 @@ function renderHistogram(histogramData) {
             y: histogramData.counts,
             type: 'bar',
             marker: {
-                color: 'rgba(70, 130, 180, 0.7)',
+                color: 'rgba(37, 99, 235, 0.7)',
                 line: {
-                    color: 'rgba(70, 130, 180, 1)',
-                    width: 1
+                    color: 'rgba(118, 75, 162, 1)',
+                    width: 2
                 }
             },
             hovertemplate: '%{x}<br>Count: %{y}<extra></extra>'
@@ -284,16 +365,26 @@ function renderHistogram(histogramData) {
             title: {
                 text: 'Distribution of ' + histogramData.column_name,
                 font: {
-                    size: 18
+                    size: 18,
+                    color: '#1f2937',
+                    family: 'Inter, sans-serif'
                 }
             },
             xaxis: {
                 title: histogramData.column_name,
-                gridcolor: 'rgba(230, 230, 230, 0.8)'
+                gridcolor: 'rgba(230, 230, 230, 0.8)',
+                titlefont: {
+                    color: '#1f2937',
+                    size: 14
+                }
             },
             yaxis: {
                 title: 'Count',
-                gridcolor: 'rgba(230, 230, 230, 0.8)'
+                gridcolor: 'rgba(230, 230, 230, 0.8)',
+                titlefont: {
+                    color: '#1f2937',
+                    size: 14
+                }
             },
             paper_bgcolor: 'rgba(0, 0, 0, 0)',
             plot_bgcolor: 'rgba(0, 0, 0, 0)',
@@ -316,33 +407,70 @@ function renderHistogram(histogramData) {
     }
 }
 
+// Modal function
+function openImageModal() {
+    const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+    modal.show();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    // Add entrance animations with delay
+    const cards = document.querySelectorAll('.animate-in');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 150);
+    });
+
     // Elements
     const xyForm = document.getElementById('xy-visualization-form');
     const histogramForm = document.getElementById('histogram-visualization-form');
     const xyContainer = document.getElementById('xy-plot-container');
     const histogramContainer = document.getElementById('histogram-container');
     
-    // Flash message function
+    // Flash message function - poprawiona wersja
     function showFlashMessage(message, category) {
         const flashContainer = document.createElement('div');
-        flashContainer.className = `alert alert-${category} alert-dismissible fade show mt-3`;
-        flashContainer.role = 'alert';
+        flashContainer.className = `modern-alert alert-${category} alert-dismissible fade show`;
+        
+        // Zwiększony z-index i pozycjonowanie poniżej navbara
+        flashContainer.style.position = 'fixed';
+        flashContainer.style.top = '140px'; // Zwiększone z 20px do 80px aby było poniżej navbara
+        flashContainer.style.right = '20px';
+        flashContainer.style.zIndex = '99999'; // Zwiększone z 9999 do 99999
+        flashContainer.style.minWidth = '300px';
+        flashContainer.style.maxWidth = '400px';
+        flashContainer.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
         
         flashContainer.innerHTML = `
+            <i class="fas fa-${category === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
             ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         `;
         
-        // Insert at the top of the container
-        const container = document.querySelector('.container');
-        container.insertBefore(flashContainer, container.firstChild);
+        document.body.appendChild(flashContainer);
         
-        // Auto-dismiss after 5 seconds
+        // Dodanie animacji wejścia
         setTimeout(() => {
-            flashContainer.remove();
+            flashContainer.style.transform = 'translateX(0)';
+            flashContainer.style.opacity = '1';
+        }, 10);
+        
+        // Auto-dismiss po 5 sekundach
+        setTimeout(() => {
+            if (flashContainer.parentElement) {
+                // Animacja wyjścia
+                flashContainer.style.transform = 'translateX(100%)';
+                flashContainer.style.opacity = '0';
+                setTimeout(() => {
+                    flashContainer.remove();
+                }, 300);
+            }
         }, 5000);
-    }
+}
     
     // Function to safely handle JSON responses or parse text responses
     function safelyParseResponse(response) {
@@ -384,7 +512,12 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('Submit', 'XYVisualize');
             
             // Loading indicator
-            xyContainer.innerHTML = '<div class="text-center my-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Generating scatter plot...</p></div>';
+            xyContainer.innerHTML = `
+                <div class="loading-container">
+                    <div class="spinner"></div>
+                    <p class="loading-text">Generating scatter plot...</p>
+                </div>
+            `;
             
             fetch('/visualize', {
                 method: 'POST',
@@ -398,11 +531,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.status === 'success') {
                     // Update the XY plot container
                     xyContainer.innerHTML = `
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0">Scatter Plot: ${data.x_col_name} vs ${data.y_col_name}</h5>
+                        <div class="plot-card">
+                            <div class="plot-header">
+                                <h6><i class="fas fa-chart-scatter"></i> ${data.x_col_name} vs ${data.y_col_name}</h6>
                             </div>
-                            <div class="card-body">
+                            <div class="plot-body">
                                 <canvas id="myChart1" width="100%" height="400"></canvas>
                             </div>
                         </div>
@@ -418,31 +551,28 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Show detailed error message
                     let errorMsg = data.message || 'Unknown error occurred';
                     
-                    if (data.html_response) {
-                        xyContainer.innerHTML = `
-                            <div class="alert alert-danger">
-                                <h5>Error Occurred</h5>
+                    xyContainer.innerHTML = `
+                        <div class="modern-alert alert-danger">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <div>
+                                <h6>Visualization Error</h6>
                                 <p>${errorMsg}</p>
-                                <button class="btn btn-sm btn-outline-secondary mt-2" onclick="window.location.reload()">Reload Page</button>
+                                ${data.html_response ? '<button class="modern-btn btn-sm btn-outline-secondary mt-2" onclick="window.location.reload()">Reload Page</button>' : ''}
                             </div>
-                        `;
-                    } else {
-                        xyContainer.innerHTML = `
-                            <div class="alert alert-danger">
-                                <h5>Visualization Error</h5>
-                                <p>${errorMsg}</p>
-                            </div>
-                        `;
-                    }
+                        </div>
+                    `;
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
                 xyContainer.innerHTML = `
-                    <div class="alert alert-danger">
-                        <h5>Request Failed</h5>
-                        <p>An error occurred while communicating with the server: ${error.message}</p>
-                        <button class="btn btn-sm btn-outline-secondary mt-2" onclick="window.location.reload()">Reload Page</button>
+                    <div class="modern-alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <div>
+                            <h6>Request Failed</h6>
+                            <p>An error occurred while communicating with the server: ${error.message}</p>
+                            <button class="modern-btn btn-sm btn-outline-secondary mt-2" onclick="window.location.reload()">Reload Page</button>
+                        </div>
                     </div>
                 `;
             });
@@ -458,7 +588,12 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('Submit', 'Visualize');
             
             // Loading indicator
-            histogramContainer.innerHTML = '<div class="text-center my-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Generating histogram...</p></div>';
+            histogramContainer.innerHTML = `
+                <div class="loading-container">
+                    <div class="spinner"></div>
+                    <p class="loading-text">Generating histogram...</p>
+                </div>
+            `;
             
             fetch('/visualize', {
                 method: 'POST',
@@ -473,11 +608,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (data.histogram_data) {
                         // Update the histogram container
                         histogramContainer.innerHTML = `
-                            <div class="card">
-                                <div class="card-header">
-                                    <h5 class="mb-0">Interactive Histogram for ${data.x_col}</h5>
+                            <div class="plot-card">
+                                <div class="plot-header">
+                                    <h6><i class="fas fa-chart-bar"></i> Distribution of ${data.x_col}</h6>
                                 </div>
-                                <div class="card-body">
+                                <div class="plot-body">
                                     <div id="histogram-plot" style="width: 100%; height: 400px;"></div>
                                 </div>
                             </div>
@@ -492,47 +627,44 @@ document.addEventListener('DOMContentLoaded', function() {
                     } else if (data.plot_path) {
                         // Fallback to static image
                         histogramContainer.innerHTML = `
-                            <div class="card">
-                                <div class="card-header">
-                                    <h5 class="mb-0">Histogram for ${data.x_col}</h5>
+                            <div class="plot-card">
+                                <div class="plot-header">
+                                    <h6><i class="fas fa-chart-bar"></i> Distribution of ${data.x_col}</h6>
                                 </div>
-                                <div class="card-body">
+                                <div class="plot-body">
                                     <img src="${data.plot_path}" class="img-fluid" alt="Histogram Visualization">
                                 </div>
                             </div>
                         `;
                     } else {
-                        histogramContainer.innerHTML = `<div class="alert alert-warning">No visualization data available</div>`;
+                        histogramContainer.innerHTML = `<div class="modern-alert alert-warning"><i class="fas fa-info-circle"></i> No visualization data available</div>`;
                     }
                 } else {
                     // Show detailed error message
                     let errorMsg = data.message || 'Unknown error occurred';
                     
-                    if (data.html_response) {
-                        histogramContainer.innerHTML = `
-                            <div class="alert alert-danger">
-                                <h5>Error Occurred</h5>
+                    histogramContainer.innerHTML = `
+                        <div class="modern-alert alert-danger">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <div>
+                                <h6>Visualization Error</h6>
                                 <p>${errorMsg}</p>
-                                <button class="btn btn-sm btn-outline-secondary mt-2" onclick="window.location.reload()">Reload Page</button>
+                                ${data.html_response ? '<button class="modern-btn btn-sm btn-outline-secondary mt-2" onclick="window.location.reload()">Reload Page</button>' : ''}
                             </div>
-                        `;
-                    } else {
-                        histogramContainer.innerHTML = `
-                            <div class="alert alert-danger">
-                                <h5>Visualization Error</h5>
-                                <p>${errorMsg}</p>
-                            </div>
-                        `;
-                    }
+                        </div>
+                    `;
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
                 histogramContainer.innerHTML = `
-                    <div class="alert alert-danger">
-                        <h5>Request Failed</h5>
-                        <p>An error occurred while communicating with the server: ${error.message}</p>
-                        <button class="btn btn-sm btn-outline-secondary mt-2" onclick="window.location.reload()">Reload Page</button>
+                    <div class="modern-alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <div>
+                            <h6>Request Failed</h6>
+                            <p>An error occurred while communicating with the server: ${error.message}</p>
+                            <button class="modern-btn btn-sm btn-outline-secondary mt-2" onclick="window.location.reload()">Reload Page</button>
+                        </div>
                     </div>
                 `;
             });
@@ -540,4 +672,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
+
 {% endblock content %}

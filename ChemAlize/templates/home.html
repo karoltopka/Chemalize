@@ -1,0 +1,729 @@
+{% extends "base_layout.html" %}
+{% block content %}
+
+<style>
+    :root {
+        --primary-color: #667eea;
+        --secondary-color: #764ba2;
+        --accent-color: #f093fb;
+        --success-color: #4ecdc4;
+        --dark-color: #2c3e50;
+        --light-bg: #f8fafc;
+        --white: #ffffff;
+        --shadow-light: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        --shadow-medium: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        --shadow-heavy: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+
+    body {
+        font-family: 'Inter', sans-serif;
+        background: linear-gradient(135deg, var(--light-bg) 0%, #e3f2fd 100%);
+        min-height: 100vh;
+        overflow-x: hidden;
+    }
+
+    /* Dark theme support */
+    .dark-theme body {
+        background: linear-gradient(135deg, #1a1a1a 0%, #2d3748 100%);
+    }
+
+    .dark-theme .main-header {
+        background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+    }
+
+    .dark-theme .option-card {
+        background: #2d3748;
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .dark-theme .option-title {
+        color: #e2e8f0;
+    }
+
+    .dark-theme .option-description {
+        color: #cbd5e0;
+    }
+
+    .dark-theme .option-features li {
+        color: #a0aec0;
+    }
+
+    .dark-theme .section-title h2 {
+        color: #e2e8f0;
+    }
+
+    .dark-theme .section-title p {
+        color: #cbd5e0;
+    }
+
+    .dark-theme .stats-section {
+        background: #2d3748;
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .dark-theme .stat-label {
+        color: #cbd5e0;
+    }
+
+    /* Animated background molecules */
+    .molecules-bg {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        overflow: hidden;
+    }
+
+    .molecule {
+        position: absolute;
+        width: 4px;
+        height: 4px;
+        background: rgba(102, 126, 234, 0.3);
+        border-radius: 50%;
+        animation: float 20s infinite linear;
+    }
+
+    .molecule:nth-child(odd) {
+        background: rgba(118, 75, 162, 0.3);
+        animation-duration: 25s;
+    }
+
+    .molecule:nth-child(3n) {
+        background: rgba(240, 147, 251, 0.3);
+        animation-duration: 30s;
+    }
+
+    @keyframes float {
+        0% {
+            transform: translateY(100vh) rotate(0deg);
+            opacity: 0;
+        }
+        10% {
+            opacity: 1;
+        }
+        90% {
+            opacity: 1;
+        }
+        100% {
+            transform: translateY(-100px) rotate(360deg);
+            opacity: 0;
+        }
+    }
+
+    /* Header styles */
+    .main-header {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        padding: 2rem 0;
+        position: relative;
+        overflow: hidden;
+        margin-bottom: 0;
+    }
+
+    .main-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+        opacity: 0.3;
+    }
+
+    .logo-container {
+        position: relative;
+        z-index: 2;
+    }
+
+    .logo {
+        font-size: 3.5rem;
+        font-weight: 700;
+        color: var(--white);
+        text-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+    }
+
+    .logo-icon {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, var(--accent-color), var(--success-color));
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        color: var(--white);
+        box-shadow: var(--shadow-medium);
+        animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+
+    .tagline {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 1.2rem;
+        font-weight: 300;
+        text-align: center;
+        margin-top: 0.5rem;
+    }
+
+    /* Main content */
+    .main-content {
+        padding: 4rem 0;
+        position: relative;
+    }
+
+    .options-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 0 2rem;
+    }
+
+    .section-title {
+        text-align: center;
+        margin-bottom: 3rem;
+    }
+
+    .section-title h2 {
+        font-size: 2.5rem;
+        font-weight: 600;
+        color: var(--dark-color);
+        margin-bottom: 1rem;
+    }
+
+    .section-title p {
+        font-size: 1.1rem;
+        color: #64748b;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    /* Option cards */
+    .options-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 2rem;
+        margin-top: 3rem;
+    }
+
+    .option-card {
+        background: var(--white);
+        border-radius: 20px;
+        padding: 2.5rem;
+        box-shadow: var(--shadow-light);
+        border: 1px solid rgba(102, 126, 234, 0.1);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+    }
+
+    .option-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+        transform: scaleX(0);
+        transition: transform 0.3s ease;
+    }
+
+    .option-card:hover {
+        transform: translateY(-8px);
+        box-shadow: var(--shadow-heavy);
+        border-color: var(--primary-color);
+    }
+
+    .option-card:hover::before {
+        transform: scaleX(1);
+    }
+
+    .option-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 1.5rem;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        color: var(--white);
+        position: relative;
+        transition: all 0.3s ease;
+    }
+
+    .analysis-icon {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    }
+
+    .merger-icon {
+        background: linear-gradient(135deg, var(--success-color), var(--accent-color));
+    }
+
+    .option-card:hover .option-icon {
+        transform: scale(1.1) rotate(5deg);
+    }
+
+    .option-title {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: var(--dark-color);
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+
+    .option-description {
+        color: #64748b;
+        line-height: 1.6;
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+
+    .option-features {
+        list-style: none;
+        margin-bottom: 2rem;
+    }
+
+    .option-features li {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.8rem;
+        color: #475569;
+    }
+
+    .option-features li i {
+        color: var(--success-color);
+        margin-right: 0.8rem;
+        font-size: 0.9rem;
+    }
+
+    .option-button {
+        width: 100%;
+        padding: 1rem 2rem;
+        border: none;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--white);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .analysis-button {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    }
+
+    .merger-button {
+        background: linear-gradient(135deg, var(--success-color), var(--accent-color));
+    }
+
+    .option-button:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-medium);
+    }
+
+    .option-button::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        transition: left 0.5s ease;
+    }
+
+    .option-button:hover::before {
+        left: 100%;
+    }
+
+    /* Stats section */
+    .stats-section {
+        background: var(--white);
+        padding: 3rem 0;
+        margin-top: 4rem;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 2rem;
+        text-align: center;
+    }
+
+    .stat-item {
+        padding: 1rem;
+    }
+
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        display: block;
+    }
+
+    .stat-label {
+        color: #64748b;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .logo {
+            font-size: 2.5rem;
+        }
+
+        .options-grid {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        .option-card {
+            padding: 2rem;
+        }
+
+        .section-title h2 {
+            font-size: 2rem;
+        }
+
+        .main-content {
+            padding: 2rem 0;
+        }
+    }
+
+    /* Loading animation */
+    .loading {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.95);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .loading.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid #e2e8f0;
+        border-top: 4px solid var(--primary-color);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+
+<!-- Animated background -->
+<div class="molecules-bg" id="moleculesBg"></div>
+
+<!-- Loading overlay -->
+<div class="loading" id="loadingOverlay">
+    <div class="spinner"></div>
+</div>
+
+<!-- Main header -->
+<div class="main-header">
+    <div class="container">
+        <div class="logo-container text-center">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-atom"></i>
+                </div>
+                ChemAlize
+            </div>
+            <p class="tagline">Advanced Chemical Analysis Without Coding</p>
+        </div>
+    </div>
+</div>
+
+<!-- Main content -->
+<main class="main-content">
+    <div class="container">
+        <div class="options-container">
+            <!-- Section title -->
+            <div class="section-title">
+                <h2>Choose Your Analysis Path</h2>
+                <p>Discover powerful QSAR analysis tools designed for chemists. No programming skills required - just upload your data and let ChemAlize do the work.</p>
+            </div>
+
+            <!-- Options grid -->
+            <div class="options-grid">
+                <!-- Analysis option -->
+                <div class="option-card" onclick="navigateToAnalysis()">
+                    <div class="option-icon analysis-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3 class="option-title">QSAR Analysis</h3>
+                    <p class="option-description">
+                        Perform comprehensive quantitative structure-activity relationship analysis with automated preprocessing and machine learning models.
+                    </p>
+                    <ul class="option-features">
+                        <li><i class="fas fa-check-circle"></i> Automated data preprocessing</li>
+                        <li><i class="fas fa-check-circle"></i> Multiple ML algorithms</li>
+                        <li><i class="fas fa-check-circle"></i> Interactive visualizations</li>
+                        <li><i class="fas fa-check-circle"></i> Statistical validation</li>
+                        <li><i class="fas fa-check-circle"></i> Export ready models</li>
+                    </ul>
+                    <button class="option-button analysis-button">
+                        Start Analysis <i class="fas fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+
+                <!-- Merger option -->
+                <div class="option-card" onclick="navigateToMerger()">
+                    <div class="option-icon merger-icon">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <h3 class="option-title">Data Merger</h3>
+                    <p class="option-description">
+                        Combine multiple datasets intelligently with automated matching, conflict resolution, and data harmonization capabilities.
+                    </p>
+                    <ul class="option-features">
+                        <li><i class="fas fa-check-circle"></i> Smart data matching</li>
+                        <li><i class="fas fa-check-circle"></i> Conflict resolution</li>
+                        <li><i class="fas fa-check-circle"></i> Multiple file formats</li>
+                        <li><i class="fas fa-check-circle"></i> Data quality checks</li>
+                        <li><i class="fas fa-check-circle"></i> Unified output format</li>
+                    </ul>
+                    <button class="option-button merger-button">
+                        Merge Data <i class="fas fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Stats section -->
+<section class="stats-section">
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-item">
+                <span class="stat-number">1000+</span>
+                <span class="stat-label">Analyses Completed</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">50+</span>
+                <span class="stat-label">Chemical Properties</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">15+</span>
+                <span class="stat-label">ML Algorithms</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">99.9%</span>
+                <span class="stat-label">Accuracy Rate</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Analysis Entry Button -->
+<section class="entry-section py-4">
+    <div class="container text-center">
+        <a href="{{ url_for('preprocess') }}" class="btn btn-lg analysis-entry-btn">
+            <i class="fas fa-flask mr-2"></i>
+            Enter Analysis Platform
+        </a>
+    </div>
+</section>
+
+<style>
+    .analysis-entry-btn {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        border: none;
+        color: white;
+        padding: 1rem 3rem;
+        border-radius: 30px;
+        font-weight: 600;
+        font-size: 1.1rem;
+        text-decoration: none;
+        box-shadow: var(--shadow-medium);
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .analysis-entry-btn:hover {
+        color: white;
+        text-decoration: none;
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-heavy);
+    }
+
+    .dark-theme .analysis-entry-btn {
+        background: linear-gradient(135deg, #4a5568, #2d3748);
+    }
+</style>
+
+<script>
+    // Create floating molecules animation
+    function createMolecules() {
+        const container = document.getElementById('moleculesBg');
+        const numberOfMolecules = 30;
+
+        for (let i = 0; i < numberOfMolecules; i++) {
+            const molecule = document.createElement('div');
+            molecule.className = 'molecule';
+            molecule.style.left = Math.random() * 100 + '%';
+            molecule.style.animationDelay = Math.random() * 20 + 's';
+            molecule.style.animationDuration = (Math.random() * 10 + 20) + 's';
+            container.appendChild(molecule);
+        }
+    }
+
+    // Navigation functions
+    function navigateToAnalysis() {
+        showLoading();
+        setTimeout(() => {
+            window.location.href = '{{ url_for("preprocess") }}';
+        }, 800);
+    }
+
+    function navigateToMerger() {
+        showLoading();
+        setTimeout(() => {
+            window.location.href = '{{ url_for("merger") }}';
+        }, 800);
+    }
+
+    function showLoading() {
+        document.getElementById('loadingOverlay').classList.add('active');
+    }
+
+    // Animate stats on scroll
+    function animateStats() {
+        const statNumbers = document.querySelectorAll('.stat-number');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const target = entry.target;
+                    const finalValue = target.textContent;
+                    const numericValue = parseInt(finalValue.replace(/[^\d]/g, ''));
+                    
+                    if (!isNaN(numericValue)) {
+                        animateCounter(target, 0, numericValue, finalValue);
+                    }
+                    observer.unobserve(target);
+                }
+            });
+        });
+
+        statNumbers.forEach(stat => observer.observe(stat));
+    }
+
+    function animateCounter(element, start, end, finalText) {
+        const duration = 2000;
+        const increment = end / (duration / 16);
+        let current = start;
+
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= end) {
+                element.textContent = finalText;
+                clearInterval(timer);
+            } else {
+                element.textContent = Math.floor(current) + (finalText.includes('+') ? '+' : '') + (finalText.includes('%') ? '%' : '');
+            }
+        }, 16);
+    }
+
+    // Add hover effects to cards
+    function addCardEffects() {
+        const cards = document.querySelectorAll('.option-card');
+        
+        cards.forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'translateY(-8px) scale(1.02)';
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'translateY(0) scale(1)';
+            });
+        });
+    }
+
+    // Initialize everything when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+        createMolecules();
+        animateStats();
+        addCardEffects();
+        
+        // Add entrance animations
+        const cards = document.querySelectorAll('.option-card');
+        cards.forEach((card, index) => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(30px)';
+            setTimeout(() => {
+                card.style.transition = 'all 0.6s ease';
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            }, index * 200 + 300);
+        });
+
+        // Apply current theme styles
+        if (document.body.classList.contains('dark-theme')) {
+            // Already handled by CSS
+        }
+    });
+
+    // Add some interactive elements
+    document.addEventListener('mousemove', (e) => {
+        const cards = document.querySelectorAll('.option-card');
+        cards.forEach(card => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const rotateX = (y - centerY) / 10;
+                const rotateY = (centerX - x) / 10;
+                
+                card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-8px)`;
+            }
+        });
+    });
+
+    document.addEventListener('mouseleave', () => {
+        const cards = document.querySelectorAll('.option-card');
+        cards.forEach(card => {
+            card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0px)';
+        });
+    });
+</script>
+
+{% endblock content %}
