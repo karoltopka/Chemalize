@@ -89,6 +89,19 @@ def read_dataset(filepath):
 
 
 @app.route("/")
+def home():
+    """Strona główna - homepage z wyborem Analysis/Merger"""
+    return render_template("home.html", active="home", title="ChemAlize - Home")
+
+@app.route("/merger", methods=["GET", "POST"])
+def merger():
+    """Placeholder dla Data Merger - do zaimplementowania"""
+    if request.method == "POST":
+        # Tutaj dodasz logikę mergera w przyszłości
+        flash("Merger functionality coming soon!", "info")
+    
+    return render_template("merger.html", active="merger", title="Data Merger")
+
 @app.route("/preprocess", methods=["GET", "POST"])
 @nocache
 def preprocess():
@@ -1217,7 +1230,7 @@ def analyze():
 @app.route("/clear", methods=["GET"])
 def clear():
     session.clear()
-    return redirect("/")
+    return redirect("/preprocess")
 
 
 @app.route("/visualize", methods=["GET", "POST"])

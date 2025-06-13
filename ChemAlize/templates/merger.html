@@ -1,0 +1,287 @@
+{% extends "base_layout.html" %}
+{% block content %}
+
+<style>
+
+    .merger-hero {
+        background: linear-gradient(135deg, #4ecdc4 0%, #f093fb 100%);
+        padding: 3rem 0;
+        color: white;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    /* Dark theme support */
+    .dark-theme .merger-hero {
+        background: linear-gradient(135deg, #2d5a57 0%, #7c4589 100%);
+    }
+
+    .dark-theme .coming-soon-card {
+        background: #2d3748;
+        color: #e2e8f0;
+    }
+
+    .dark-theme .feature-preview {
+        background: #1a202c;
+    }
+
+    .dark-theme .feature-item {
+        background: #2d3748;
+        color: #e2e8f0;
+    }
+
+    .dark-theme .card {
+        background: #2d3748;
+        border-color: rgba(255, 255, 255, 0.1);
+        color: #e2e8f0;
+    }
+
+    .dark-theme .card-header {
+        background: #1a202c;
+        border-color: rgba(255, 255, 255, 0.1);
+        color: #e2e8f0;
+    }
+
+    .dark-theme .config-preview {
+        background: #1a202c !important;
+        color: #e2e8f0;
+    }
+
+    .dark-theme .form-control {
+        background: #4a5568;
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #e2e8f0;
+    }
+
+    .dark-theme .text-muted {
+        color: #cbd5e0 !important;
+    }
+    .merger-hero {
+        background: linear-gradient(135deg, #4ecdc4 0%, #f093fb 100%);
+        padding: 3rem 0;
+        color: white;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .merger-hero h1 {
+        font-size: 3rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .merger-hero p {
+        font-size: 1.2rem;
+        opacity: 0.9;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .coming-soon-card {
+        background: white;
+        border-radius: 15px;
+        padding: 3rem;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        text-align: center;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .coming-soon-icon {
+        width: 100px;
+        height: 100px;
+        background: linear-gradient(135deg, #4ecdc4, #f093fb);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3rem;
+        color: white;
+        margin: 0 auto 2rem;
+        animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+
+    .feature-preview {
+        background: #f8fafc;
+        border-radius: 10px;
+        padding: 2rem;
+        margin-top: 2rem;
+    }
+
+    .feature-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .feature-item {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #4ecdc4;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .feature-item i {
+        color: #4ecdc4;
+    }
+
+    .back-button {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border: none;
+        color: white;
+        padding: 0.8rem 2rem;
+        border-radius: 25px;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.3s ease;
+        margin-top: 2rem;
+    }
+
+    .back-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        color: white;
+        text-decoration: none;
+    }
+</style>
+
+<div class="merger-hero">
+    <div class="container">
+        <h1><i class="fas fa-layer-group mr-3"></i>Data Merger</h1>
+        <p>Intelligent data combination and harmonization platform</p>
+    </div>
+</div>
+
+<div class="container">
+    <div class="coming-soon-card">
+        <div class="coming-soon-icon">
+            <i class="fas fa-tools"></i>
+        </div>
+        
+        <h2>Coming Soon!</h2>
+        <p class="lead">The Data Merger functionality is currently under development. This powerful tool will allow you to:</p>
+        
+        <div class="feature-preview">
+            <h5><i class="fas fa-star text-warning mr-2"></i>Upcoming Features:</h5>
+            <div class="feature-list">
+                <div class="feature-item">
+                    <i class="fas fa-link"></i>
+                    <span>Smart data matching across multiple datasets</span>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>Automatic conflict resolution</span>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-file-alt"></i>
+                    <span>Support for CSV, Excel, JSON formats</span>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-check-double"></i>
+                    <span>Data quality validation</span>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-download"></i>
+                    <span>Unified output generation</span>
+                </div>
+                <div class="feature-item">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Merge statistics and reports</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <p class="text-muted">
+                <i class="fas fa-clock mr-2"></i>
+                Estimated completion: <strong>Coming in future updates</strong>
+            </p>
+        </div>
+        
+        <a href="{{ url_for('home') }}" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+            Back to Home
+        </a>
+        
+        <!-- Analysis Entry Button -->
+        <a href="{{ url_for('preprocess') }}" class="btn btn-success mt-3">
+            <i class="fas fa-flask mr-2"></i>
+            Enter Analysis Platform
+        </a>
+    </div>
+    
+    <!-- Preview Section -->
+    <div class="row mt-5">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-upload mr-2"></i>File Upload Interface</h5>
+                </div>
+                <div class="card-body">
+                    <div class="upload-preview p-4 text-center" style="border: 2px dashed #ddd; border-radius: 10px;">
+                        <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: #ccc;"></i>
+                        <p class="mt-3 text-muted">Multiple file upload support</p>
+                        <small class="text-muted">Coming soon...</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-cogs mr-2"></i>Merge Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <div class="config-preview p-4" style="background: #f8f9fa; border-radius: 10px;">
+                        <div class="form-group">
+                            <label class="text-muted">Merge Strategy:</label>
+                            <select class="form-control" disabled>
+                                <option>Intelligent Auto-Match</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="text-muted">Conflict Resolution:</label>
+                            <select class="form-control" disabled>
+                                <option>Priority-based</option>
+                            </select>
+                        </div>
+                        <small class="text-muted">Advanced configuration options coming soon...</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Add some interactivity
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animate feature items on load
+        const featureItems = document.querySelectorAll('.feature-item');
+        featureItems.forEach((item, index) => {
+            item.style.opacity = '0';
+            item.style.transform = 'translateX(-20px)';
+            setTimeout(() => {
+                item.style.transition = 'all 0.5s ease';
+                item.style.opacity = '1';
+                item.style.transform = 'translateX(0)';
+            }, index * 100 + 500);
+        });
+    });
+</script>
+
+{% endblock content %}

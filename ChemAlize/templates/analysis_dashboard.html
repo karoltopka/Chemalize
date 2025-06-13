@@ -1,48 +1,56 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="content-section">
-    <legend class="border-bottom mb-4">
-        <i class="fas fa-chart-area mr-2"></i>Data Analysis & Visualization
-    </legend>
+
+<div class="container">
+    <!-- Page Title Section -->
+    <div class="modern-card animate-in">
+        <div class="title-content">
+            <div class="title-icon">
+                <i class="fas fa-chart-area"></i>
+            </div>
+            <div class="title-info">
+                <h3>Data Analysis & Visualization</h3>
+                <p class="title-subtitle">Advanced analytics and machine learning techniques</p>
+            </div>
+        </div>
+    </div>
     
     <!-- Current Dataset Info -->
-    <div class="row mb-4">
-        <div class="col-lg-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Current Dataset</h5>
+    <div class="modern-card animate-in">
+        <h4><i class="fas fa-database"></i> Current Dataset Overview</h4>
+        <div class="analysis-grid">
+            <div class="analysis-stat filename">
+                <div class="label">File Name</div>
+                <div class="value" id="filenameValue">
+                    {% if filename %}{{ filename }}{% else %}None{% endif %}
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <strong>File Name:</strong> {% if filename %} {{filename}} {% else %} None {% endif %}
-                        </div>
-                        <div class="col-md-3">
-                            <strong>Rows:</strong> {% if no_of_rows %} {{no_of_rows}} {% else %} None {% endif %}
-                        </div>
-                        <div class="col-md-3">
-                            <strong>Columns:</strong> {% if no_of_cols %} {{no_of_cols}} {% else %} None {% endif %}
-                        </div>
-                        <div class="col-md-3">
-                            <strong>Dimension:</strong> {% if dim %} {{dim}} {% else %} None {% endif %}
-                        </div>
-                    </div>
-                </div>
+            </div>
+            <div class="analysis-stat rows">
+                <div class="label">Rows</div>
+                <div class="value">{% if no_of_rows %}{{ no_of_rows }}{% else %}0{% endif %}</div>
+            </div>
+            <div class="analysis-stat columns">
+                <div class="label">Columns</div>
+                <div class="value">{% if no_of_cols %}{{ no_of_cols }}{% else %}0{% endif %}</div>
+            </div>
+            <div class="analysis-stat dimension">
+                <div class="label">Dimension</div>
+                <div class="value">{% if dim %}{{ dim }}{% else %}None{% endif %}</div>
             </div>
         </div>
     </div>
     
     <!-- Target Variable Selection -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">
-                <i class="fas fa-bullseye mr-2"></i> Select Target Variable
-            </h5>
-        </div>
-        <div class="card-body">
-            <form method="POST" action="{{ url_for('set_target_variable') }}">
-                <div class="form-group">
-                    <label for="target_variable">Target Variable:</label>
+    <div class="modern-card animate-in">
+        <h4><i class="fas fa-bullseye"></i> Target Variable Configuration</h4>
+        <p class="text-muted mb-4">Select the target variable for supervised learning analysis</p>
+        
+        <form method="POST" action="{{ url_for('set_target_variable') }}" class="target-form">
+            <div class="form-group">
+                <label for="target_variable" class="form-label">
+                    <i class="fas fa-crosshairs"></i> Target Variable
+                </label>
+                <div class="target-selection">
                     <select class="form-control" id="target_variable" name="target_variable">
                         {% if columns %}
                             {% for col in columns %}
@@ -52,102 +60,249 @@
                             <option value="">No columns available</option>
                         {% endif %}
                     </select>
+                    <button type="submit" class="modern-btn btn-primary-modern">
+                        <i class="fas fa-check"></i> Set Target
+                    </button>
                 </div>
-                <button type="submit" class="btn btn-primary">Set Target Variable</button>
-            </form>
-        </div>
+            </div>
+            
+            {% if target_var %}
+            <div class="current-target">
+                <i class="fas fa-info-circle"></i>
+                <span>Current target variable: <strong>{{ target_var }}</strong></span>
+            </div>
+            {% endif %}
+        </form>
     </div>
     
-    <!-- Analysis Method Selection -->
-    <h4 class="mt-4 mb-3">Select Analysis Method</h4>
-    <div class="row">
-        <!-- PCA Card -->
-        <div class="col-lg-4 col-md-6 mb-4">
-            <div class="card h-100">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Principal Component Analysis</h5>
+    <!-- Analysis Methods -->
+    <div class="modern-card animate-in">
+        <h4><i class="fas fa-microscope"></i> Analysis Methods</h4>
+        <p class="text-muted mb-4">Choose from advanced analytical techniques to explore your data</p>
+        
+        <div class="analysis-methods-grid">
+            <!-- PCA Card -->
+            <div class="analysis-method-card pca-card">
+                <div class="method-header pca-header">
+                    <div class="method-icon">
+                        <i class="fas fa-compress-arrows-alt"></i>
+                    </div>
+                    <div class="method-title">
+                        <h5>Principal Component Analysis</h5>
+                        <span class="method-category">Dimensionality Reduction</span>
+                    </div>
                 </div>
-                <div class="card-body">
+                
+                <div class="method-content">
                     <p>Reduce dimensions and visualize patterns in your data by transforming into principal components.</p>
-                    <ul class="text-muted">
-                        <li>Dimension reduction</li>
-                        <li>Data visualization</li>
-                        <li>Feature extraction</li>
-                    </ul>
+                    <div class="method-features">
+                        <div class="feature-item">
+                            <i class="fas fa-compress"></i>
+                            <span>Dimension reduction</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-chart-scatter"></i>
+                            <span>Data visualization</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-extract"></i>
+                            <span>Feature extraction</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-footer">
-                    <a href="{{ url_for('pca_analysis') }}" class="btn btn-primary btn-block">
-                        <i class="fas fa-compress-arrows-alt mr-2"></i>Run PCA
+                
+                <div class="method-footer">
+                    <a href="{{ url_for('pca_analysis') }}" class="modern-btn btn-primary-modern w-100">
+                        <i class="fas fa-compress-arrows-alt"></i> Run PCA Analysis
                     </a>
                 </div>
             </div>
-        </div>
-        
-        <!-- PCR Card -->
-        <div class="col-lg-4 col-md-6 mb-4">
-            <div class="card h-100">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0">Principal Component Regression</h5>
+            
+            <!-- PCR Card -->
+            <div class="analysis-method-card pcr-card">
+                <div class="method-header pcr-header">
+                    <div class="method-icon">
+                        <i class="fas fa-chart-scatter"></i>
+                    </div>
+                    <div class="method-title">
+                        <h5>Principal Component Regression</h5>
+                        <span class="method-category">Regression Analysis</span>
+                    </div>
                 </div>
-                <div class="card-body">
+                
+                <div class="method-content">
                     <p>Combine PCA with regression to reduce dimensions and predict target variables.</p>
-                    <ul class="text-muted">
-                        <li>Handles multicollinearity</li>
-                        <li>Reduces overfitting</li>
-                        <li>Improves model interpretability</li>
-                    </ul>
+                    <div class="method-features">
+                        <div class="feature-item">
+                            <i class="fas fa-balance-scale"></i>
+                            <span>Handles multicollinearity</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>Reduces overfitting</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-search"></i>
+                            <span>Improves interpretability</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-footer">
-                    <a href="{{ url_for('pcr_analysis') }}" class="btn btn-success btn-block">
-                        <i class="fas fa-chart-scatter mr-2"></i>Run PCR
+                
+                <div class="method-footer">
+                    <a href="{{ url_for('pcr_analysis') }}" class="modern-btn btn-success-modern w-100">
+                        <i class="fas fa-chart-scatter"></i> Run PCR Analysis
                     </a>
                 </div>
             </div>
-        </div>
-        
-        <!-- MLR Card -->
-        <div class="col-lg-4 col-md-6 mb-4">
-            <div class="card h-100">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">Multiple Linear Regression</h5>
+            
+            <!-- MLR Card -->
+            <div class="analysis-method-card mlr-card">
+                <div class="method-header mlr-header">
+                    <div class="method-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="method-title">
+                        <h5>Multiple Linear Regression</h5>
+                        <span class="method-category">Predictive Modeling</span>
+                    </div>
                 </div>
-                <div class="card-body">
+                
+                <div class="method-content">
                     <p>Model relationships between multiple features and a target variable using linear regression.</p>
-                    <ul class="text-muted">
-                        <li>Predictive modeling</li>
-                        <li>Feature importance</li>
-                        <li>Statistical inference</li>
-                    </ul>
+                    <div class="method-features">
+                        <div class="feature-item">
+                            <i class="fas fa-crystal-ball"></i>
+                            <span>Predictive modeling</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-star"></i>
+                            <span>Feature importance</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-calculator"></i>
+                            <span>Statistical inference</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-footer">
-                    <a href="{{ url_for('mlr_analysis') }}" class="btn btn-info btn-block">
-                        <i class="fas fa-chart-line mr-2"></i>Run MLR
+                
+                <div class="method-footer">
+                    <a href="{{ url_for('mlr_analysis') }}" class="modern-btn btn-info-modern w-100">
+                        <i class="fas fa-chart-line"></i> Run MLR Analysis
                     </a>
                 </div>
             </div>
-        </div>
-        
-        <!-- Clustering Card -->
-        <div class="col-lg-4 col-md-6 mb-4">
-            <div class="card h-100">
-                <div class="card-header bg-warning text-dark">
-                    <h5 class="mb-0">Clustering Analysis</h5>
+            
+            <!-- Clustering Card -->
+            <div class="analysis-method-card clustering-card">
+                <div class="method-header clustering-header">
+                    <div class="method-icon">
+                        <i class="fas fa-object-group"></i>
+                    </div>
+                    <div class="method-title">
+                        <h5>Clustering Analysis</h5>
+                        <span class="method-category">Unsupervised Learning</span>
+                    </div>
                 </div>
-                <div class="card-body">
+                
+                <div class="method-content">
                     <p>Discover natural groupings and patterns in your data through unsupervised learning.</p>
-                    <ul class="text-muted">
-                        <li>K-Means clustering</li>
-                        <li>Hierarchical clustering</li>
-                        <li>DBSCAN</li>
-                    </ul>
+                    <div class="method-features">
+                        <div class="feature-item">
+                            <i class="fas fa-circle"></i>
+                            <span>K-Means clustering</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-sitemap"></i>
+                            <span>Hierarchical clustering</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-search-plus"></i>
+                            <span>DBSCAN</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-footer">
-                    <a href="{{ url_for('clustering_analysis') }}" class="btn btn-warning btn-block">
-                        <i class="fas fa-object-group mr-2"></i>Run Clustering
+                
+                <div class="method-footer">
+                    <a href="{{ url_for('clustering_analysis') }}" class="modern-btn btn-warning-modern w-100">
+                        <i class="fas fa-object-group"></i> Run Clustering
                     </a>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add entrance animations with delay
+    const cards = document.querySelectorAll('.animate-in');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 150);
+    });
+    
+    // Handle long filenames
+    handleLongFilename();
+    
+    // Add staggered animation to method cards
+    const methodCards = document.querySelectorAll('.analysis-method-card');
+    methodCards.forEach((card, index) => {
+        setTimeout(() => {
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, 800 + (index * 100));
+    });
+});
+
+function handleLongFilename() {
+    const filenameElement = document.getElementById('filenameValue');
+    if (filenameElement) {
+        const fullText = filenameElement.textContent.trim();
+        
+        // If filename is longer than 25 characters, truncate it intelligently
+        if (fullText.length > 25 && fullText !== 'None') {
+            let truncated;
+            
+            // Try to preserve file extension
+            const lastDot = fullText.lastIndexOf('.');
+            if (lastDot > 15 && lastDot < fullText.length - 1) {
+                const name = fullText.substring(0, lastDot);
+                const extension = fullText.substring(lastDot);
+                if (name.length > 20) {
+                    truncated = name.substring(0, 20) + '...' + extension;
+                } else {
+                    truncated = fullText.substring(0, 22) + '...';
+                }
+            } else {
+                truncated = fullText.substring(0, 22) + '...';
+            }
+            
+            filenameElement.textContent = truncated;
+            filenameElement.classList.add('truncate');
+            filenameElement.setAttribute('data-full-text', fullText);
+            filenameElement.setAttribute('title', `Full filename: ${fullText}`);
+            
+            // Add click to show full name
+            filenameElement.style.cursor = 'pointer';
+            filenameElement.addEventListener('click', function() {
+                if (this.classList.contains('expanded')) {
+                    this.textContent = truncated;
+                    this.classList.remove('expanded');
+                } else {
+                    this.textContent = fullText;
+                    this.classList.add('expanded');
+                }
+            });
+        }
+    }
+}
+</script>
+
+
+
 {% endblock %}

@@ -1,197 +1,268 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="content-section">
-    <legend class="border-bottom mb-4">
-        <i class="fas fa-cogs mr-2"></i>Manual Data Preprocessing
-    </legend>
+
+<div class="container">
+    <!-- Header Section -->
+    <div class="modern-card animate-in">
+        <div class="title-content">
+            <div class="title-icon">
+                <i class="fas fa-cogs"></i>
+            </div>
+            <div class="title-info">
+                <h3>Manual Data Preprocessing</h3>
+                <p class="title-subtitle">Take full control over your data preprocessing with advanced manual options.</p>
+            </div>
+        </div>
+    </div>
     
-    <!-- Current Analysis section -->
-    <div class="row mb-4">
-        <div class="col-lg-5">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Current Dataset</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-7">
-                            File Name: {% if filename %} {{filename}} {% else %} None {% endif %}
-                        </div>
-                        <div class="col">
-                            Rows: {% if no_of_rows %} {{no_of_rows}} {% else %} None {% endif %}
+    <div class="row">
+        <!-- Current Analysis Section -->
+        <div class="col-lg-6">
+            <div class="modern-card animate-in">
+                <h4><i class="fas fa-database"></i> Current Dataset</h4>
+                <div class="analysis-grid">
+                    <div class="analysis-stat filename">
+                        <div class="label">File Name</div>
+                        <div class="value" id="filenameValue">
+                            {% if filename %}{{ filename }}{% else %}None{% endif %}
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-7">
-                            Columns: {% if no_of_cols %} {{no_of_cols}} {% else %} None {% endif %}
-                        </div>
-                        <div class="col">
-                            Dimension: {% if dim %} {{dim}} {% else %} None {% endif %}
-                        </div>
+                    <div class="analysis-stat rows">
+                        <div class="label">Rows</div>
+                        <div class="value">{% if no_of_rows %}{{ no_of_rows }}{% else %}0{% endif %}</div>
                     </div>
-                    <div class="row mt-2">
-                        <div class="col-12">
-                            Missing Values: {% if missing_values is defined %} {{missing_values}} {% else %} Unknown {% endif %}
-                        </div>
+                    <div class="analysis-stat columns">
+                        <div class="label">Columns</div>
+                        <div class="value">{% if no_of_cols %}{{ no_of_cols }}{% else %}0{% endif %}</div>
+                    </div>
+                    <div class="analysis-stat dimension">
+                        <div class="label">Dimension</div>
+                        <div class="value">{% if dim %}{{ dim }}{% else %}None{% endif %}</div>
+                    </div>
+                    <div class="analysis-stat missing">
+                        <div class="label">Missing Values</div>
+                        <div class="value">{% if missing_values is defined %}{{ missing_values }}{% else %}Unknown{% endif %}</div>
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-lg-7">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Processing Status</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <i class="fas {% if data_cleaned %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %} mr-2"></i>
-                            Data Cleaning
-                        </div>
-                        <div class="col-md-6">
-                            <i class="fas {% if target_transformed %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %} mr-2"></i>
-                            Target Transformation
-                        </div>
+        <!-- Processing Status Section -->
+        <div class="col-lg-6">
+            <div class="modern-card animate-in">
+                <h4><i class="fas fa-tasks"></i> Processing Status</h4>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <i class="fas {% if data_cleaned %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %}"></i>
+                        <span class="status-label">Data Cleaning</span>
                     </div>
-                    <div class="row mt-2">
-                        <div class="col-md-6">
-                            <i class="fas {% if features_transformed %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %} mr-2"></i>
-                            Feature Transformation
-                        </div>
-                        <div class="col-md-6">
-                            <i class="fas {% if features_selected %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %} mr-2"></i>
-                            Feature Selection
-                        </div>
+                    <div class="status-item">
+                        <i class="fas {% if target_transformed %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %}"></i>
+                        <span class="status-label">Target Transformation</span>
+                    </div>
+                    <div class="status-item">
+                        <i class="fas {% if features_transformed %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %}"></i>
+                        <span class="status-label">Feature Transformation</span>
+                    </div>
+                    <div class="status-item">
+                        <i class="fas {% if features_selected %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %}"></i>
+                        <span class="status-label">Feature Selection</span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Processing Options Accordion -->
-    <div class="accordion" id="processingAccordion">
-        <!-- Scaling Option -->
-        <div class="card">
-            <div class="card-header" id="headingScaling">
-                <h2 class="mb-0">
-                    <button class="btn btn-primary w-100 btn-block text-left" type="button" data-toggle="collapse" data-target="#collapseScaling" aria-expanded="true" aria-controls="collapseScaling">
-                        <i class="fas fa-balance-scale mr-2"></i> Data Scaling
-                    </button>
-                </h2>
-            </div>
-            <div id="collapseScaling" class="collapse" aria-labelledby="headingScaling" data-parent="#processingAccordion">
-                <div class="card-body">
+
+    <!-- Processing Options Section -->
+    <div class="modern-card animate-in">
+        <h4><i class="fas fa-tools"></i> Processing Operations</h4>
+        
+        <!-- Data Scaling -->
+        <div class="collapse-section">
+            <button class="modern-btn btn-primary-modern collapse-trigger" type="button" 
+                    data-toggle="collapse" 
+                    data-target="#scalingSection" 
+                    aria-expanded="false" 
+                    aria-controls="scalingSection"
+                    {% if not filename %}disabled{% endif %}>
+                <i class="fas fa-balance-scale"></i>Data Scaling
+                <i class="fas fa-chevron-down ms-auto"></i>
+            </button>
+            
+            <div class="collapse mt-3" id="scalingSection">
+                <div class="collapse-content">
+                    <h5><i class="fas fa-balance-scale"></i> Scale Your Data</h5>
+                    <p class="mb-3">Normalize your numeric features for better model performance.</p>
+                    
                     <form method="POST" action="{{ url_for('manual_process') }}">
                         <input type="hidden" name="action_type" value="scale">
+                        
                         <div class="form-group">
-                            <label for="scaling_method">Select Scaling Method:</label>
+                            <label for="scaling_method" class="form-label">
+                                <i class="fas fa-sliders-h"></i> Scaling Method
+                            </label>
                             <select class="form-control" id="scaling_method" name="scaling_method">
                                 <option value="standard">StandardScaler (Mean=0, StdDev=1)</option>
                                 <option value="minmax">MinMaxScaler (Range 0-1)</option>
                                 <option value="robust">RobustScaler (Based on Median & IQR)</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <small class="form-text text-muted">
-                                <strong>Note:</strong> Scaling will be applied only to numeric columns.
-                            </small>
+                        
+                        <div class="modern-alert alert-info mb-3">
+                            <i class="fas fa-info-circle"></i>
+                            Scaling will be applied only to numeric columns automatically.
                         </div>
-                        <button type="submit" class="btn btn-primary">Apply Scaling</button>
+                        
+                        <button type="submit" class="modern-btn btn-success-modern">
+                            <i class="fas fa-play"></i>Apply Scaling
+                        </button>
                     </form>
                 </div>
             </div>
         </div>
-        
-        <!-- Low Variance Option -->
-        <div class="card">
-            <div class="card-header" id="headingLowVariance">
-                <h2 class="mb-0">
-                    <button class="btn btn-primary w-100 btn-block text-left collapsed" type="button" data-toggle="collapse" data-target="#collapseLowVariance" aria-expanded="false" aria-controls="collapseLowVariance">
-                        <i class="fas fa-filter mr-2"></i> Remove Low Variance Columns
-                    </button>
-                </h2>
-            </div>
-            <div id="collapseLowVariance" class="collapse" aria-labelledby="headingLowVariance" data-parent="#processingAccordion">
-                <div class="card-body">
+
+        <!-- Low Variance -->
+        <div class="collapse-section">
+            <button class="modern-btn btn-info-modern collapse-trigger" type="button" 
+                    data-toggle="collapse" 
+                    data-target="#varianceSection" 
+                    aria-expanded="false" 
+                    aria-controls="varianceSection"
+                    {% if not filename %}disabled{% endif %}>
+                <i class="fas fa-filter"></i>Remove Low Variance Columns
+                <i class="fas fa-chevron-down ms-auto"></i>
+            </button>
+            
+            <div class="collapse mt-3" id="varianceSection">
+                <div class="collapse-content">
+                    <h5><i class="fas fa-filter"></i> Filter Low Variance Features</h5>
+                    <p class="mb-3">Remove columns with minimal variation to reduce noise.</p>
+                    
                     <form method="POST" action="{{ url_for('manual_process') }}">
                         <input type="hidden" name="action_type" value="remove_low_variance">
+                        
                         <div class="form-group">
-                            <label for="variance_threshold">Variance Threshold:</label>
-                            <input type="range" class="custom-range" id="variance_threshold_slider" min="0" max="0.5" step="0.01" value="0.01" oninput="updateVarianceValue(this.value)">
-                            <div class="input-group mt-2">
-                                <input type="number" class="form-control" id="variance_threshold" name="variance_threshold" value="0.01" min="0" max="1" step="0.01" oninput="updateVarianceSlider(this.value)">
-                                <div class="input-group-append">
-                                    <span class="input-group-text">threshold</span>
+                            <label for="variance_threshold" class="form-label">
+                                <i class="fas fa-chart-line"></i> Variance Threshold
+                            </label>
+                            <div class="range-input-group">
+                                <input type="range" class="form-range" id="variance_threshold_slider" 
+                                       min="0" max="0.5" step="0.01" value="0.01" 
+                                       oninput="updateVarianceValue(this.value)">
+                                <div class="input-group mt-2">
+                                    <input type="number" class="form-control" id="variance_threshold" 
+                                           name="variance_threshold" value="0.01" min="0" max="1" step="0.01" 
+                                           oninput="updateVarianceSlider(this.value)">
+                                    <div class="input-group-append">
+                                        <span class="input-group-text">threshold</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <small class="form-text text-muted">
-                                <strong>Info:</strong> Columns with variance less than or equal to the threshold will be removed.
-                                {% if has_low_variance is defined and has_low_variance %}
-                                <br><strong>Dataset has columns with very low variance!</strong>
-                                {% endif %}
-                            </small>
+                        
+                        {% if has_low_variance is defined and has_low_variance %}
+                        <div class="modern-alert alert-warning mb-3">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Dataset has columns with very low variance detected!
                         </div>
-                        <button type="submit" class="btn btn-primary">Remove Low Variance Columns</button>
+                        {% else %}
+                        <div class="modern-alert alert-info mb-3">
+                            <i class="fas fa-info-circle"></i>
+                            Columns with variance ≤ threshold will be removed.
+                        </div>
+                        {% endif %}
+                        
+                        <button type="submit" class="modern-btn btn-warning-modern">
+                            <i class="fas fa-trash-alt"></i>Remove Low Variance Columns
+                        </button>
                     </form>
                 </div>
             </div>
         </div>
-        
-        <!-- Correlation Option -->
-        <div class="card">
-            <div class="card-header" id="headingCorrelation">
-                <h2 class="mb-0">
-                    <button class="btn btn-primary w-100 btn-block text-left collapsed" type="button" data-toggle="collapse" data-target="#collapseCorrelation" aria-expanded="false" aria-controls="collapseCorrelation">
-                        <i class="fas fa-project-diagram mr-2"></i> Remove Highly Correlated Features
-                    </button>
-                </h2>
-            </div>
-            <div id="collapseCorrelation" class="collapse" aria-labelledby="headingCorrelation" data-parent="#processingAccordion">
-                <div class="card-body">
+
+        <!-- Correlation -->
+        <div class="collapse-section">
+            <button class="modern-btn btn-secondary-modern collapse-trigger" type="button" 
+                    data-toggle="collapse" 
+                    data-target="#correlationSection" 
+                    aria-expanded="false" 
+                    aria-controls="correlationSection"
+                    {% if not filename %}disabled{% endif %}>
+                <i class="fas fa-project-diagram"></i>Remove Highly Correlated Features
+                <i class="fas fa-chevron-down ms-auto"></i>
+            </button>
+            
+            <div class="collapse mt-3" id="correlationSection">
+                <div class="collapse-content">
+                    <h5><i class="fas fa-project-diagram"></i> Correlation Analysis</h5>
+                    <p class="mb-3">Remove redundant features with high correlation.</p>
+                    
                     <form method="POST" action="{{ url_for('manual_process') }}">
                         <input type="hidden" name="action_type" value="remove_correlated">
+                        
                         <div class="form-group">
-                            <label for="correlation_threshold">Correlation Threshold:</label>
-                            <input type="range" class="custom-range" id="correlation_threshold_slider" min="0.5" max="1" step="0.01" value="0.9" oninput="updateCorrelationValue(this.value)">
-                            <div class="input-group mt-2">
-                                <input type="number" class="form-control" id="correlation_threshold" name="correlation_threshold" value="0.9" min="0.5" max="1" step="0.01" oninput="updateCorrelationSlider(this.value)">
-                                <div class="input-group-append">
-                                    <span class="input-group-text">threshold</span>
+                            <label for="correlation_threshold" class="form-label">
+                                <i class="fas fa-link"></i> Correlation Threshold
+                            </label>
+                            <div class="range-input-group">
+                                <input type="range" class="form-range" id="correlation_threshold_slider" 
+                                       min="0.5" max="1" step="0.01" value="0.9" 
+                                       oninput="updateCorrelationValue(this.value)">
+                                <div class="input-group mt-2">
+                                    <input type="number" class="form-control" id="correlation_threshold" 
+                                           name="correlation_threshold" value="0.9" min="0.5" max="1" step="0.01" 
+                                           oninput="updateCorrelationSlider(this.value)">
+                                    <div class="input-group-append">
+                                        <span class="input-group-text">threshold</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <small class="form-text text-muted">
-                                <strong>Info:</strong> For each pair of columns with correlation greater than the threshold, one column will be removed.
-                                {% if max_correlation is defined and max_correlation > 0.9 %}
-                                <br><strong>Dataset has highly correlated features! Max correlation: {{ "%.2f"|format(max_correlation) }}</strong>
-                                {% endif %}
-                            </small>
+                        
+                        {% if max_correlation is defined and max_correlation > 0.9 %}
+                        <div class="modern-alert alert-warning mb-3">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            High correlation detected! Max correlation: {{ "%.2f"|format(max_correlation) }}
                         </div>
-                        <button type="submit" class="btn btn-primary">Remove Correlated Features</button>
+                        {% else %}
+                        <div class="modern-alert alert-info mb-3">
+                            <i class="fas fa-info-circle"></i>
+                            For each pair with correlation > threshold, one feature will be removed.
+                        </div>
+                        {% endif %}
+                        
+                        <button type="submit" class="modern-btn btn-danger-modern">
+                            <i class="fas fa-unlink"></i>Remove Correlated Features
+                        </button>
                     </form>
                 </div>
             </div>
         </div>
-        
-        <!-- Missing Values Option -->
-        <div class="card">
-            <div class="card-header" id="headingMissing">
-                <h2 class="mb-0">
-                    <button class="btn btn-primary w-100 btn-block text-left collapsed" type="button" data-toggle="collapse" data-target="#collapseMissing" aria-expanded="false" aria-controls="collapseMissing">
-                        <i class="fas fa-trash-alt mr-2"></i> Handle Missing Values
-                    </button>
-                </h2>
-            </div>
-            <div id="collapseMissing" class="collapse" aria-labelledby="headingMissing" data-parent="#processingAccordion">
-                <div class="card-body">
+
+        <!-- Missing Values -->
+        <div class="collapse-section">
+            <button class="modern-btn btn-warning-modern collapse-trigger" type="button" 
+                    data-toggle="collapse" 
+                    data-target="#missingSection" 
+                    aria-expanded="false" 
+                    aria-controls="missingSection"
+                    {% if not filename %}disabled{% endif %}>
+                <i class="fas fa-band-aid"></i>Handle Missing Values
+                <i class="fas fa-chevron-down ms-auto"></i>
+            </button>
+            
+            <div class="collapse mt-3" id="missingSection">
+                <div class="collapse-content">
+                    <h5><i class="fas fa-band-aid"></i> Missing Values Treatment</h5>
+                    <p class="mb-3">Choose how to handle missing data in your dataset.</p>
+                    
                     <form method="POST" action="{{ url_for('manual_process') }}">
                         <input type="hidden" name="action_type" value="handle_missing">
+                        
                         <div class="form-group">
-                            <label for="missing_method">Select Method:</label>
+                            <label for="missing_method" class="form-label">
+                                <i class="fas fa-tools"></i> Treatment Method
+                            </label>
                             <select class="form-control" id="missing_method" name="missing_method" onchange="toggleConstantInput()">
                                 <option value="drop_columns">Drop columns with missing values</option>
                                 <option value="drop_rows">Drop rows with missing values</option>
@@ -201,100 +272,176 @@
                                 <option value="fill_constant">Fill with constant value</option>
                             </select>
                         </div>
+                        
                         <div class="form-group" id="constant_value_group" style="display: none;">
-                            <label for="constant_value">Constant Value:</label>
-                            <input type="text" class="form-control" id="constant_value" name="constant_value" value="0">
+                            <label for="constant_value" class="form-label">
+                                <i class="fas fa-edit"></i> Constant Value
+                            </label>
+                            <input type="text" class="form-control" id="constant_value" name="constant_value" value="0" placeholder="Enter constant value">
                         </div>
-                        <div class="form-group">
-                            <small class="form-text text-muted">
-                                <strong>Missing values:</strong> {{ missing_values if missing_values is defined else "Unknown" }}
-                            </small>
+                        
+                        <div class="modern-alert alert-info mb-3">
+                            <i class="fas fa-chart-bar"></i>
+                            <strong>Current missing values:</strong> {{ missing_values if missing_values is defined else "Unknown" }}
                         </div>
-                        <button type="submit" class="btn btn-primary">Handle Missing Values</button>
+                        
+                        <button type="submit" class="modern-btn btn-success-modern">
+                            <i class="fas fa-magic"></i>Handle Missing Values
+                        </button>
                     </form>
                 </div>
             </div>
         </div>
     </div>
-    
-<!-- Download & Next Step Section -->
-<div class="mt-4">
-    <div class="row">
-        <div class="col-md-6">
-        <!-- Formularz pobierania - zmień action na nowy endpoint -->
-        <form action="{{ url_for('download_temp_file') }}" method="get">
-            <button type="submit" class="btn btn-success">
-                <i class="fas fa-download"></i> Pobierz przetworzony plik
-            </button>
-        </form>
-        </div>
-        <div class="col-md-6">
-            <form method="POST" action="{{ url_for('manual_process') }}">
-                <input type="hidden" name="action_type" value="next_step">
-                <div class="input-group">
-                    <input type="text" class="form-control" name="new_filename" placeholder="Nowa nazwa pliku">
-                    <div class="input-group-append">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-arrow-right mr-2"></i> Zapisz i przejdź dalej
+
+    <!-- Download & Next Step Section -->
+    <div class="modern-card animate-in">
+        <h4><i class="fas fa-download"></i> Save & Continue</h4>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="action-card">
+                    <h6><i class="fas fa-file-download"></i> Download Processed File</h6>
+                    <p class="text-muted mb-3">Download your preprocessed dataset for external use.</p>
+                    <form action="{{ url_for('download_temp_file') }}" method="get">
+                        <button type="submit" class="modern-btn btn-success-modern w-100">
+                            <i class="fas fa-download"></i> Download File
                         </button>
-                    </div>
+                    </form>
                 </div>
-            </form>
+            </div>
+            <div class="col-md-6">
+                <div class="action-card">
+                    <h6><i class="fas fa-save"></i> Save & Proceed</h6>
+                    <p class="text-muted mb-3">Save with new name and continue to next step.</p>
+                    <form method="POST" action="{{ url_for('manual_process') }}">
+                        <input type="hidden" name="action_type" value="next_step">
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="new_filename" placeholder="New filename" required>
+                            <div class="input-group-append">
+                                <button type="submit" class="modern-btn btn-primary-modern">
+                                    <i class="fas fa-arrow-right"></i> Save & Continue
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-    // JavaScript to link sliders with input fields
-    function updateVarianceValue(val) {
-        document.getElementById('variance_threshold').value = val;
-    }
+document.addEventListener('DOMContentLoaded', function() {
+    // Add entrance animations with delay
+    const cards = document.querySelectorAll('.animate-in');
+    cards.forEach((card, index) => {
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            card.style.transition = 'all 0.6s ease';
+            card.style.opacity = '1';
+            card.style.transform = 'translateY(0)';
+        }, index * 150);
+    });
     
-    function updateVarianceSlider(val) {
-        document.getElementById('variance_threshold_slider').value = val;
-    }
-    
-    function updateCorrelationValue(val) {
-        document.getElementById('correlation_threshold').value = val;
-    }
-    
-    function updateCorrelationSlider(val) {
-        document.getElementById('correlation_threshold_slider').value = val;
-    }
-    
-    function toggleConstantInput() {
-        var method = document.getElementById('missing_method').value;
-        var constantGroup = document.getElementById('constant_value_group');
+    // Handle long filenames
+    handleLongFilename();
+});
+
+function handleLongFilename() {
+    const filenameElement = document.getElementById('filenameValue');
+    if (filenameElement) {
+        const fullText = filenameElement.textContent.trim();
         
-        if (method === 'fill_constant') {
-            constantGroup.style.display = 'block';
-        } else {
-            constantGroup.style.display = 'none';
+        // If filename is longer than 25 characters, truncate it intelligently
+        if (fullText.length > 25 && fullText !== 'None') {
+            let truncated;
+            
+            // Try to preserve file extension
+            const lastDot = fullText.lastIndexOf('.');
+            if (lastDot > 15 && lastDot < fullText.length - 1) {
+                const name = fullText.substring(0, lastDot);
+                const extension = fullText.substring(lastDot);
+                if (name.length > 20) {
+                    truncated = name.substring(0, 20) + '...' + extension;
+                } else {
+                    truncated = fullText.substring(0, 22) + '...';
+                }
+            } else {
+                truncated = fullText.substring(0, 22) + '...';
+            }
+            
+            filenameElement.textContent = truncated;
+            filenameElement.classList.add('truncate');
+            filenameElement.setAttribute('data-full-text', fullText);
+            filenameElement.setAttribute('title', `Full filename: ${fullText}`);
+            
+            // Add click to show full name
+            filenameElement.style.cursor = 'pointer';
+            filenameElement.addEventListener('click', function() {
+                if (this.classList.contains('expanded')) {
+                    this.textContent = truncated;
+                    this.classList.remove('expanded');
+                } else {
+                    this.textContent = fullText;
+                    this.classList.add('expanded');
+                }
+            });
         }
     }
+}
+
+// JavaScript to link sliders with input fields
+function updateVarianceValue(val) {
+    document.getElementById('variance_threshold').value = val;
+}
+
+function updateVarianceSlider(val) {
+    document.getElementById('variance_threshold_slider').value = val;
+}
+
+function updateCorrelationValue(val) {
+    document.getElementById('correlation_threshold').value = val;
+}
+
+function updateCorrelationSlider(val) {
+    document.getElementById('correlation_threshold_slider').value = val;
+}
+
+function toggleConstantInput() {
+    var method = document.getElementById('missing_method').value;
+    var constantGroup = document.getElementById('constant_value_group');
     
-    // Zamiast czyszczenia przy opuszczaniu strony,
-    // dodaj czyszczenie przy kliknięciu konkretnych przycisków z opóźnieniem 5 sekund
-    document.addEventListener('DOMContentLoaded', function() {
-        // Znajdź formularze po ich ukrytych polach input
-        const forms = document.querySelectorAll('form[action="{{ url_for("manual_process") }}"]');
-        
-        forms.forEach(function(form) {
-            const actionTypeInput = form.querySelector('input[name="action_type"]');
-            if (actionTypeInput) {
-                // Sprawdź, czy to jeden z naszych docelowych formularzy
-                if (actionTypeInput.value === 'download' || actionTypeInput.value === 'next_step') {
-                    form.addEventListener('submit', function() {
-                        if ("{{ is_temp_file }}" === "True") {
-                            // Opóźnienie wykonania czyszczenia o 5 sekund
-                            setTimeout(function() {
-                                navigator.sendBeacon('/cleanup_temp', '');
-                            }, 5000); // 5000 ms = 5 sekund
-                        }
-                    });
-                }
+    if (method === 'fill_constant') {
+        constantGroup.style.display = 'block';
+    } else {
+        constantGroup.style.display = 'none';
+    }
+}
+
+// Cleanup functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Find forms by their hidden input fields
+    const forms = document.querySelectorAll('form[action="{{ url_for("manual_process") }}"]');
+    
+    forms.forEach(function(form) {
+        const actionTypeInput = form.querySelector('input[name="action_type"]');
+        if (actionTypeInput) {
+            // Check if this is one of our target forms
+            if (actionTypeInput.value === 'download' || actionTypeInput.value === 'next_step') {
+                form.addEventListener('submit', function() {
+                    if ("{{ is_temp_file }}" === "True") {
+                        // Delay cleanup execution by 5 seconds
+                        setTimeout(function() {
+                            navigator.sendBeacon('/cleanup_temp', '');
+                        }, 5000); // 5000 ms = 5 seconds
+                    }
+                });
             }
-        });
+        }
     });
+});
 </script>
+
+
 {% endblock %}
