@@ -20,6 +20,9 @@
         background: linear-gradient(135deg, var(--light-bg) 0%, #e3f2fd 100%);
         min-height: 100vh;
         overflow-x: hidden;
+        display: flex;
+        flex-direction: column;
+        margin: 0;
     }
 
     /* Dark theme support */
@@ -63,6 +66,23 @@
 
     .dark-theme .stat-label {
         color: #cbd5e0;
+    }
+
+    .dark-theme .footer {
+        background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .dark-theme .footer-content {
+        color: #cbd5e0;
+    }
+
+    .dark-theme .footer-link {
+        color: #90cdf4;
+    }
+
+    .dark-theme .footer-link:hover {
+        color: #63b3ed;
     }
 
     /* Animated background molecules */
@@ -119,6 +139,7 @@
         position: relative;
         overflow: hidden;
         margin-bottom: 0;
+        flex-shrink: 0;
     }
 
     .main-header::before {
@@ -178,8 +199,9 @@
 
     /* Main content */
     .main-content {
-        padding: 4rem 0;
+        padding: 2rem 0;
         position: relative;
+        flex: 1;
     }
 
     .options-container {
@@ -353,24 +375,25 @@
     /* Stats section */
     .stats-section {
         background: var(--white);
-        padding: 3rem 0;
-        margin-top: 4rem;
+        padding: 1.5rem 0;
+        margin-top: 2rem;
         border-top: 1px solid #e2e8f0;
+        flex-shrink: 0;
     }
 
     .stats-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 2rem;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
         text-align: center;
     }
 
     .stat-item {
-        padding: 1rem;
+        padding: 0.5rem;
     }
 
     .stat-number {
-        font-size: 2.5rem;
+        font-size: 1.8rem;
         font-weight: 700;
         color: var(--primary-color);
         display: block;
@@ -378,9 +401,88 @@
 
     .stat-label {
         color: #64748b;
-        font-size: 0.9rem;
+        font-size: 0.8rem;
         text-transform: uppercase;
         letter-spacing: 0.5px;
+    }
+
+    /* Footer styles */
+    .footer {
+        background: linear-gradient(135deg, var(--dark-color) 0%, #34495e 100%);
+        border-top: 1px solid #e2e8f0;
+        padding: 1rem 0;
+        position: relative;
+        overflow: hidden;
+        margin-top: 0;
+        flex-shrink: 0;
+    }
+
+    .footer::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="footerGrid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23footerGrid)"/></svg>');
+        opacity: 0.5;
+    }
+
+    .footer-content {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 0.85rem;
+        line-height: 1.4;
+    }
+
+    .footer-author {
+        font-weight: 600;
+        color: var(--white);
+        margin-bottom: 0.3rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        font-size: 0.9rem;
+    }
+
+    .footer-author i {
+        color: var(--accent-color);
+        font-size: 0.9rem;
+    }
+
+    .footer-year {
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    .footer-link {
+        color: #90cdf4;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.3rem 0.8rem;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 0.8rem;
+    }
+
+    .footer-link:hover {
+        color: #63b3ed;
+        text-decoration: none;
+        background: rgba(255, 255, 255, 0.1);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .footer-link i {
+        font-size: 0.8rem;
     }
 
     /* Responsive design */
@@ -403,7 +505,11 @@
         }
 
         .main-content {
-            padding: 2rem 0;
+            padding: 1.5rem 0;
+        }
+
+        .footer-content {
+            font-size: 0.8rem;
         }
     }
 
@@ -441,6 +547,33 @@
     @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
+    }
+
+    .analysis-entry-btn {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        border: none;
+        color: white;
+        padding: 1rem 3rem;
+        border-radius: 30px;
+        font-weight: 600;
+        font-size: 1.1rem;
+        text-decoration: none;
+        box-shadow: var(--shadow-medium);
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .analysis-entry-btn:hover {
+        color: white;
+        text-decoration: none;
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-heavy);
+    }
+
+    .dark-theme .analysis-entry-btn {
+        background: linear-gradient(135deg, #4a5568, #2d3748);
     }
 </style>
 
@@ -549,44 +682,26 @@
     </div>
 </section>
 
-<!-- Analysis Entry Button -->
-<section class="entry-section py-4">
-    <div class="container text-center">
-        <a href="{{ url_for('preprocess') }}" class="btn btn-lg analysis-entry-btn">
-            <i class="fas fa-flask mr-2"></i>
-            Enter Analysis Platform
-        </a>
+<!-- Footer -->
+<footer class="footer">
+    <div class="container">
+        <div class="footer-content">
+            <div class="footer-author">
+                <i class="fas fa-code"></i>
+                Karol Topka Kłończyński
+            </div>
+            <div class="footer-year">
+                © 2025
+            </div>
+            <div>
+                <a href="https://github.com/karoltopka" class="footer-link" target="_blank" rel="noopener noreferrer">
+                    <i class="fab fa-github"></i>
+                    github.com/karoltopka
+                </a>
+            </div>
+        </div>
     </div>
-</section>
-
-<style>
-    .analysis-entry-btn {
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-        border: none;
-        color: white;
-        padding: 1rem 3rem;
-        border-radius: 30px;
-        font-weight: 600;
-        font-size: 1.1rem;
-        text-decoration: none;
-        box-shadow: var(--shadow-medium);
-        transition: all 0.3s ease;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .analysis-entry-btn:hover {
-        color: white;
-        text-decoration: none;
-        transform: translateY(-3px);
-        box-shadow: var(--shadow-heavy);
-    }
-
-    .dark-theme .analysis-entry-btn {
-        background: linear-gradient(135deg, #4a5568, #2d3748);
-    }
-</style>
+</footer>
 
 <script>
     // Create floating molecules animation
