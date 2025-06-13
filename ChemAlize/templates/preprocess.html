@@ -11,7 +11,7 @@
                     <input name="data" type="file" id="fileInput" 
                            accept=".csv,.xlsx,.json,.yaml,.txt" 
                            class="file-input"
-                           onchange="document.getElementById('fileInfo').textContent = this.files[0].name">
+                           onchange="document.getElementById('fileInfo').textContent = this.files[0].name; updateButtonStates()">
                     
                     <!-- Customowy przycisk "Choose File" -->
                     <label for="fileInput" class="btn btn-outline-secondary file-label">
@@ -68,7 +68,8 @@
                             data-toggle="collapse" 
                             data-target="#autoExplanation" 
                             aria-expanded="false" 
-                            aria-controls="autoExplanation">
+                            aria-controls="autoExplanation"
+                            {% if not filename %}disabled title="Please upload a file first"{% endif %}>
                         <i class="fas fa-robot mr-2"></i>Auto Mode
                     </button>
                     
@@ -80,8 +81,7 @@
                                 <ul>
                                     <li>Cleans missing values using smart imputation</li>
                                     <li>Detects and removes outliers</li>
-                                    <li>Generates optimal visualizations</li>
-                                    <li>Applies feature engineering</li>
+                                    <li>General preparation to proceed further analysis</li>
                                 </ul>
                                 <button class="btn btn-success" onclick="runAutoMode()">
                                     <i class="fas fa-play mr-2"></i>Run Auto Preprocess
@@ -99,7 +99,8 @@
                             data-toggle="collapse" 
                             data-target="#manualExplanation" 
                             aria-expanded="false" 
-                            aria-controls="manualExplanation">
+                            aria-controls="manualExplanation"
+                            {% if not filename %}disabled title="Please upload a file first"{% endif %}>
                         <i class="fas fa-cogs mr-2"></i>Manual Mode
                     </button>
                     
@@ -110,9 +111,8 @@
                                 <p>Full control over analysis:</p>
                                 <ul>
                                     <li>Custom data preprocessing</li>
-                                    <li>Advanced feature engineering</li>
-                                    <li>Interactive visualization tools</li>
-                                    <li>Model parameter adjustment</li>
+                                    <li>Cleaning methods for rows and columns</li>
+                                    <li>Preprocessing based on variance, corellation and other</li>
                                 </ul>
                                 <a href="{{ url_for('manual_mode') }}" class="btn btn-warning">
                                     <i class="fas fa-arrow-right mr-2"></i>Proceed to Manual Controls
@@ -125,16 +125,23 @@
         </div>
     </div>
     
-    <!-- Second Column - MOVED ADVANCED OPERATIONS HERE -->
+<!-- Second Column - MOVED ADVANCED OPERATIONS HERE -->
     <div class="col-lg-7">
         <!-- Advanced Operations section -->
         <div class="content-section">
             <!-- Main Advanced Operations Button -->
             <legend class="border-bottom mb-4">Advanced Operations</legend>
-            <button class="btn btn-primary mb-3 w-100" type="button" data-toggle="collapse" 
-                    data-target="#advancedOperations" aria-expanded="false" 
-                    aria-controls="advancedOperations">
-                <i class="fas fa-caret-down"></i> Expand Operations
+            <button class="btn btn-primary mb-3 w-100" type="button" 
+                    id="expandOperationsBtn"
+                    data-toggle="collapse" 
+                    data-target="#advancedOperations" 
+                    aria-expanded="false" 
+                    aria-controls="advancedOperations"
+                    {% if not filename %}disabled{% endif %}>
+                <i class="fas fa-caret-down"></i> 
+                <span id="expandOperationsText">
+                    {% if not filename %}Upload a file to access operations{% else %}Expand Operations{% endif %}
+                </span>
             </button>
 
             <!-- Advanced Operations Content -->
@@ -158,7 +165,7 @@
                                         <div class="input-group mb-2">
                                             <div class="input-group-prepend">
                                                 <div class="input-group-text">
-                                                    <input type="checkbox" name="check_cols" value="{{i}}">
+                                                    <input type="checkbox" name="check_cols" value="{{i}}" onchange="updateColumnButtonStates()">
                                                 </div>
                                             </div>
                                             <div class="form-control">{{i}}</div>
@@ -166,74 +173,24 @@
                                         {% endfor %}
                                     </fieldset>
                                     
+                                    <!-- Warning message -->
+                                    <div id="columnWarning" class="alert alert-warning" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                                        Please select at least one column to perform operations.
+                                    </div>
+                                    
                                     <div class="btn-group w-100">
                                         <button class="btn btn-danger" type="submit" 
-                                                name="Submit" value="DeleteColumn">Delete</button>
+                                                id="deleteColumnBtn"
+                                                name="Submit" value="DeleteColumn" 
+                                                disabled
+                                                title="Select columns to delete">Delete</button>
                                         <button class="btn btn-info" type="button" 
-                                                data-toggle="modal" data-target="#modalLoginForm">Clean</button>
-                                    </div>
-                                </form>
-                                    <!-- Modal -->
-                                    <div class="modal fade" id="modalLoginForm" tabindex="-1" role="dialog" 
-                                         aria-labelledby="myModalLabel" aria-hidden="true">
-                                        <div class="modal-dialog" role="document">
-                                            <div class="modal-content">
-                                                <div class="modal-header text-center">
-                                                    <h4 class="modal-title w-100 font-weight-bold">Treat Missing</h4>
-                                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                                        <span aria-hidden="true">&times;</span>
-                                                    </button>
-                                                </div>
-                                                <div class="modal-body mx-3">
-                                                    <div class="input-group mb-4">
-                                                        <div class="input-group-prepend">
-                                                            <div class="input-group-text">
-                                                                <input type="radio" name="how" value="mean" required>
-                                                            </div>
-                                                        </div>
-                                                        <div class="form-control">Mean</div>
-                                                    </div>
-                                                    <div class="input-group mb-4">
-                                                        <div class="input-group-prepend">
-                                                            <div class="input-group-text">
-                                                                <input type="radio" name="how" value="mode" required>
-                                                            </div>
-                                                        </div>
-                                                        <div class="form-control">Mode</div>
-                                                    </div>
-                                                    <div class="input-group mb-4">
-                                                        <div class="input-group-prepend">
-                                                            <div class="input-group-text">
-                                                                <input type="radio" name="how" value="median" required>
-                                                            </div>
-                                                        </div>
-                                                        <div class="form-control">Median</div>
-                                                    </div>
-                                                    <div class="input-group mb-4">
-                                                        <div class="input-group-prepend">
-                                                            <div class="input-group-text">
-                                                                <input type="radio" name="how" value="ffill" required>
-                                                            </div>
-                                                        </div>
-                                                        <div class="form-control">FFill</div>
-                                                    </div>
-                                                    <div class="input-group mb-4">
-                                                        <div class="input-group-prepend">
-                                                            <div class="input-group-text">
-                                                                <input type="radio" name="how" value="any" required>
-                                                            </div>
-                                                        </div>
-                                                        <input type="number" step="any" name="howNos" 
-                                                               placeholder="Enter Integer/Float Value" 
-                                                               class="form-control validate">
-                                                    </div>
-                                                </div>
-                                                <div class="modal-footer d-flex justify-content-center">
-                                                    <button class="btn btn-primary" type="submit" 
-                                                            name="Submit" value="Clean">Clean</button>
-                                                </div>
-                                            </div>
-                                        </div>
+                                                id="renameColumnBtn"
+                                                data-toggle="modal" 
+                                                data-target="#modalRenameForm"
+                                                disabled
+                                                title="Select columns to rename">Rename</button>
                                     </div>
                                 </form>
                             </div>
@@ -257,7 +214,7 @@
                                         <div class="input-group mb-2">
                                             <div class="input-group-prepend">
                                                 <div class="input-group-text">
-                                                    <input type="checkbox" name="check_rows" value="{{i}}">
+                                                    <input type="checkbox" name="check_rows" value="{{i}}" onchange="updateRowButtonStates()">
                                                 </div>
                                             </div>
                                             <div class="form-control">{{i}}</div>
@@ -265,9 +222,18 @@
                                         {% endfor %}
                                     </fieldset>
                                     
+                                    <!-- Warning message for rows -->
+                                    <div id="rowWarning" class="alert alert-warning" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                                        Please select at least one row to delete.
+                                    </div>
+                                    
                                     <div class="btn-group w-100">
                                         <button class="btn btn-danger" type="submit" 
-                                                name="Submit" value="DeleteRow">Delete</button>
+                                                id="deleteRowBtn"
+                                                name="Submit" value="DeleteRow"
+                                                disabled
+                                                title="Select rows to delete">Delete</button>
                                     </div>
                                 </form>
                             </div>
@@ -278,6 +244,49 @@
         </div>
     </div>
 
+    <!-- Enhanced Modal dla Rename -->
+    <div class="modal fade" id="modalRenameForm" tabindex="-1" role="dialog" 
+         aria-labelledby="renameModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header text-center">
+                    <h4 class="modal-title w-100 font-weight-bold" id="renameModalLabel">Rename Columns</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <form action="/preprocess" method="POST" id="renameForm">
+                    <div class="modal-body mx-3">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Selected Columns:</h6>
+                                <div id="selectedColumnsList" class="border rounded p-3 mb-3" style="min-height: 200px; background-color: #f8f9fa;">
+                                    <!-- Selected columns will be listed here -->
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>New Names:</h6>
+                                <div id="renameInputsList" class="p-3 mb-3" style="min-height: 200px;">
+                                    <!-- Rename inputs will be generated here -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <small>You can rename multiple columns at once. Leave a field empty to keep the original name.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer d-flex justify-content-center">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button class="btn btn-primary" type="submit" name="Submit" value="RenameMultiple">
+                            Rename Columns
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="row">
     <div class="col">
@@ -314,48 +323,166 @@
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const fileInput = document.getElementById('fileInput');
-        const uploadBtn = document.querySelector('.upload-btn');
-        const fileText = document.querySelector('.file-text');
-        const fileInfo = document.getElementById('fileInfo');
-        
-        // Początkowo dezaktywuj przycisk
-        uploadBtn.disabled = true;
-        
-        fileInput.addEventListener('change', function() {
-            if (this.files.length > 0) {
-                // Pokaż nazwę wybranego pliku
-                const fileName = this.files[0].name;
-                fileText.textContent = fileName;
-                fileInfo.textContent = `Selected file: ${fileName}`;
-                uploadBtn.disabled = false;
-            } else {
-                // Przywróć domyślny tekst
-                fileText.textContent = 'Choose file (CSV, XLSX, JSON, YAML, TXT)';
-                fileInfo.textContent = '';
-                uploadBtn.disabled = true;
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('fileInput');
+    const uploadBtn = document.querySelector('.upload-btn');
+    const fileText = document.querySelector('.file-text');
+    const fileInfo = document.getElementById('fileInfo');
+    
+    // Początkowo dezaktywuj przycisk
+    uploadBtn.disabled = true;
+    
+    fileInput.addEventListener('change', function() {
+        if (this.files.length > 0) {
+            // Pokaż nazwę wybranego pliku
+            const fileName = this.files[0].name;
+            fileText.textContent = fileName;
+            fileInfo.textContent = `Selected file: ${fileName}`;
+            uploadBtn.disabled = false;
+        } else {
+            // Przywróć domyślny tekst
+            fileText.textContent = 'Choose file (CSV, XLSX, JSON, YAML, TXT)';
+            fileInfo.textContent = '';
+            uploadBtn.disabled = true;
+        }
+    });
+    
+    // Initialize button states
+    updateColumnButtonStates();
+    updateRowButtonStates();
+});
+
+function updateButtonStates() {
+    // This function can be called when file is uploaded to update UI
+    updateColumnButtonStates();
+    updateRowButtonStates();
+}
+
+function updateColumnButtonStates() {
+    const selectedColumns = document.querySelectorAll('input[name="check_cols"]:checked');
+    const deleteBtn = document.getElementById('deleteColumnBtn');
+    const renameBtn = document.getElementById('renameColumnBtn');
+    const warning = document.getElementById('columnWarning');
+    
+    if (deleteBtn && renameBtn) {
+        if (selectedColumns.length > 0) {
+            deleteBtn.disabled = false;
+            deleteBtn.title = `Delete ${selectedColumns.length} column(s)`;
+            renameBtn.disabled = false;
+            renameBtn.title = `Rename ${selectedColumns.length} column(s)`;
+            if (warning) warning.style.display = 'none';
+        } else {
+            deleteBtn.disabled = true;
+            deleteBtn.title = 'Select columns to delete';
+            renameBtn.disabled = true;
+            renameBtn.title = 'Select columns to rename';
+            if (warning) warning.style.display = 'block';
+        }
+    }
+}
+
+function updateRowButtonStates() {
+    const selectedRows = document.querySelectorAll('input[name="check_rows"]:checked');
+    const deleteBtn = document.getElementById('deleteRowBtn');
+    const warning = document.getElementById('rowWarning');
+    
+    if (deleteBtn) {
+        if (selectedRows.length > 0) {
+            deleteBtn.disabled = false;
+            deleteBtn.title = `Delete ${selectedRows.length} row(s)`;
+            if (warning) warning.style.display = 'none';
+        } else {
+            deleteBtn.disabled = true;
+            deleteBtn.title = 'Select rows to delete';
+            if (warning) warning.style.display = 'block';
+        }
+    }
+}
+
+// Enhanced rename modal script - Using vanilla JavaScript for better compatibility
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('modalRenameForm');
+    
+    if (modal) {
+        // Handle modal show event
+        $('#modalRenameForm').on('show.bs.modal', function (e) {
+            console.log('Modal opening...'); // Debug log
+            
+            // Get selected columns using vanilla JavaScript
+            const selectedCheckboxes = document.querySelectorAll('input[name="check_cols"]:checked');
+            const selectedColumns = [];
+            
+            selectedCheckboxes.forEach(function(checkbox) {
+                selectedColumns.push(checkbox.value);
+            });
+            
+            console.log('Selected columns:', selectedColumns); // Debug log
+            
+            // Check if any columns are selected
+            if (selectedColumns.length === 0) {
+                alert('Please select at least one column to rename');
+                e.preventDefault();
+                return false;
+            }
+            
+            // Build the selected columns list
+            let selectedHtml = '';
+            let inputsHtml = '';
+            
+            selectedColumns.forEach(function(column, index) {
+                selectedHtml += `
+                    <div class="mb-2 p-2 bg-white border rounded">
+                        <strong>${column}</strong>
+                    </div>
+                `;
+                
+                inputsHtml += `
+                    <div class="mb-3">
+                        <label for="new_name_${index}" class="form-label">
+                            <small class="text-muted">New name for "${column}":</small>
+                        </label>
+                        <input type="text" 
+                               name="new_names" 
+                               id="new_name_${index}"
+                               class="form-control" 
+                               placeholder="Enter new name or leave empty"
+                               data-original-name="${column}">
+                        <input type="hidden" name="original_names" value="${column}">
+                    </div>
+                `;
+            });
+            
+            // Update the modal content
+            const selectedList = document.getElementById('selectedColumnsList');
+            const inputsList = document.getElementById('renameInputsList');
+            
+            if (selectedList) {
+                selectedList.innerHTML = selectedHtml;
+                console.log('Updated selected columns list'); // Debug log
+            }
+            
+            if (inputsList) {
+                inputsList.innerHTML = inputsHtml;
+                console.log('Updated inputs list'); // Debug log
+            }
+            
+            // Update modal title
+            const modalTitle = document.getElementById('renameModalLabel');
+            if (modalTitle) {
+                modalTitle.textContent = `Rename ${selectedColumns.length} Column${selectedColumns.length > 1 ? 's' : ''}`;
             }
         });
-    });
-    </script>
 
-
-
-<script>
-    $(document).ready(function() {
-        $('#columnsOperations').on('show.bs.collapse', function () {
-            $('.btn[data-target="#columnsOperations"]')
-                .html('<i class="fas fa-caret-down"></i> Hide Columns Operations');
+        // Clear modal on hide
+        $('#modalRenameForm').on('hide.bs.modal', function (e) {
+            const selectedList = document.getElementById('selectedColumnsList');
+            const inputsList = document.getElementById('renameInputsList');
+            
+            if (selectedList) selectedList.innerHTML = '';
+            if (inputsList) inputsList.innerHTML = '';
         });
-    
-        $('#columnsOperations').on('hide.bs.collapse', function () {
-            $('.btn[data-target="#columnsOperations"]')
-                .html('<i class="fas fa-caret-down"></i> Show Columns Operations');
-        });
-    });
-    </script>
-    
-    
+    }
+});
+</script>
 
 {% endblock content %}

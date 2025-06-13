@@ -138,60 +138,126 @@ def preprocess():
             except Exception as e:
                 flash(f"Upload failed: {str(e)}", "danger")
 
-
         elif request.form["Submit"] == "DeleteColumn":
             try:
-                clean_path = os.path.join("ChemAlize/clean/", session["csv_name"])
-                df = read_dataset(clean_path)
-                df = gp.delete_column(df, request.form.getlist("check_cols"))
-                df.to_csv(clean_path, index=False)
-                flash("Column(s) deleted successfully", "success")
+                selected_columns = request.form.getlist("check_cols")
+                if not selected_columns:
+                    flash("Please select at least one column to delete", "warning")
+                else:
+                    clean_path = os.path.join("ChemAlize/clean/", session["csv_name"])
+                    df = read_dataset(clean_path)
+                    df = gp.delete_column(df, selected_columns)
+                    df.to_csv(clean_path, index=False)
+                    flash(f"Column(s) {', '.join(selected_columns)} deleted successfully", "success")
             except Exception as e:
                 flash(f"Error: {str(e)}", "danger")
 
-
-
         elif request.form["Submit"] == "DeleteRow":
             try:
-                clean_path = os.path.join("ChemAlize/clean/", session["csv_name"])
-                df = read_dataset(clean_path)
-                
-                # Pobierz listę wierszy do usunięcia (indeksy)
-                rows_to_delete = request.form.getlist("check_rows")
-                rows_to_delete = [int(row) for row in rows_to_delete]
-                
-                # Użyj funkcji gp.deleterows()
-                df = gp.delete_rows(df, rows_to_delete)
-                
-                # Zapisz zmiany
-                df.to_csv(clean_path, index=False)
-                flash("Row(s) deleted successfully", "success")
+                selected_rows = request.form.getlist("check_rows")
+                if not selected_rows:
+                    flash("Please select at least one row to delete", "warning")
+                else:
+                    clean_path = os.path.join("ChemAlize/clean/", session["csv_name"])
+                    df = read_dataset(clean_path)
+                    
+                    # Pobierz listę wierszy do usunięcia (indeksy)
+                    rows_to_delete = [int(row) for row in selected_rows]
+                    
+                    # Użyj funkcji gp.deleterows()
+                    df = gp.delete_rows(df, rows_to_delete)
+                    
+                    # Zapisz zmiany
+                    df.to_csv(clean_path, index=False)
+                    flash(f"Row(s) {', '.join(selected_rows)} deleted successfully", "success")
             except Exception as e:
                 flash(f"Error deleting rows: {str(e)}", "danger")
 
-
-                
-        elif request.form["Submit"] == "Clean":
+        elif request.form["Submit"] == "RenameMultiple":
             try:
                 # Operuj na pliku w clean
                 clean_path = os.path.join("ChemAlize/clean/", session["csv_name"])
                 df = read_dataset(clean_path)
-                how = request.form.get("how")
                 
-                if how != "any":
-                    df = gp.treat_missing_numeric(
-                        df, request.form.getlist("check_cols"), how=how
-                    )
-                elif request.form.get("howNos"):
-                    df = gp.treat_missing_numeric(
-                        df,
-                        request.form.getlist("check_cols"),
-                        how=float(request.form["howNos"]),
-                    )
+                # Pobierz oryginalne nazwy kolumn i nowe nazwy
+                original_names = request.form.getlist("original_names")
+                new_names = request.form.getlist("new_names")
                 
-                # Zapisz zmiany tylko w clean
-                df.to_csv(clean_path, index=False)
-                flash("Column(s) cleaned successfully", "success")
+                if not original_names:
+                    flash("No columns selected for renaming", "warning")
+                    return redirect(url_for('preprocess'))
+                
+                # Sprawdź czy listy mają tę samą długość
+                if len(original_names) != len(new_names):
+                    flash("Mismatch between original and new column names", "danger")
+                    return redirect(url_for('preprocess'))
+                
+                # Przygotuj mapowanie zmian nazw
+                rename_mapping = {}
+                renamed_columns = []
+                
+                for i, (original, new) in enumerate(zip(original_names, new_names)):
+                    # Sprawdź czy pole nie jest puste i czy nazwa się różni
+                    if new and new.strip() and new.strip() != original:
+                        new_name = new.strip()
+                        
+                        # Sprawdź czy nowa nazwa już istnieje w DataFrame
+                        if new_name in df.columns and new_name not in original_names:
+                            flash(f"Column name '{new_name}' already exists", "warning")
+                            return redirect(url_for('preprocess'))
+                        
+                        # Sprawdź czy nowa nazwa nie jest duplikatem w aktualnym renamingu
+                        if new_name in rename_mapping.values():
+                            flash(f"Duplicate new column name '{new_name}' found", "warning")
+                            return redirect(url_for('preprocess'))
+                        
+                        rename_mapping[original] = new_name
+                        renamed_columns.append(f"'{original}' → '{new_name}'")
+                
+                # Jeśli są zmiany do wykonania
+                if rename_mapping:
+                    # Wykonaj rename
+                    df = df.rename(columns=rename_mapping)
+                    
+                    # Zapisz zmiany
+                    df.to_csv(clean_path, index=False)
+                    
+                    if len(renamed_columns) == 1:
+                        flash(f"Column {renamed_columns[0]} renamed successfully", "success")
+                    else:
+                        flash(f"{len(renamed_columns)} columns renamed successfully: {', '.join(renamed_columns)}", "success")
+                else:
+                    flash("No changes were made - all new names were empty or identical to original names", "info")
+                    
+            except Exception as e:
+                flash(f"Error renaming columns: {str(e)}", "danger")
+
+        # Backward compatibility - keep old single rename functionality
+        elif request.form["Submit"] == "Rename":
+            try:
+                # Operuj na pliku w clean
+                clean_path = os.path.join("ChemAlize/clean/", session["csv_name"])
+                df = read_dataset(clean_path)
+                
+                # Pobierz zaznaczone kolumny i nową nazwę
+                selected_columns = request.form.getlist("check_cols")
+                new_column_name = request.form.get("new_column_name")
+                
+                if len(selected_columns) != 1:
+                    flash("Please select exactly one column to rename", "warning")
+                elif not new_column_name:
+                    flash("Please provide a new column name", "warning")
+                elif new_column_name in df.columns:
+                    flash("Column name already exists", "warning")
+                else:
+                    # Przemianuj kolumnę
+                    old_name = selected_columns[0]
+                    df = df.rename(columns={old_name: new_column_name})
+                    
+                    # Zapisz zmiany
+                    df.to_csv(clean_path, index=False)
+                    flash(f"Column '{old_name}' renamed to '{new_column_name}' successfully", "success")
+                    
             except Exception as e:
                 flash(f"Error: {str(e)}", "danger")
 
@@ -242,7 +308,6 @@ def preprocess():
     
     # Always return a valid response, even when no data is loaded
     return render_template("preprocess.html", active="preprocess", title="Preprocess")
-
 
 # Helper function to check if dataset is loaded
 def check_dataset():
