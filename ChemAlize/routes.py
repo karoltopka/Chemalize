@@ -1570,7 +1570,7 @@ def tree():
 @app.route('/manual')
 def manual_mode():
     if "csv_name" not in session:
-        flash("Najpierw załaduj plik danych", "warning")
+        flash("First load the data", "warning")
         return redirect(url_for('preprocess'))
     
     # Określ, który plik wczytać - preferuj plik z temp jeśli istnieje (tak samo jak w manual_process)
@@ -1669,9 +1669,20 @@ def manual_process():
     from ChemAlize.preprocessing.manual_preprocessing import process_dataset, get_dataset_stats
     from datetime import datetime
     import numpy as np
+
+    # Inicjalizuj statusy tylko jeśli nie istnieją w sesji
+    if "data_cleaned" not in session:
+        session["data_cleaned"] = False
+    if "target_transformed" not in session:
+        session["target_transformed"] = False
+    if "features_transformed" not in session:
+        session["features_transformed"] = False
+    if "features_selected" not in session:
+        session["features_selected"] = False
+
     
     if "csv_name" not in session:
-        flash("Najpierw załaduj plik danych", "warning")
+        flash("First upload the data", "warning")
         return redirect(url_for('preprocess'))
     
     # Określ, który plik wczytać - preferuj plik z temp jeśli istnieje
@@ -1701,7 +1712,7 @@ def manual_process():
             file_path = temp_path
             is_temp_file = True
         else:
-            flash("Nie można znaleźć pliku danych", "danger")
+            flash("Can not find the data", "danger")
             return redirect(url_for('preprocess'))
     
     # Wczytaj dane
@@ -1772,7 +1783,7 @@ def manual_process():
                     # Próbuj naprawić ścieżkę
                     alt_path = temp_path.replace('ChemAlize/ChemAlize/temp/', 'ChemAlize/temp/')
                     if os.path.exists(alt_path):
-                        print(f"Znaleziono alternatywną ścieżkę: {alt_path}")
+                        print(f"Alternative path found: {alt_path}")
                         temp_path = alt_path
                     else:
                         # Spróbuj znaleźć plik w inny sposób, korzystając z nazwy pliku
@@ -1782,7 +1793,7 @@ def manual_process():
                         temp_path = os.path.join(temp_dir, base_filename)
                         
                         if not os.path.exists(temp_path):
-                            flash(f"Nie można znaleźć pliku do pobrania. Sprawdź ścieżkę: {temp_path}", "danger")
+                            flash(f"Can not find file to download. Check path: {temp_path}", "danger")
                             return redirect(url_for('manual_process'))
                 
                 # Zwróć plik do pobrania
@@ -1821,7 +1832,7 @@ def manual_process():
                 if "temp_csv_path" in session:
                     session.pop("temp_csv_path")
                 
-                flash(f"Plik '{new_filename}' został zapisany. Możesz przejść do kolejnego etapu.", "success")
+                flash(f"File '{new_filename}' has been saved. You can proceed to next step.", "success")
                 return redirect(url_for('preprocess'))  # Lub inny odpowiedni URL
             else:
                 flash("Brak przetworzonego pliku do zapisania", "warning")
@@ -1894,13 +1905,22 @@ def manual_process():
                 session["missing_values"] = missing_values
                 session["has_low_variance"] = has_low_variance
                 session["max_correlation"] = max_correlation
-                session["data_cleaned"] = True
-                
+
+                # Mapuj operacje na odpowiednie statusy zgodnie z template
+                if action_type == 'scale':
+                    session["data_cleaned"] = True
+                elif action_type == 'remove_low_variance':
+                    session["target_transformed"] = True  
+                elif action_type == 'remove_correlated':
+                    session["features_transformed"] = True
+                elif action_type == 'handle_missing':
+                    session["features_selected"] = True
+
                 # Aktualizuj nazwę pliku tymczasowego
                 temp_filename = os.path.basename(temp_path)
                 
                 # Wyświetl komunikat
-                flash(result_info.get('message', 'Dane zostały przetworzone'), "info")
+                flash(result_info.get('message', 'Data has been processed'), "info")
                 
                 # Użyj przetworzonego dataframe
                 df = processed_df
@@ -1929,56 +1949,105 @@ def manual_process():
 
 @app.route("/download_temp_file", methods=['GET'])
 def download_temp_file():
-    if "temp_csv_path" not in session:
-        flash("Brak informacji o pliku do pobrania", "warning")
+    """Pobierz plik po preprocessingu lub oryginalny z clean."""
+    
+    # Sprawdź czy istnieje informacja o pliku w sesji
+    if "temp_csv_path" not in session and "csv_name" not in session:
+        flash("No file information available for download", "warning")
         return redirect(url_for('manual_process'))
     
-    # Wyciągnij tylko nazwę pliku z ścieżki w sesji
-    temp_filename = os.path.basename(session["temp_csv_path"])
-    base_filename = session.get("csv_name", "processed_data")
+    # Pobierz informacje z sesji
+    csv_name = session.get("csv_name", "processed_data")
+    temp_csv_path = session.get("temp_csv_path")
     
-    # Ustaw domyślną nazwę pliku do pobrania
-    download_filename = f"processed_{base_filename}"
-    if not download_filename.endswith('.csv'):
-        download_filename += '.csv'
+    # Ustaw nazwę do pobrania
+    base_filename = os.path.splitext(csv_name)[0] if csv_name.endswith('.csv') else csv_name
+    download_filename = f"processed_{base_filename}.csv"
     
-    # Uzyskaj ścieżkę bezwzględną do katalogu aplikacji
+    # Pobierz absolutną ścieżkę do katalogu aplikacji
     app_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-    print(f"Katalog aplikacji: {app_dir}")
+    print(f"Application directory: {app_dir}")
     
-    # Określ dokładną ścieżkę bezwzględną do katalogu temp
+    # Określ katalog temp
     temp_dir = os.path.join(app_dir, "temp")
     if not os.path.exists(temp_dir):
         temp_dir = os.path.join(app_dir, "ChemAlize", "temp")
-    print(f"Katalog temp: {temp_dir}")
+    print(f"Temp directory: {temp_dir}")
     
-    # Sprawdź, czy plik istnieje w katalogu temp
-    file_path = os.path.join(temp_dir, temp_filename)
-    print(f"Szukam pliku: {file_path}")
+    file_to_download = None
     
-    if os.path.exists(file_path):
-        print(f"Znaleziono plik, wysyłam: {file_path}")
-        return send_file(file_path, as_attachment=True, download_name=download_filename)
+    # NAJPIERW sprawdź czy istnieje plik po preprocessingu
+    if temp_csv_path:
+        # Konwertuj względną ścieżkę z sesji na absolutną
+        if not os.path.isabs(temp_csv_path):
+            # temp_csv_path jest względny (np. "ChemAlize/temp/Enrichment_20250614_17.csv")
+            absolute_temp_path = os.path.join(app_dir, temp_csv_path)
+        else:
+            absolute_temp_path = temp_csv_path
+            
+        print(f"Checking absolute temp path: {absolute_temp_path}")
+        
+        if os.path.exists(absolute_temp_path):
+            file_to_download = absolute_temp_path
+            print(f"Found preprocessed file: {file_to_download}")
+        else:
+            # Spróbuj znaleźć plik tylko po nazwie w temp directory
+            temp_filename = os.path.basename(temp_csv_path)
+            file_path = os.path.join(temp_dir, temp_filename)
+            print(f"Looking for temp file by name: {file_path}")
+            
+            if os.path.exists(file_path):
+                file_to_download = file_path
+                print(f"Found temp file: {file_to_download}")
     
-    # Jeśli nie znaleziono pliku, poszukaj wszystkich plików CSV w katalogu temp
-    all_temp_files = glob.glob(os.path.join(temp_dir, "*.csv"))
-    if all_temp_files:
-        newest_file = max(all_temp_files, key=os.path.getmtime)
-        print(f"Używam najnowszego pliku: {newest_file}")
-        return send_file(newest_file, as_attachment=True, download_name=download_filename)
+    # Jeśli nadal nie znaleziono, spróbuj z oryginalnym plikiem z clean
+    if not file_to_download and csv_name:
+        clean_path = os.path.join(app_dir, "ChemAlize", "clean", csv_name)
+        print(f"Looking for clean file: {clean_path}")
+        
+        if os.path.exists(clean_path):
+            # Upewnij się, że katalog temp istnieje
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            # Skopiuj z clean do temp
+            import shutil
+            temp_copy_path = os.path.join(temp_dir, csv_name)
+            try:
+                shutil.copy2(clean_path, temp_copy_path)
+                file_to_download = temp_copy_path
+                session["temp_csv_path"] = temp_copy_path
+                download_filename = f"original_{base_filename}.csv"
+                print(f"Copied from clean to temp: {file_to_download}")
+            except Exception as e:
+                print(f"Error copying from clean: {str(e)}")
     
-    # Ostatnia próba - szukaj w bezpośrednim katalogu "temp" (folder równoległy)
+    # Jeśli znaleziono plik, wyślij go
+    if file_to_download and os.path.exists(file_to_download):
+        print(f"File found, sending: {file_to_download}")
+        return send_file(file_to_download, as_attachment=True, download_name=download_filename)
+    
+    # Jeśli nie znaleziono, spróbuj znaleźć najnowszy plik CSV w temp
+    if os.path.exists(temp_dir):
+        all_temp_files = glob.glob(os.path.join(temp_dir, "*.csv"))
+        if all_temp_files:
+            newest_file = max(all_temp_files, key=os.path.getmtime)
+            print(f"Using newest file: {newest_file}")
+            return send_file(newest_file, as_attachment=True, download_name=download_filename)
+    
+    # Ostatnia próba - sprawdź alternatywny katalog temp
     alt_temp_dir = os.path.join(os.path.dirname(app_dir), "temp")
     if os.path.exists(alt_temp_dir):
         all_temp_files = glob.glob(os.path.join(alt_temp_dir, "*.csv"))
         if all_temp_files:
             newest_file = max(all_temp_files, key=os.path.getmtime)
-            print(f"Używam najnowszego pliku z alternatywnego katalogu: {newest_file}")
+            print(f"Using newest file from alternative directory: {newest_file}")
             return send_file(newest_file, as_attachment=True, download_name=download_filename)
     
-    # Jeśli wszystko zawiedzie
-    flash("Nie można znaleźć pliku do pobrania. Spróbuj zapisać plik ponownie.", "danger")
+    # Jeśli wszystko zawodzi
+    flash("Cannot find file to download. Try saving the file again.", "danger")
     return redirect(url_for('manual_process'))
+
+
 
 @app.route("/cleanup_temp", methods=['POST'])
 def cleanup_temp():
