@@ -54,19 +54,19 @@
                 <div class="status-grid">
                     <div class="status-item">
                         <i class="fas {% if data_cleaned %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %}"></i>
-                        <span class="status-label">Data Cleaning</span>
+                        <span class="status-label">Data Scaling</span>
                     </div>
                     <div class="status-item">
                         <i class="fas {% if target_transformed %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %}"></i>
-                        <span class="status-label">Target Transformation</span>
+                        <span class="status-label">Remove Low Variance Columns</span>
                     </div>
                     <div class="status-item">
                         <i class="fas {% if features_transformed %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %}"></i>
-                        <span class="status-label">Feature Transformation</span>
+                        <span class="status-label">Remove Highly Correlated Features</span>
                     </div>
                     <div class="status-item">
                         <i class="fas {% if features_selected %}fa-check-circle text-success{% else %}fa-circle text-secondary{% endif %}"></i>
-                        <span class="status-label">Feature Selection</span>
+                        <span class="status-label">Handle Missing Values</span>
                     </div>
                 </div>
             </div>
@@ -316,7 +316,7 @@
                     <form method="POST" action="{{ url_for('manual_process') }}">
                         <input type="hidden" name="action_type" value="next_step">
                         <div class="input-group">
-                            <input type="text" class="form-control" name="new_filename" placeholder="New filename" required>
+                            <input type="text" class="form-control" name="new_filename" placeholder="New filename" (optional)>
                             <div class="input-group-append">
                                 <button type="submit" class="modern-btn btn-primary-modern">
                                     <i class="fas fa-arrow-right"></i> Save & Continue

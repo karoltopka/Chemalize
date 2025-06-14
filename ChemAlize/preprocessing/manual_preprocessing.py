@@ -244,19 +244,19 @@ def process_dataset(df, action_type, params=None):
     if action_type == 'scale':
         scaling_method = params.get('scaling_method', 'standard')
         result_df = scale_data(result_df, scaling_method)
-        result_info['message'] = f"Dane zostały przeskalowane metodą: {scaling_method}"
+        result_info['message'] = f"Data has been scaled using method: {scaling_method}"
         
     elif action_type == 'remove_low_variance':
         threshold = params.get('variance_threshold', 0.01)
         result_df, removed_cols = remove_low_variance_columns(result_df, threshold)
         result_info['removed_cols'] = removed_cols
-        result_info['message'] = f"Usunięto {len(removed_cols)} kolumn o wariancji <= {threshold}"
+        result_info['message'] = f"Removed {len(removed_cols)} columns with variance <= {threshold}"
         
     elif action_type == 'remove_correlated':
         threshold = params.get('correlation_threshold', 0.9)
         result_df, removed_cols = remove_highly_correlated_columns(result_df, threshold)
         result_info['removed_cols'] = removed_cols
-        result_info['message'] = f"Usunięto {len(removed_cols)} kolumn wysoko skorelowanych (> {threshold})"
+        result_info['message'] = f"Removed {len(removed_cols)} highly correlated columns (> {threshold})"
         
     elif action_type == 'handle_missing':
         method = params.get('missing_method', 'drop_rows')
@@ -265,20 +265,20 @@ def process_dataset(df, action_type, params=None):
         result_info.update(stats)
         
         if method == 'drop_columns':
-            result_info['message'] = f"Usunięto {stats['cols_removed']} kolumn z pustymi wartościami"
+            result_info['message'] = f"Removed {stats['cols_removed']} columns with missing values"
         elif method == 'drop_rows':
-            result_info['message'] = f"Usunięto {stats['rows_removed']} wierszy z pustymi wartościami"
+            result_info['message'] = f"Removed {stats['rows_removed']} rows with missing values"
         elif method == 'fill_mean':
-            result_info['message'] = f"Wypełniono {stats['missing_filled']} pustych wartości średnią z kolumny"
+            result_info['message'] = f"Filled {stats['missing_filled']} missing values with column mean"
         elif method == 'fill_median':
-            result_info['message'] = f"Wypełniono {stats['missing_filled']} pustych wartości medianą z kolumny"
+            result_info['message'] = f"Filled {stats['missing_filled']} missing values with column median"
         elif method == 'fill_mode':
-            result_info['message'] = f"Wypełniono {stats['missing_filled']} pustych wartości najczęstszą wartością"
+            result_info['message'] = f"Filled {stats['missing_filled']} missing values with most frequent value"
         elif method == 'fill_constant':
-            result_info['message'] = f"Wypełniono {stats['missing_filled']} pustych wartości stałą: {constant_value}"
+            result_info['message'] = f"Filled {stats['missing_filled']} missing values with constant: {constant_value}"
     
     else:
-        raise ValueError(f"Nieznany typ akcji: {action_type}")
+        raise ValueError(f"Unknown action type: {action_type}")
     
     # Dodaj aktualne statystyki zestawu danych
     result_info['current_stats'] = get_dataset_stats(result_df)

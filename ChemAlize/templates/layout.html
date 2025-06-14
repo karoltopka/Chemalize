@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-
+<head>
     <!-- Required meta tags -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
@@ -14,12 +14,14 @@
     <link rel="shortcut icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath d='M256 398.8c-11.8 5.1-23.4 9.7-34.9 13.5c16.7 33.8 31 35.7 34.9 35.7s18.1-1.9 34.9-35.7c-11.4-3.9-23.1-8.4-34.9-13.5zM446 256c33 45.2 44.3 90.9 23.6 128c-20.2 36.3-62.5 49.3-115.2 43.2c-22 52.1-55.6 84.8-98.4 84.8s-76.4-32.7-98.4-84.8c-52.7 6.1-95-6.8-115.2-43.2C21.7 346.9 33 301.2 66 256c-33-45.2-44.3-90.9-23.6-128c20.2-36.3 62.5-49.3 115.2-43.2C179.6 32.7 213.2 0 256 0s76.4 32.7 98.4 84.8c52.7-6.1 95 6.8 115.2 43.2c20.7 37.1 9.4 82.8-23.6 128zm-65.8 67.4c-1.7 14.2-3.9 28-6.7 41.2c31.8 1.4 38.6-8.7 40.2-11.7c2.3-4.2 7-17.9-11.9-48.1c-6.8 6.3-14 12.5-21.6 18.6zm-6.7-175.9c2.8 13.1 5 26.9 6.7 41.2c7.6 6.1 14.8 12.3 21.6 18.6c18.9-30.2 14.2-44 11.9-48.1c-1.6-2.9-8.4-13-40.2-11.7zM290.9 99.7C274.1 65.9 259.9 64 256 64s-18.1 1.9-34.9 35.7c11.4 3.9 23.1 8.4 34.9 13.5c11.8-5.1 23.4-9.7 34.9-13.5zm-159 88.9c1.7-14.3 3.9-28 6.7-41.2c-31.8-1.4-38.6 8.7-40.2 11.7c-2.3 4.2-7 17.9 11.9 48.1c6.8-6.3 14-12.5 21.6-18.6zM110.2 304.8C91.4 335 96 348.7 98.3 352.9c1.6 2.9 8.4 13 40.2 11.7c-2.8-13.1-5-26.9-6.7-41.2c-7.6-6.1-14.8-12.3-21.6-18.6zM336 256a80 80 0 1 0 -160 0 80 80 0 1 0 160 0zm-80-32a32 32 0 1 1 0 64 32 32 0 1 1 0-64z'/%3E%3C/svg%3E" type="image/svg+xml">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.min.js"></script>
     <script src="https://d3js.org/d3.v4.js"></script>
-    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"> {% if title %}
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"> 
+    {% if title %}
     <title>ChemAlize - {{ title }}</title>
     {% else %}
-        <title>ChemAlize</title>
+    <title>ChemAlize</title>
     {% endif %}
 
+    
 </head>
 
 <body>
@@ -63,7 +65,7 @@
             </div>
         </nav>
         
-        <!-- NEW: Navbar Subtitle -->
+        <!-- Navbar Subtitle -->
         <div class="navbar-subtitle">
             <div class="container-fluid">
                 <p class="navbar-subtitle-text">
@@ -72,17 +74,27 @@
                 </p>
             </div>
         </div>
-        
     </header>
+    
     <span class="sr-only">Battery level: 100%</span>
+    
     <main id="main" role="main" class="container">
         <div class="row">
             <div class="col-lg-12">
-                {% with messages = get_flashed_messages(with_categories=true) %} {% if messages %} {% for category, message in messages %}
-                <div class="alert alert-{{ category }}">
-                    {{ message }}
+                <!-- Kontener na alerty z dodatkowym marginesem -->
+                <div class="alert-container">
+                    {% with messages = get_flashed_messages(with_categories=true) %} 
+                        {% if messages %} 
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }}">
+                                    {{ message }}
+                                </div>
+                            {% endfor %} 
+                        {% endif %} 
+                    {% endwith %} 
                 </div>
-                {% endfor %} {% endif %} {% endwith %} {% block content %}{% endblock %}
+                
+                {% block content %}{% endblock %}
             </div>
         </div>
     </main>
@@ -108,6 +120,7 @@
             document.getElementById("main").style.marginLeft = "50px";
         }
     </script>
+    
     <script>
         function applyDarkThemeStyles() {
             document.querySelectorAll('.alert').forEach(alert => {
@@ -140,6 +153,7 @@
             applyDarkThemeStyles();
         }
     </script>
+    
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const setLightTheme = (enable) => {
@@ -162,7 +176,8 @@
             const savedTheme = localStorage.getItem('theme') || 'dark';
             setLightTheme(savedTheme === 'light');
         });
-        </script>
+    </script>
+    
     <!-- Optional JavaScript -->
     <!-- jQuery first, then Popper.js, then Bootstrap JS -->
     <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
@@ -170,5 +185,4 @@
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
     <script type=text/javascript src="{{url_for('static', filename='jquery.js') }}"></script>
 </body>
-
 </html>
