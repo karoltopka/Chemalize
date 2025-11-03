@@ -1,0 +1,523 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="content-section">
+    <legend class="border-bottom mb-4">
+        <i class="fas fa-compress-arrows-alt mr-2"></i>Principal Component Analysis (PCA)
+    </legend>
+    
+    <!-- Back button -->
+    <div class="mb-4">
+        <a href="{{ url_for('analysis.analysis_dashboard') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Analysis Dashboard
+        </a>
+    </div>
+    
+    <!-- Current Dataset Info -->
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Dataset Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <strong>File Name:</strong> {% if filename %} {{filename}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col-6">
+                            <strong>Rows:</strong> {% if no_of_rows %} {{no_of_rows}} {% else %} None {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-6">
+                            <strong>Columns:</strong> {% if no_of_cols %} {{no_of_cols}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col-6">
+                            <strong>Target:</strong> {% if target_var %} {{target_var}} {% else %} Not Set {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">PCA Description</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Principal Component Analysis (PCA) is a dimensionality reduction technique that transforms data into a new coordinate system of uncorrelated variables called principal components.
+                    </p>
+                    <p class="mb-0">
+                        <small class="text-muted">
+                            Use PCA to visualize high-dimensional data, reduce complexity, and identify patterns.
+                        </small>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- PCA Configuration Form -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">PCA Configuration</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('pca.perform_pca') }}">
+                <!-- Basic Configuration -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="n_components">Number of Components:</label>
+                            <input type="number" class="form-control" id="n_components" name="n_components" 
+                                   value="{% if n_components %}{{ n_components }}{% else %}2{% endif %}" 
+                                   min="2" max="{{ no_of_cols|int - 1 if no_of_cols else 2 }}">
+                            <small class="form-text text-muted">Select number of principal components to retain</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="scale_data" name="scale_data" 
+                                       {% if scale_data %}checked{% endif %}>
+                                <label class="custom-control-label" for="scale_data">Scale data before PCA</label>
+                                <small class="form-text text-muted">Recommended for variables with different scales</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Basic Visualization Options:</label>
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="show_variance" name="show_variance" 
+                                       {% if show_variance %}checked{% endif %} checked>
+                                <label class="custom-control-label" for="show_variance">Explained Variance Plot</label>
+                            </div>
+                            
+                            <div class="custom-control custom-checkbox mt-2">
+                                <input type="checkbox" class="custom-control-input" id="show_scatter" name="show_scatter" 
+                                       {% if show_scatter %}checked{% endif %} checked>
+                                <label class="custom-control-label" for="show_scatter">PCA Scatter Plot</label>
+                            </div>
+                            
+                            <div class="custom-control custom-checkbox mt-2">
+                                <input type="checkbox" class="custom-control-input" id="show_loading" name="show_loading" 
+                                       {% if show_loading %}checked{% endif %} checked>
+                                <label class="custom-control-label" for="show_loading">Component Loadings Plot</label>
+                            </div>
+                            
+                            <div class="custom-control custom-checkbox mt-2">
+                                <input type="checkbox" class="custom-control-input" id="show_biplot" name="show_biplot" 
+                                       {% if show_biplot %}checked{% endif %} checked>
+                                <label class="custom-control-label" for="show_biplot">Biplot (Samples & Features)</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group mt-3">
+                    <label for="pc_color_by">Color scatter plot by:</label>
+                    <select class="form-control" id="pc_color_by" name="pc_color_by">
+                        <option value="">No coloring</option>
+                        {% if columns %}
+                            {% for col in columns %}
+                                <option value="{{ col }}" {% if pc_color_by == col %}selected{% endif %}>{{ col }}</option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                    <small class="form-text text-muted">Optional: color points by a categorical or numerical variable</small>
+                </div>
+                
+                <!-- Advanced Options Collapsible Section -->
+                <div class="mt-4">
+                    <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="collapse" data-bs-target="#advancedOptions" aria-expanded="false" aria-controls="advancedOptions">
+                        <i class="fas fa-cog mr-2"></i>Advanced Options
+                    </button>
+                </div>
+                
+                <div class="collapse mt-3" id="advancedOptions">
+                    <div class="card card-body">
+                        <h6 class="text-primary mb-3">
+                            <i class="fas fa-sliders-h mr-2"></i>Advanced PCA Settings
+                        </h6>
+                        
+                        <!-- PC Selection for Plotting -->
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="pc_x_axis">X-axis PC:</label>
+                                    <select class="form-control" id="pc_x_axis" name="pc_x_axis">
+                                        {% for i in range(1, (n_components|int if n_components else 3) + 1) %}
+                                            <option value="{{ i }}" {% if (pc_x_axis|int == i) or (not pc_x_axis and i == 1) %}selected{% endif %}>PC{{ i }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="pc_y_axis">Y-axis PC:</label>
+                                    <select class="form-control" id="pc_y_axis" name="pc_y_axis">
+                                        {% for i in range(1, (n_components|int if n_components else 3) + 1) %}
+                                            <option value="{{ i }}" {% if (pc_y_axis|int == i) or (not pc_y_axis and i == 2) %}selected{% endif %}>PC{{ i }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="pc_loadings_select">Loadings for PC:</label>
+                                    <select class="form-control" id="pc_loadings_select" name="pc_loadings_select" multiple>
+                                        {% for i in range(1, (n_components|int if n_components else 3) + 1) %}
+                                            <option value="{{ i }}" {% if pc_loadings_select and (i in pc_loadings_select or i|string in pc_loadings_select) %}selected{% endif %}>PC{{ i }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <small class="form-text text-muted">Hold Ctrl to select multiple PCs</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Feature Selection Options -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Feature Selection Method:</label>
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" class="custom-control-input" id="all_features" name="feature_selection_method" value="all" 
+                                               {% if not feature_selection_method or feature_selection_method == 'all' %}checked{% endif %}>
+                                        <label class="custom-control-label" for="all_features">Use all features</label>
+                                    </div>
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" class="custom-control-input" id="top_features" name="feature_selection_method" value="top_n" 
+                                               {% if feature_selection_method == 'top_n' %}checked{% endif %}>
+                                        <label class="custom-control-label" for="top_features">Top N features per PC</label>
+                                    </div>
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" class="custom-control-input" id="threshold_features" name="feature_selection_method" value="threshold" 
+                                               {% if feature_selection_method == 'threshold' %}checked{% endif %}>
+                                        <label class="custom-control-label" for="threshold_features">Features above threshold</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="top_n_features">Number of top features per PC:</label>
+                                    <input type="number" class="form-control" id="top_n_features" name="top_n_features" 
+                                           value="{% if top_n_features %}{{ top_n_features }}{% else %}5{% endif %}" 
+                                           min="1" max="20">
+                                    <small class="form-text text-muted">Only applies when "Top N features" is selected</small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="loading_threshold">Loading threshold (absolute value):</label>
+                                    <input type="number" class="form-control" id="loading_threshold" name="loading_threshold" 
+                                           value="{% if loading_threshold %}{{ loading_threshold }}{% else %}0.3{% endif %}" 
+                                           min="0.1" max="1.0" step="0.05">
+                                    <small class="form-text text-muted">Only applies when "Features above threshold" is selected</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Additional Plot Options -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Additional Visualization Options:</label>
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input" id="show_top_features_plot" name="show_top_features_plot" 
+                                               {% if show_top_features_plot %}checked{% endif %}>
+                                        <label class="custom-control-label" for="show_top_features_plot">Create plots with selected features only</label>
+                                    </div>
+                                    
+                                    <div class="custom-control custom-checkbox mt-2">
+                                        <input type="checkbox" class="custom-control-input" id="show_feature_importance" name="show_feature_importance" 
+                                               {% if show_feature_importance %}checked{% endif %}>
+                                        <label class="custom-control-label" for="show_feature_importance">Feature importance plot</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Export Options:</label>
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input" id="export_feature_importance" name="export_feature_importance" 
+                                               {% if export_feature_importance %}checked{% endif %}>
+                                        <label class="custom-control-label" for="export_feature_importance">Export feature importance table</label>
+                                    </div>
+                                    
+                                    <div class="custom-control custom-checkbox mt-2">
+                                        <input type="checkbox" class="custom-control-input" id="export_selected_features" name="export_selected_features" 
+                                               {% if export_selected_features %}checked{% endif %}>
+                                        <label class="custom-control-label" for="export_selected_features">Export selected features data</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary mt-3">
+                    <i class="fas fa-play mr-2"></i>Run PCA Analysis
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- PCA Results Section (displayed if pca_performed is True) -->
+    {% if pca_performed %}
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">PCA Results</h5>
+        </div>
+        <div class="card-body">
+            <!-- PCA Summary Statistics -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <h6>Summary</h6>
+                    <table class="table table-bordered table-sm">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Component</th>
+                                <th>Eigenvalue</th>
+                                <th>Explained Variance (%)</th>
+                                <th>Cumulative Variance (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for i in range(pca_summary|length) %}
+                            <tr>
+                                <td>PC{{ i+1 }}</td>
+                                <td>{{ "%.3f"|format(pca_summary[i].eigenvalue) }}</td>
+                                <td>{{ "%.2f"|format(pca_summary[i].explained_variance) }}</td>
+                                <td>{{ "%.2f"|format(pca_summary[i].cumulative_variance) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Feature Importance Summary -->
+            {% if selected_features_summary %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <h6>Selected Features Summary</h6>
+                    <div class="alert alert-info">
+                        <strong>Selection Method:</strong> {{ feature_selection_method_display }}<br>
+                        <strong>Total Features Selected:</strong> {{ selected_features_count }}<br>
+                        <strong>Features per PC:</strong> {{ features_per_pc }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Visualization Tabs -->
+            <ul class="nav nav-tabs" id="pcaResultTabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" id="variance-tab" data-bs-toggle="tab" href="#variance" role="tab" 
+                       aria-controls="variance" aria-selected="true">Explained Variance</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="scatter-tab" data-bs-toggle="tab" href="#scatter" role="tab" 
+                       aria-controls="scatter" aria-selected="false">PCA Scatter</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="loadings-tab" data-bs-toggle="tab" href="#loadings" role="tab" 
+                       aria-controls="loadings" aria-selected="false">Component Loadings</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="biplot-tab" data-bs-toggle="tab" href="#biplot" role="tab" 
+                       aria-controls="biplot" aria-selected="false">Biplot</a>
+                </li>
+                {% if pca_feature_importance_plot %}
+                <li class="nav-item">
+                    <a class="nav-link" id="importance-tab" data-bs-toggle="tab" href="#importance" role="tab" 
+                       aria-controls="importance" aria-selected="false">Feature Importance</a>
+                </li>
+                {% endif %}
+                {% if pca_selected_scatter_plot or pca_selected_biplot %}
+                <li class="nav-item">
+                    <a class="nav-link" id="selected-tab" data-bs-toggle="tab" href="#selected" role="tab" 
+                       aria-controls="selected" aria-selected="false">Selected Features</a>
+                </li>
+                {% endif %}
+            </ul>
+            
+            <div class="tab-content mt-3" id="pcaResultTabContent">
+                <!-- Explained Variance Tab -->
+                <div class="tab-pane fade show active" id="variance" role="tabpanel" aria-labelledby="variance-tab">
+                    {% if pca_variance_plot %}
+                    <div class="text-center">
+                        <img src="{{ pca_variance_plot }}" class="img-fluid" alt="Explained Variance">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Explained variance plot not available.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- PCA Scatter Tab -->
+                <div class="tab-pane fade" id="scatter" role="tabpanel" aria-labelledby="scatter-tab">
+                    {% if pca_scatter_plot %}
+                    <div class="text-center">
+                        <img src="{{ pca_scatter_plot }}" class="img-fluid" alt="PCA Scatter Plot">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        PCA scatter plot not available.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Component Loadings Tab -->
+                <div class="tab-pane fade" id="loadings" role="tabpanel" aria-labelledby="loadings-tab">
+                    {% if pca_loadings_plot %}
+                    <div class="text-center">
+                        <img src="{{ pca_loadings_plot }}" class="img-fluid" alt="Component Loadings">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Component loadings plot not available.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Biplot Tab -->
+                <div class="tab-pane fade" id="biplot" role="tabpanel" aria-labelledby="biplot-tab">
+                    {% if pca_biplot %}
+                    <div class="text-center">
+                        <img src="{{ pca_biplot }}" class="img-fluid" alt="PCA Biplot">
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        Biplot not available.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Feature Importance Tab -->
+                {% if pca_feature_importance_plot %}
+                <div class="tab-pane fade" id="importance" role="tabpanel" aria-labelledby="importance-tab">
+                    <div class="text-center">
+                        <img src="{{ pca_feature_importance_plot }}" class="img-fluid" alt="Feature Importance">
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Selected Features Tab -->
+                {% if pca_selected_scatter_plot or pca_selected_biplot %}
+                <div class="tab-pane fade" id="selected" role="tabpanel" aria-labelledby="selected-tab">
+                    {% if pca_selected_scatter_plot %}
+                    <h6>Scatter Plot with Selected Features</h6>
+                    <div class="text-center">
+                        <img src="{{ pca_selected_scatter_plot }}" class="img-fluid" alt="Selected Features Scatter">
+                    </div>
+                    {% endif %}
+                    
+                    {% if pca_selected_biplot %}
+                    <h6 class="mt-4">Biplot with Selected Features</h6>
+                    <div class="text-center">
+                        <img src="{{ pca_selected_biplot }}" class="img-fluid" alt="Selected Features Biplot">
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Download Section -->
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <h6>Download Results</h6>
+                    <div class="btn-group mb-2">
+                        <a href="{{ url_for('pca.download_pca_components') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-download mr-2"></i>PC Scores
+                        </a>
+                        <a href="{{ url_for('pca.download_pca_loadings') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-download mr-2"></i>PC Loadings
+                        </a>
+                        <a href="{{ url_for('pca.download_pca_report') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-file-pdf mr-2"></i>PCA Report
+                        </a>
+                    </div>
+                    
+                    {% if export_feature_importance %}
+                    <div class="btn-group mb-2">
+                        <a href="{{ url_for('utils.download_feature_importance') }}" class="btn btn-outline-success">
+                            <i class="fas fa-download mr-2"></i>Feature Importance
+                        </a>
+                    </div>
+                    {% endif %}
+                    
+                    {% if export_selected_features %}
+                    <div class="btn-group mb-2">
+                        <a href="{{ url_for('utils.download_selected_features') }}" class="btn btn-outline-success">
+                            <i class="fas fa-download mr-2"></i>Selected Features Data
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // JavaScript to control tab behavior and form interactions
+    $(document).ready(function(){
+        $('#pcaResultTabs a').on('click', function (e) {
+            e.preventDefault();
+            $(this).tab('show');
+        });
+        
+        // Update PC options when n_components changes
+        $('#n_components').on('change', function() {
+            var nComponents = parseInt($(this).val());
+            updatePCOptions(nComponents);
+        });
+        
+        // Enable/disable feature selection inputs based on radio selection
+        $('input[name="feature_selection_method"]').on('change', function() {
+            var method = $(this).val();
+            $('#top_n_features').prop('disabled', method !== 'top_n');
+            $('#loading_threshold').prop('disabled', method !== 'threshold');
+        });
+        
+        // Initial setup
+        var method = $('input[name="feature_selection_method"]:checked').val();
+        $('#top_n_features').prop('disabled', method !== 'top_n');
+        $('#loading_threshold').prop('disabled', method !== 'threshold');
+    });
+    
+    function updatePCOptions(nComponents) {
+        var pcXAxis = $('#pc_x_axis');
+        var pcYAxis = $('#pc_y_axis');
+        var pcLoadings = $('#pc_loadings_select');
+        
+        // Clear existing options
+        pcXAxis.empty();
+        pcYAxis.empty();
+        pcLoadings.empty();
+        
+        // Add new options
+        for (var i = 1; i <= nComponents; i++) {
+            pcXAxis.append($('<option>', {
+                value: i,
+                text: 'PC' + i,
+                selected: i === 1
+            }));
+            pcYAxis.append($('<option>', {
+                value: i,
+                text: 'PC' + i,
+                selected: i === 2
+            }));
+            pcLoadings.append($('<option>', {
+                value: i,
+                text: 'PC' + i
+            }));
+        }
+    }
+</script>
+{% endblock %}

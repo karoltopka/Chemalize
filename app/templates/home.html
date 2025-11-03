@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChemAlize - Advanced Chemical Analysis</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="shortcut icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath d='M256 398.8c-11.8 5.1-23.4 9.7-34.9 13.5c16.7 33.8 31 35.7 34.9 35.7s18.1-1.9 34.9-35.7c-11.4-3.9-23.1-8.4-34.9-13.5zM446 256c33 45.2 44.3 90.9 23.6 128c-20.2 36.3-62.5 49.3-115.2 43.2c-22 52.1-55.6 84.8-98.4 84.8s-76.4-32.7-98.4-84.8c-52.7 6.1-95-6.8-115.2-43.2C21.7 346.9 33 301.2 66 256c-33-45.2-44.3-90.9-23.6-128c20.2-36.3 62.5-49.3 115.2-43.2C179.6 32.7 213.2 0 256 0s76.4 32.7 98.4 84.8c52.7-6.1 95 6.8 115.2 43.2c20.7 37.1 9.4 82.8-23.6 128zm-65.8 67.4c-1.7 14.2-3.9 28-6.7 41.2c31.8 1.4 38.6-8.7 40.2-11.7c2.3-4.2 7-17.9-11.9-48.1c-6.8 6.3-14 12.5-21.6 18.6zm-6.7-175.9c2.8 13.1 5 26.9 6.7 41.2c7.6 6.1 14.8 12.3 21.6 18.6c18.9-30.2 14.2-44 11.9-48.1c-1.6-2.9-8.4-13-40.2-11.7zM290.9 99.7C274.1 65.9 259.9 64 256 64s-18.1 1.9-34.9 35.7c11.4 3.9 23.1 8.4 34.9 13.5c11.8-5.1 23.4-9.7 34.9-13.5zm-159 88.9c1.7-14.3 3.9-28 6.7-41.2c-31.8-1.4-38.6 8.7-40.2 11.7c-2.3 4.2-7 17.9 11.9 48.1c6.8-6.3 14-12.5 21.6-18.6zM110.2 304.8C91.4 335 96 348.7 98.3 352.9c1.6 2.9 8.4 13 40.2 11.7c-2.8-13.1-5-26.9-6.7-41.2c-7.6-6.1-14.8-12.3-21.6-18.6zM336 256a80 80 0 1 0 -160 0 80 80 0 1 0 160 0zm-80-32a32 32 0 1 1 0 64 32 32 0 1 1 0-64z'/%3E%3C/svg%3E" type="image/svg+xml">
+    <!-- Link to your main CSS file -->
+    <link href="/static/main.css" rel="stylesheet">
+</head>
+<body class="homepage-body">
+    <!-- Theme toggle button -->
+    <button class="homepage-theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+        <span>Dark Mode</span>
+    </button>
+
+    <!-- Animated background -->
+    <div class="molecules-bg" id="moleculesBg"></div>
+
+    <!-- Loading overlay -->
+    <div class="homepage-loading" id="loadingOverlay">
+        <div class="homepage-spinner"></div>
+    </div>
+
+    <!-- Main header -->
+    <div class="homepage-header">
+        <div class="container">
+            <div class="logo-container text-center">
+                <div class="homepage-logo">
+                    <div class="logo-icon">
+                        <i class="fas fa-atom"></i>
+                    </div>
+                    ChemAlize
+                </div>
+                <p class="homepage-tagline">Chemical Analysis Without Coding</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <main class="homepage-content">
+        <div class="container">
+            <div class="options-container">
+                <!-- Section title -->
+                <div class="section-title">
+                    <h2>Choose Your Analysis Path</h2>
+                    <p>Discover powerful QSAR analysis tools designed for chemists. No programming skills required - just upload your data and let ChemAlize do the work.</p>
+                </div>
+
+                <!-- Options grid -->
+                <div class="options-grid">
+                    <!-- Analysis option -->
+                    <div class="option-card" onclick="navigateToAnalysis()">
+                        <div class="option-icon analysis-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <h3 class="option-title">QSAR Analysis</h3>
+                        <p class="option-description">
+                            Perform comprehensive quantitative structure-activity relationship analysis with automated preprocessing and machine learning models.
+                        </p>
+                        <ul class="option-features">
+                            <li><i class="fas fa-check-circle"></i> Automated data preprocessing</li>
+                            <li><i class="fas fa-check-circle"></i> Multiple ML algorithms</li>
+                            <li><i class="fas fa-check-circle"></i> Interactive visualizations</li>
+                            <li><i class="fas fa-check-circle"></i> Statistical validation</li>
+                            <li><i class="fas fa-check-circle"></i> Export ready models</li>
+                        </ul>
+                        <button class="option-button analysis-button">
+                            Start Analysis <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+
+                    <!-- Merger option -->
+                    <div class="option-card" onclick="navigateToMerger()">
+                        <div class="option-icon merger-icon">
+                            <i class="fas fa-layer-group"></i>
+                        </div>
+                        <h3 class="option-title">Data Merger</h3>
+                        <p class="option-description">
+                            Combine multiple datasets intelligently with automated matching, deleting duplicates, and data harmonization capabilities.
+                        </p>
+                        <ul class="option-features">
+                            <li><i class="fas fa-check-circle"></i> Smart data matching</li>
+                            <li><i class="fas fa-check-circle"></i> Delete duplicates</li>
+                            <li><i class="fas fa-check-circle"></i> Multiple file formats</li>
+                            <li><i class="fas fa-check-circle"></i> Data overview</li>
+                            <li><i class="fas fa-check-circle"></i> Unified output format</li>
+                        </ul>
+                        <button class="option-button merger-button">
+                            Merge Data <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Stats section -->
+    <section class="homepage-stats">
+        <div class="container">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-number">1000+</span>
+                    <span class="stat-label">Analyses Completed</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">15+</span>
+                    <span class="stat-label">ML Algorithms</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">99.9%</span>
+                    <span class="stat-label">Accuracy Rate</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="homepage-footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-author">
+                    <i class="fas fa-code"></i>
+                    Karol Topka Kłończyński
+                </div>
+                <div class="footer-year">
+                    © 2025
+                </div>
+                <div>
+                    <a href="https://github.com/karoltopka" class="footer-link" target="_blank" rel="noopener noreferrer">
+                        <i class="fab fa-github"></i>
+                        github.com/karoltopka
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Theme management
+        function toggleTheme() {
+            const html = document.documentElement;
+            const themeToggle = document.querySelector('.homepage-theme-toggle');
+            const icon = themeToggle.querySelector('i');
+            const text = themeToggle.querySelector('span');
+            
+            if (html.getAttribute('data-theme') === 'dark') {
+                html.setAttribute('data-theme', 'light');
+                icon.className = 'fas fa-moon';
+                if (text) text.textContent = 'Dark Mode';
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.setAttribute('data-theme', 'dark');
+                icon.className = 'fas fa-sun';
+                if (text) text.textContent = 'Light Mode';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // Initialize theme
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            // narazie bez tego const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+            
+            document.documentElement.setAttribute('data-theme', theme);
+            
+            const themeToggle = document.querySelector('.homepage-theme-toggle');
+            const icon = themeToggle.querySelector('i');
+            const text = themeToggle.querySelector('span');
+            
+            if (theme === 'dark') {
+                icon.className = 'fas fa-sun';
+                if (text) text.textContent = 'Light Mode';
+            } else {
+                icon.className = 'fas fa-moon';
+                if (text) text.textContent = 'Dark Mode';
+            }
+        }
+
+        // Create floating molecules animation
+        function createMolecules() {
+            const container = document.getElementById('moleculesBg');
+            const numberOfMolecules = 30;
+
+            for (let i = 0; i < numberOfMolecules; i++) {
+                const molecule = document.createElement('div');
+                molecule.className = 'molecule';
+                molecule.style.left = Math.random() * 100 + '%';
+                molecule.style.animationDelay = Math.random() * 20 + 's';
+                molecule.style.animationDuration = (Math.random() * 10 + 20) + 's';
+                container.appendChild(molecule);
+            }
+        }
+
+        // Navigation functions
+        function navigateToAnalysis() {
+            showLoading();
+            setTimeout(() => {
+                window.location.href = '{{ url_for("preprocessing.preprocess") }}';
+            }, 800);
+        }
+
+        function navigateToMerger() {
+            showLoading();
+            setTimeout(() => {
+                window.location.href = '{{ url_for("preprocessing.merger") }}';
+            }, 800);
+        }
+
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+
+        // Hide loading when page becomes visible again (back button)
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                hideLoading();
+            }
+        });
+
+        // Hide loading when page is loaded/shown
+        window.addEventListener('pageshow', (e) => {
+            hideLoading();
+        });
+
+        // Hide loading when page gains focus
+        window.addEventListener('focus', () => {
+            hideLoading();
+        });
+
+        // Ensure loading is hidden on page load
+        window.addEventListener('load', () => {
+            hideLoading();
+        });
+
+        // Animate stats on scroll
+        function animateStats() {
+            const statNumbers = document.querySelectorAll('.stat-number');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const target = entry.target;
+                        const finalValue = target.textContent;
+                        const numericValue = parseInt(finalValue.replace(/[^\d]/g, ''));
+                        
+                        if (!isNaN(numericValue)) {
+                            animateCounter(target, 0, numericValue, finalValue);
+                        }
+                        observer.unobserve(target);
+                    }
+                });
+            });
+
+            statNumbers.forEach(stat => observer.observe(stat));
+        }
+
+        function animateCounter(element, start, end, finalText) {
+            const duration = 2000;
+            const increment = end / (duration / 16);
+            let current = start;
+
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= end) {
+                    element.textContent = finalText;
+                    clearInterval(timer);
+                } else {
+                    element.textContent = Math.floor(current) + (finalText.includes('+') ? '+' : '') + (finalText.includes('%') ? '%' : '');
+                }
+            }, 16);
+        }
+
+        // Add hover effects to cards
+        function addCardEffects() {
+            const cards = document.querySelectorAll('.option-card');
+            
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', () => {
+                    card.style.transform = 'translateY(-8px) scale(1.02)';
+                });
+                
+                card.addEventListener('mouseleave', () => {
+                    card.style.transform = 'translateY(0) scale(1)';
+                });
+            });
+        }
+
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            createMolecules();
+            animateStats();
+            addCardEffects();
+            
+            // Add entrance animations
+            const cards = document.querySelectorAll('.option-card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(30px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.6s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 200 + 300);
+            });
+        });
+
+        // Add some interactive elements
+        document.addEventListener('mousemove', (e) => {
+            const cards = document.querySelectorAll('.option-card');
+            cards.forEach(card => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                    const centerX = rect.width / 2;
+                    const centerY = rect.height / 2;
+                    const rotateX = (y - centerY) / 10;
+                    const rotateY = (centerX - x) / 10;
+                    
+                    card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-8px)`;
+                }
+            });
+        });
+
+        document.addEventListener('mouseleave', () => {
+            const cards = document.querySelectorAll('.option-card');
+            cards.forEach(card => {
+                card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0px)';
+            });
+        });
+
+        // Listen for system theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('theme')) {
+                const theme = e.matches ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', theme);
+                
+                const themeToggle = document.querySelector('.homepage-theme-toggle');
+                const icon = themeToggle.querySelector('i');
+                const text = themeToggle.querySelector('span');
+                
+                if (theme === 'dark') {
+                    icon.className = 'fas fa-sun';
+                    if (text) text.textContent = 'Light Mode';
+                } else {
+                    icon.className = 'fas fa-moon';
+                    if (text) text.textContent = 'Dark Mode';
+                }
+            }
+        });
+    </script>
+
+</body>
+</html>

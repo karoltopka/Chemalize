@@ -1,0 +1,86 @@
+# Environment variables (NEVER commit these!)
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Flask
+instance/
+.webassets-cache
+flask_session/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+chemalize.db
+
+# Data directories (user uploads and processed files)
+data/uploads/*
+data/clean/*
+data/temp/*
+data/unified/*
+# Keep directory structure
+!data/uploads/.gitkeep
+!data/clean/.gitkeep
+!data/temp/.gitkeep
+!data/unified/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+*.pid
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.backup
+*.bak
+*~
+
+# Certificates (if storing locally)
+*.pem
+*.key
+*.crt

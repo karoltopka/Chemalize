@@ -1,12 +1,24 @@
-Flask==2.0.2
+Flask==3.0.0
+Flask-SQLAlchemy==3.0.5
+Flask-Migrate==4.0.5
+Flask-Login==0.6.3
+Flask-Session==0.5.0
+Werkzeug==3.0.0
 matplotlib==3.7.1
 numpy==2.2.5
 pandas==2.2.3
 plotly==5.9.0
-PyYAML==6.0
 PyYAML==6.0.2
 reportlab==4.4.0
 scikit_learn==1.6.1
 scipy==1.15.3
 seaborn==0.13.2
 statsmodels==0.13.2
+openpyxl==3.1.2
+
+# Production server
+gunicorn==21.2.0
+python-dotenv==1.0.0
+
+# Optional: async workers for better performance
+gevent==23.9.1
