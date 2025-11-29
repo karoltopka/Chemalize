@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScopeHub - Query Manager</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --accent: #4ecdc4;
+            --accent-hover: #45b8af;
+            --accent-dim: #4ecdc480;
+            --accent-rgb: 78, 205, 196;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --success: #4caf50;
+            --warning: #ff9800;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            padding: 1.5rem 0;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--card-border);
+            margin-bottom: 2rem;
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            color: var(--accent);
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-header h1 {
+            font-size: 2rem;
+            color: var(--accent);
+        }
+
+        .actions-bar {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+        }
+
+        .btn-danger {
+            background: rgba(255, 59, 48, 0.15);
+            border: 1px solid rgba(255, 59, 48, 0.5);
+            color: #ff3b30;
+        }
+
+        .btn-danger:hover {
+            background: rgba(255, 59, 48, 0.25);
+            border-color: #ff3b30;
+        }
+
+        .btn-large {
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+        }
+
+        .btn-search {
+            padding: 0.4rem 0.8rem;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .btn-search:hover {
+            background: var(--accent-hover);
+            transform: scale(1.05);
+        }
+
+        .btn-search i {
+            font-size: 0.8rem;
+        }
+
+        .content-area {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 2rem;
+        }
+
+        .section-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .section-combined {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--card-bg);
+            border-radius: 6px;
+            border-left: 3px solid var(--accent);
+        }
+
+        .section-combined label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--accent);
+        }
+
+        .section-combined textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--card-border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: 'Courier New', monospace;
+            min-height: 80px;
+        }
+
+        .subsection {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: var(--card-bg);
+            border-radius: 6px;
+        }
+
+        .subsection-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .subsection-title {
+            font-size: 1.1rem;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .entry-row {
+            display: grid;
+            grid-template-columns: 200px 1fr 1fr 150px;
+            gap: 1rem;
+            padding: 0.75rem;
+            background: var(--bg-primary);
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            align-items: center;
+        }
+
+        .entry-row input,
+        .entry-row textarea {
+            width: 100%;
+            padding: 0.5rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--card-border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: inherit;
+        }
+
+        .entry-row textarea {
+            resize: vertical;
+            min-height: 60px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .entry-row.generated {
+            border-left: 3px solid var(--success);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            background: var(--success);
+            color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 2000;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(400px); }
+            to { transform: translateX(0); }
+        }
+
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 3000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-spinner {
+            border: 4px solid var(--card-border);
+            border-top: 4px solid var(--accent);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .confirm-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 4000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .confirm-overlay.active {
+            display: flex;
+        }
+
+        .confirm-dialog {
+            background: var(--bg-secondary);
+            border: 1px solid var(--card-border);
+            border-radius: 15px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .confirm-dialog h3 {
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        .confirm-dialog p {
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .confirm-dialog .button-group {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+
+        .confirm-dialog .btn {
+            padding: 0.75rem 1.5rem;
+            min-width: 100px;
+        }
+
+        .add-entry-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--card-bg);
+            border: 1px dashed var(--card-border);
+            color: var(--text-secondary);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 0.5rem;
+        }
+
+        .add-entry-btn:hover {
+            background: var(--bg-primary);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .label-text {
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <i class="fas fa-microscope"></i> ScopeHub
+            </div>
+            <ul class="nav-links">
+                <li><a href="/">Home</a></li>
+                <li><a href="/scopehub">ScopeHub</a></li>
+                <li><a href="/scopehub/query-manager">Query Manager</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="page-header">
+            <div>
+                <h1><i class="fas fa-cogs"></i> Query Manager</h1>
+                <p style="color: var(--text-secondary);">Add topics → Generate All → Export</p>
+            </div>
+            <div class="actions-bar">
+                <label class="btn btn-secondary" for="file-upload">
+                    <i class="fas fa-upload"></i> Upload Excel
+                    <input type="file" id="file-upload" accept=".xlsx,.xls" style="display: none;">
+                </label>
+                <button class="btn btn-large" id="btn-generate-all">
+                    <i class="fas fa-magic"></i> Generate All Queries
+                </button>
+                <button class="btn btn-secondary" id="btn-export">
+                    <i class="fas fa-download"></i> Export
+                </button>
+            </div>
+        </div>
+
+        <div class="content-area">
+            <div class="empty-state" id="empty-state">
+                <i class="fas fa-database"></i>
+                <h3>No Data</h3>
+                <p>Upload an Excel file or add sections below</p>
+            </div>
+
+            <div id="data-container">
+                <!-- Sections will be rendered here -->
+            </div>
+
+            <button class="btn" id="btn-add-section" style="margin-top: 1rem;">
+                <i class="fas fa-plus"></i> Add New Section
+            </button>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p style="color: var(--text-primary); margin-top: 1rem;">Generating queries...</p>
+    </div>
+
+    <div class="confirm-overlay" id="confirm-overlay">
+        <div class="confirm-dialog">
+            <h3><i class="fas fa-exclamation-triangle" style="color: #ff3b30;"></i> Confirm Deletion</h3>
+            <p id="confirm-message"></p>
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="closeConfirmDialog()">Cancel</button>
+                <button class="btn btn-danger" id="confirm-delete-btn">Delete Section</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Unified data structure: one list with formulas for all 3 databases
+        let appData = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            document.getElementById('file-upload').addEventListener('change', handleFileUpload);
+            document.getElementById('btn-generate-all').addEventListener('click', generateAllQueries);
+            document.getElementById('btn-export').addEventListener('click', exportData);
+            document.getElementById('btn-add-section').addEventListener('click', addNewSection);
+
+            // Event delegation for search buttons
+            document.addEventListener('click', (e) => {
+                if (e.target.closest('.btn-search')) {
+                    const btn = e.target.closest('.btn-search');
+                    const db = btn.getAttribute('data-db');
+                    const index = parseInt(btn.getAttribute('data-index'));
+                    const entry = appData[index];
+
+                    if (!entry) return;
+
+                    if (db === 'pubmed' && entry.Pubmed_Formula) {
+                        searchPubmed(entry.Pubmed_Formula);
+                    } else if (db === 'wos' && entry.WOS_Formula) {
+                        searchWOS(entry.WOS_Formula);
+                    } else if (db === 'scopus' && entry.Scopus_Formula) {
+                        searchScopus(entry.Scopus_Formula);
+                    }
+                }
+            });
+        }
+
+        // Database search functions
+        function searchPubmed(formula) {
+            if (!formula || !formula.trim()) {
+                showNotification('No formula to search', 'warning');
+                return;
+            }
+            const encodedQuery = encodeURIComponent(formula);
+            const url = `https://pubmed.ncbi.nlm.nih.gov/?term=${encodedQuery}`;
+            window.open(url, '_blank');
+        }
+
+        function searchWOS(formula) {
+            if (!formula || !formula.trim()) {
+                showNotification('No formula to search', 'warning');
+                return;
+            }
+            // Remove TS= prefix and outer parentheses for WOS (TS= causes errors)
+            let cleanFormula = formula.trim();
+            if (cleanFormula.startsWith('TS=')) {
+                cleanFormula = cleanFormula.substring(3).trim();
+            }
+            // Remove outer parentheses if present
+            if (cleanFormula.startsWith('(') && cleanFormula.endsWith(')')) {
+                cleanFormula = cleanFormula.substring(1, cleanFormula.length - 1).trim();
+            }
+
+            // IMPORTANT: Open window FIRST (synchronously) to avoid popup blockers
+            const wosWindow = window.open('https://www.webofscience.com/wos/woscc/smart-search', '_blank');
+
+            // Then copy to clipboard
+            navigator.clipboard.writeText(cleanFormula).then(() => {
+                showNotification('Query copied to clipboard! Paste it in Web of Science Smart Search.', 'success');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                showNotification('Web of Science opened. Copy the query manually: ' + cleanFormula.substring(0, 50) + '...', 'warning');
+            });
+        }
+
+        function searchScopus(formula) {
+            if (!formula || !formula.trim()) {
+                showNotification('No formula to search', 'warning');
+                return;
+            }
+            // Remove TITLE-ABS-KEY prefix for Scopus (shouldn't be in URL)
+            let cleanFormula = formula.trim();
+            if (cleanFormula.startsWith('TITLE-ABS-KEY')) {
+                cleanFormula = cleanFormula.substring(13).trim();
+                // Remove outer parentheses if present
+                if (cleanFormula.startsWith('(') && cleanFormula.endsWith(')')) {
+                    cleanFormula = cleanFormula.substring(1, cleanFormula.length - 1).trim();
+                }
+            }
+
+            // IMPORTANT: Open window FIRST (synchronously) to avoid popup blockers
+            const scopusWindow = window.open('https://www.scopus.com/search/form.uri?display=basic', '_blank');
+
+            // Then copy to clipboard
+            navigator.clipboard.writeText(cleanFormula).then(() => {
+                showNotification('Query copied to clipboard! Paste it in Scopus search.', 'success');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                showNotification('Scopus opened. Copy the query manually: ' + cleanFormula.substring(0, 50) + '...', 'warning');
+            });
+        }
+
+        async function loadData() {
+            try {
+                const response = await fetch('/scopehub/api/data_unified');
+                const result = await response.json();
+
+                if (response.ok) {
+                    appData = result.data || [];
+                    renderData();
+                }
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
+
+        function renderData() {
+            const container = document.getElementById('data-container');
+            const emptyState = document.getElementById('empty-state');
+            const data = appData || [];
+
+            if (data.length === 0) {
+                container.style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            container.style.display = 'block';
+
+            // Group by section, then by subsection
+            const sections = {};
+            data.forEach((entry, index) => {
+                const section = entry.Section || 'A';
+                // Use actual subsection value (even if empty string)
+                const subsection = entry.Subsection !== undefined && entry.Subsection !== null
+                    ? entry.Subsection
+                    : section + '1';
+
+                if (!sections[section]) sections[section] = {};
+                if (!sections[section][subsection]) sections[section][subsection] = [];
+                sections[section][subsection].push({...entry, _index: index});
+            });
+
+            // Render HTML
+            container.innerHTML = Object.entries(sections).map(([sectionName, subsections]) => {
+                // Sort subsections: empty strings first, then alphabetically
+                const sortedSubsections = Object.entries(subsections).sort(([a], [b]) => {
+                    if (a === '' && b !== '') return -1;
+                    if (a !== '' && b === '') return 1;
+                    return a.localeCompare(b);
+                });
+
+                const subsectionsHTML = sortedSubsections.map(([subsectionName, entries]) => {
+                    // Calculate combined strings for this subsection
+                    const pubmedCombined = entries
+                        .map(e => e.Pubmed_Formula)
+                        .filter(f => f && f.trim())
+                        .map(f => `(${f})`)
+                        .join(' OR ');
+
+                    const wosCombined = entries
+                        .map(e => e.WOS_Formula)
+                        .filter(f => f && f.trim())
+                        .map(f => `(${f})`)
+                        .join(' OR ');
+
+                    const scopusCombined = entries
+                        .map(e => e.Scopus_Formula)
+                        .filter(f => f && f.trim())
+                        .map(f => `(${f})`)
+                        .join(' OR ');
+
+                    // Always display full subsection name (A1, A2, etc.) for clarity
+                    const displaySubsectionName = subsectionName;
+
+                    return `
+                        <div class="subsection-card" style="margin-bottom: 2rem; padding: 1.5rem; border: 2px solid var(--accent-dim); border-radius: 8px; background: rgba(var(--accent-rgb), 0.08); box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                            <h4 style="color: var(--accent); margin-bottom: 1rem; font-size: 1.2rem; border-bottom: 1px solid var(--accent-dim); padding-bottom: 0.5rem;">
+                                <i class="fas fa-folder-open"></i> Subsection ${subsectionName}
+                            </h4>
+
+                            <div class="entries-container">
+                                ${entries.map(entry => renderEntry(entry)).join('')}
+                            </div>
+
+                            <button class="add-entry-btn" onclick="addEntryToSubsection('${sectionName}', '${subsectionName}')" style="margin-top: 0.5rem; margin-bottom: 1rem;">
+                                <i class="fas fa-plus"></i> Add Name to ${displaySubsectionName || sectionName}
+                            </button>
+
+                            <div class="subsection-combined" style="background: var(--card-bg); padding: 1rem; border-radius: 6px;">
+                                <h5 style="color: var(--text-primary); margin-bottom: 0.75rem; font-size: 0.95rem;">
+                                    <i class="fas fa-link"></i> Combined String for ${displaySubsectionName || sectionName}
+                                </h5>
+
+                                <div style="margin-bottom: 0.75rem;">
+                                    <label style="color: var(--accent); font-weight: 600; display: block; margin-bottom: 0.35rem; font-size: 0.85rem;">
+                                        Pubmed
+                                    </label>
+                                    <textarea readonly style="width: 100%; min-height: 60px; font-size: 0.85rem;">${pubmedCombined || 'Add Pubmed formulas above...'}</textarea>
+                                </div>
+
+                                <div style="margin-bottom: 0.75rem;">
+                                    <label style="color: var(--accent); font-weight: 600; display: block; margin-bottom: 0.35rem; font-size: 0.85rem;">
+                                        Web of Science
+                                    </label>
+                                    <textarea readonly style="width: 100%; min-height: 60px; font-size: 0.85rem;">${wosCombined || 'Add WOS formulas above...'}</textarea>
+                                </div>
+
+                                <div>
+                                    <label style="color: var(--accent); font-weight: 600; display: block; margin-bottom: 0.35rem; font-size: 0.85rem;">
+                                        Scopus
+                                    </label>
+                                    <textarea readonly style="width: 100%; min-height: 60px; font-size: 0.85rem;">${scopusCombined || 'Add Scopus formulas above...'}</textarea>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="section-card" data-section="${sectionName}">
+                        <div class="section-header">
+                            <div class="section-title">Section ${sectionName}</div>
+                            <button class="btn btn-danger" onclick="deleteSection('${sectionName}')"
+                                    style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+                                <i class="fas fa-trash"></i> Delete Section
+                            </button>
+                        </div>
+
+                        ${subsectionsHTML}
+
+                        <button class="btn btn-secondary" onclick="addNewSubsection('${sectionName}')" style="margin-top: 1rem;">
+                            <i class="fas fa-folder-plus"></i> Add New Subsection to ${sectionName}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderEntry(entry) {
+            const hasPubmed = entry.Pubmed_Formula && entry.Pubmed_Formula.trim();
+            const hasWOS = entry.WOS_Formula && entry.WOS_Formula.trim();
+            const hasScopus = entry.Scopus_Formula && entry.Scopus_Formula.trim();
+            const hasAnyFormula = hasPubmed || hasWOS || hasScopus;
+
+            return `
+                <div class="entry-row ${hasAnyFormula ? 'generated' : ''}" data-index="${entry._index}" style="display: block; padding: 1.5rem; margin-bottom: 1rem; border: 1px solid var(--card-border); border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--card-border);">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <h5 style="margin: 0; color: var(--accent); font-size: 1.1rem;">
+                                <i class="fas fa-tag"></i> ${entry.Subsection ? `<span style="opacity: 0.7; font-size: 0.9rem;">${entry.Subsection}</span>` : 'Topic'}
+                            </h5>
+                        </div>
+                        <button class="btn btn-secondary" style="padding: 0.5rem 1rem;"
+                                onclick="deleteEntry(${entry._index})"
+                                title="Delete this entry">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div>
+                            <div class="label-text">Name/Topic</div>
+                            <input type="text" value="${entry.Name || ''}"
+                                   data-original-value="${entry.Name || ''}"
+                                   placeholder="Enter topic"
+                                   style="width: 100%;"
+                                   onblur="handleNameChange(${entry._index}, this)">
+                        </div>
+                        <div>
+                            <div class="label-text">Name (Corrected)</div>
+                            <input type="text" value="${entry.Name_Corrected || ''}"
+                                   placeholder="Corrected name if needed"
+                                   style="width: 100%;"
+                                   onblur="updateField(${entry._index}, 'Name_Corrected', this.value)">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1rem;">
+                        <div>
+                            <div class="label-text" style="color: ${hasPubmed ? 'var(--accent)' : 'var(--text-secondary)'}; display: flex; justify-content: space-between; align-items: center;">
+                                <strong>Pubmed</strong> Formula
+                                ${entry.Pubmed_Formula ? `<button class="btn-search" data-db="pubmed" data-index="${entry._index}" title="Search in PubMed">
+                                    <i class="fas fa-search"></i> Search
+                                </button>` : ''}
+                            </div>
+                            <textarea placeholder="Generating..."
+                                      style="width: 100%; min-height: 100px;"
+                                      onblur="updateField(${entry._index}, 'Pubmed_Formula', this.value)">${entry.Pubmed_Formula || ''}</textarea>
+                        </div>
+                        <div>
+                            <div class="label-text" style="color: ${hasWOS ? 'var(--accent)' : 'var(--text-secondary)'}; display: flex; justify-content: space-between; align-items: center;">
+                                <strong>Web of Science</strong> Formula
+                                ${entry.WOS_Formula ? `<button class="btn-search" data-db="wos" data-index="${entry._index}" title="Search in Web of Science">
+                                    <i class="fas fa-search"></i> Search
+                                </button>` : ''}
+                            </div>
+                            <textarea placeholder="Generating..."
+                                      style="width: 100%; min-height: 100px;"
+                                      onblur="updateField(${entry._index}, 'WOS_Formula', this.value)">${entry.WOS_Formula || ''}</textarea>
+                        </div>
+                        <div>
+                            <div class="label-text" style="color: ${hasScopus ? 'var(--accent)' : 'var(--text-secondary)'}; display: flex; justify-content: space-between; align-items: center;">
+                                <strong>Scopus</strong> Formula
+                                ${entry.Scopus_Formula ? `<button class="btn-search" data-db="scopus" data-index="${entry._index}" title="Search in Scopus">
+                                    <i class="fas fa-search"></i> Search
+                                </button>` : ''}
+                            </div>
+                            <textarea placeholder="Generating..."
+                                      style="width: 100%; min-height: 100px;"
+                                      onblur="updateField(${entry._index}, 'Scopus_Formula', this.value)">${entry.Scopus_Formula || ''}</textarea>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="label-text">Comments</div>
+                        <textarea placeholder="Optional notes"
+                                  style="width: 100%; min-height: 60px;"
+                                  onblur="updateField(${entry._index}, 'Comments', this.value)">${entry.Comments || ''}</textarea>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function regenerateEntry(index, skipConfirm = false) {
+            const entry = appData[index];
+
+            if (!entry || !entry.Name || !entry.Name.trim()) {
+                showNotification('Entry must have a name/topic to regenerate', 'warning');
+                return;
+            }
+
+            // Show confirmation only if not auto-triggered
+            if (!skipConfirm && !confirm(`Regenerate formulas for "${entry.Name}"?\n\nThis will replace existing formulas for all 3 databases.`)) {
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                // Generate for single entry with force_regenerate flag
+                const response = await fetch('/scopehub/api/generate_batch_unified', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        force_regenerate: true,  // Force regeneration even if formulas exist
+                        entries: [{
+                            index: index,
+                            name: entry.Name,
+                            section: entry.Section,
+                            subsection: entry.Subsection
+                        }]
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showNotification(`Regenerated formulas for "${entry.Name}"!`, 'success');
+                    await loadData();
+                } else {
+                    showNotification(result.error || 'Failed to regenerate', 'error');
+                }
+            } catch (error) {
+                console.error('Error regenerating entry:', error);
+                showNotification('Error regenerating formulas', 'error');
+            }
+
+            showLoading(false);
+        }
+
+        async function handleNameChange(index, inputElement) {
+            const newValue = inputElement.value.trim();
+            const originalValue = inputElement.getAttribute('data-original-value') || '';
+
+            // Update the field first
+            await updateField(index, 'Name', newValue);
+
+            // Check if the name actually changed and has formulas
+            if (newValue && newValue !== originalValue) {
+                const entry = appData[index];
+                const hasFormulas = entry.Pubmed_Formula || entry.WOS_Formula || entry.Scopus_Formula;
+
+                if (hasFormulas) {
+                    // Name changed and entry has existing formulas - auto-regenerate
+                    showNotification(`Name changed to "${newValue}". Auto-regenerating formulas...`, 'success');
+
+                    // Small delay so user sees the message
+                    setTimeout(() => {
+                        regenerateEntry(index, true);  // true = skip confirmation
+                    }, 500);
+                } else {
+                    // No formulas yet - just update the name
+                    showNotification(`Name updated to "${newValue}". Use "Generate All Queries" to create formulas.`, 'success');
+                }
+
+                // Update original value for next comparison
+                inputElement.setAttribute('data-original-value', newValue);
+            }
+        }
+
+        async function updateField(index, field, value) {
+            try {
+                const response = await fetch('/scopehub/api/update_entry_unified', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        index: index,
+                        column: field,
+                        value: value
+                    })
+                });
+
+                if (response.ok) {
+                    appData[index][field] = value;
+                    renderData();
+                }
+            } catch (error) {
+                console.error('Error updating field:', error);
+            }
+        }
+
+        async function generateAllQueries() {
+            const data = appData;
+
+            // Count entries with names
+            const totalWithNames = data.filter(e => e.Name && e.Name.trim()).length;
+
+            // Smart filtering: Only generate for entries missing formulas
+            // This works for:
+            // 1. New entries added through UI (no formulas)
+            // 2. Entries loaded from Excel (already have formulas - SKIPPED)
+            // 3. Partially filled entries (generates only missing formulas)
+            //
+            // Example: Excel has A1, A2, A3 with formulas → User adds A4
+            // Result: Generates only A4, skips A1, A2, A3
+            const entriesToGenerate = data.filter(entry =>
+                entry.Name && entry.Name.trim() &&
+                (
+                    !entry.Pubmed_Formula || !entry.Pubmed_Formula.trim() ||
+                    !entry.WOS_Formula || !entry.WOS_Formula.trim() ||
+                    !entry.Scopus_Formula || !entry.Scopus_Formula.trim()
+                )
+            );
+
+            const entriesComplete = totalWithNames - entriesToGenerate.length;
+
+            if (entriesToGenerate.length === 0) {
+                if (totalWithNames === 0) {
+                    showNotification('No entries with names found. Add names/topics first!', 'warning');
+                } else {
+                    showNotification(`✓ All ${totalWithNames} entries already have formulas! Use "Regenerate" buttons to update specific entries.`, 'success');
+                }
+                return;
+            }
+
+            // Show info about what will be generated
+            if (entriesComplete > 0) {
+                showNotification(`Generating ${entriesToGenerate.length} entries (${entriesComplete} already complete)...`, 'success');
+            }
+
+            showLoading(true);
+
+            try {
+                // Batch generate for all 3 databases
+                const response = await fetch('/scopehub/api/generate_batch_unified', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        entries: entriesToGenerate.map((e) => ({
+                            index: data.indexOf(e),
+                            name: e.Name,
+                            section: e.Section,
+                            subsection: e.Subsection
+                        }))
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showNotification(`✓ Generated ${result.generated} queries! Total complete: ${entriesComplete + result.generated}/${totalWithNames}`, 'success');
+                    await loadData();
+                } else {
+                    showNotification(result.error || 'Failed to generate queries', 'error');
+                }
+            } catch (error) {
+                console.error('Error generating queries:', error);
+                showNotification('Error generating queries', 'error');
+            }
+
+            showLoading(false);
+        }
+
+        async function addEntryToSubsection(section, subsection) {
+            // Add new Name/Topic to existing subsection (does NOT create new subsection)
+            console.log('addEntryToSubsection called:', section, subsection);
+            try {
+                const response = await fetch('/scopehub/api/add_entry_unified', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        section: section,
+                        subsection: subsection,
+                        name: '',
+                        comments: ''
+                    })
+                });
+
+                const result = await response.json();
+                console.log('Add entry response:', result);
+
+                if (response.ok) {
+                    showNotification(`Added new topic to ${subsection}`, 'success');
+                    await loadData();
+                } else {
+                    showNotification(result.error || 'Failed to add entry', 'error');
+                    console.error('Add entry failed:', result);
+                }
+            } catch (error) {
+                console.error('Error adding entry:', error);
+                showNotification('Error adding entry', 'error');
+            }
+        }
+
+        async function addNewSubsection(section) {
+            // Create NEW subsection with auto-incremented number
+            const existingEntries = appData.filter(e => e.Section === section);
+            let nextNumber = 1;
+
+            if (existingEntries.length > 0) {
+                // Extract numbers from subsections like A1, A2, etc.
+                const numbers = existingEntries
+                    .map(e => {
+                        const match = (e.Subsection || '').match(/\d+$/);
+                        return match ? parseInt(match[0]) : 0;
+                    })
+                    .filter(n => n > 0);
+
+                if (numbers.length > 0) {
+                    nextNumber = Math.max(...numbers) + 1;
+                }
+            }
+
+            const subsection = `${section}${nextNumber}`;
+
+            try {
+                const response = await fetch('/scopehub/api/add_entry_unified', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        section: section,
+                        subsection: subsection,
+                        name: '',
+                        comments: ''
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showNotification(`Created new subsection ${subsection}`, 'success');
+                    await loadData();
+                } else {
+                    showNotification(result.error || 'Failed to create subsection', 'error');
+                }
+            } catch (error) {
+                console.error('Error adding subsection:', error);
+                showNotification('Error creating subsection', 'error');
+            }
+        }
+
+        async function addEntry(section) {
+            // Legacy function - redirects to addNewSubsection
+            await addNewSubsection(section);
+        }
+
+        function addNewSection() {
+            const sectionName = prompt('Enter new section name (e.g., A, B, C):', 'B');
+            if (sectionName && sectionName.trim()) {
+                addNewSubsection(sectionName.trim());
+            }
+        }
+
+        async function deleteEntry(index) {
+            try {
+                const response = await fetch('/scopehub/api/delete_entry_unified', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        index: index
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showNotification('Entry deleted successfully', 'success');
+                    await loadData();
+                } else {
+                    showNotification(result.error || 'Failed to delete entry', 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting entry:', error);
+                showNotification('Error deleting entry', 'error');
+            }
+        }
+
+        function deleteSection(sectionName) {
+            // Show confirmation dialog
+            const message = `Are you sure you want to delete the entire section "${sectionName}"? This will remove all subsections and entries in this section. This operation cannot be undone.`;
+            document.getElementById('confirm-message').textContent = message;
+            document.getElementById('confirm-overlay').classList.add('active');
+
+            // Set up the confirm button action
+            document.getElementById('confirm-delete-btn').onclick = async () => {
+                closeConfirmDialog();
+                await performDeleteSection(sectionName);
+            };
+        }
+
+        async function performDeleteSection(sectionName) {
+            showLoading(true);
+            try {
+                const response = await fetch('/scopehub/api/delete_section_unified', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        section: sectionName
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showNotification(`Section "${sectionName}" has been deleted`, 'success');
+                    await loadData();
+                } else {
+                    showNotification(result.error || 'Failed to delete section', 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting section:', error);
+                showNotification('Error deleting section', 'error');
+            }
+            showLoading(false);
+        }
+
+        function closeConfirmDialog() {
+            document.getElementById('confirm-overlay').classList.remove('active');
+        }
+
+        // Close dialog when clicking outside
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('confirm-overlay').addEventListener('click', (e) => {
+                if (e.target.id === 'confirm-overlay') {
+                    closeConfirmDialog();
+                }
+            });
+        });
+
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            showLoading(true);
+            try {
+                const response = await fetch('/scopehub/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Show success message
+                    showNotification(result.message || 'File uploaded successfully!', 'success');
+
+                    // Show warning if file format is not proper
+                    if (result.warning) {
+                        setTimeout(() => {
+                            showNotification(result.warning, 'warning');
+                        }, 500);
+                    }
+
+                    await loadData();
+                } else {
+                    showNotification(result.error || 'Upload failed', 'error');
+                }
+            } catch (error) {
+                console.error('Error uploading file:', error);
+                showNotification('Error uploading file', 'error');
+            }
+            showLoading(false);
+        }
+
+        function exportData() {
+            window.location.href = '/scopehub/export';
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading-overlay').classList.toggle('active', show);
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.style.background = type === 'error' ? '#f44336' : type === 'warning' ? '#ff9800' : '#4caf50';
+            notification.innerHTML = `<i class="fas fa-${type === 'error' ? 'exclamation-circle' : type === 'warning' ? 'exclamation-triangle' : 'check-circle'}"></i> ${message}`;
+            document.body.appendChild(notification);
+
+            setTimeout(() => notification.remove(), 4000);
+        }
+    </script>
+</body>
+</html>

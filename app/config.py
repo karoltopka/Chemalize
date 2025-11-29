@@ -9,6 +9,9 @@ from flask import session
 # Base directory - root of the Chemalize package
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Project root - parent directory of Chemalize package (for Descriptors_group.txt, etc.)
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+
 # Data directories - centralized location for all data
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 UPLOAD_DIR = os.path.join(DATA_DIR, 'uploads')
@@ -22,6 +25,12 @@ STATIC_IMG_DIR = os.path.join(STATIC_DIR, 'img')
 
 # Session directory
 SESSION_DIR = os.path.join(BASE_DIR, 'flask_session')
+
+# Application data directory (for configuration files, reference data, etc.)
+APP_DATA_DIR = os.path.join(BASE_DIR, 'app', 'data')
+
+# Alvadesk descriptor groups file
+DESCRIPTOR_GROUPS_FILE = os.path.join(APP_DATA_DIR, 'Descriptors_group.txt')
 
 # Supported file extensions
 ALLOWED_EXTENSIONS = ['csv', 'xlsx', 'json', 'yaml', 'txt', 'xls']

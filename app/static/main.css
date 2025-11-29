@@ -373,6 +373,77 @@ body.dark-theme .navbar-subtitle-text {
     color: var(--text-secondary);
 }
 
+/* Dropdown menu styles for dark theme */
+body.dark-theme .dropdown-menu {
+    background: #1f2937 !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+}
+
+body.dark-theme .dropdown-item {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+body.dark-theme .dropdown-item:hover,
+body.dark-theme .dropdown-item:focus {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #ffffff !important;
+}
+
+/* Ensure dropdown menus are always on top */
+.dropdown-menu {
+    z-index: 9999 !important;
+    position: absolute !important;
+}
+
+/* Make dropdown toggle button create stacking context */
+.dropdown-toggle {
+    position: relative;
+    z-index: 1;
+}
+
+/* Ensure btn-group has proper positioning context */
+.btn-group {
+    position: relative;
+    z-index: 100 !important;
+}
+
+/* When dropdown is shown, increase z-index even more */
+.btn-group.show {
+    z-index: 10000 !important;
+}
+
+/* Ensure cards don't interfere with dropdowns */
+.card, .modern-card {
+    position: relative;
+    z-index: 1;
+}
+
+/* Fix overflow issues that might clip dropdowns */
+.modern-card, .card {
+    overflow: visible !important;
+}
+
+/* Ensure main container doesn't clip dropdowns */
+main, .container, .container-fluid {
+    overflow: visible !important;
+}
+
+/* Ensure form elements with dropdowns are visible */
+form {
+    overflow: visible !important;
+}
+
+/* Ensure row and column elements don't clip */
+.row, [class*="col-"] {
+    overflow: visible !important;
+}
+
+/* Ensure animated elements don't create stacking issues */
+.animate-in {
+    overflow: visible !important;
+}
+
 /* Smooth scroll behavior */
 html {
     scroll-behavior: smooth;
@@ -446,8 +517,19 @@ html {
 }
 
 .modern-card:hover {
-    transform: translateY(-2px);
+    /* Removed transform to prevent stacking context issues with dropdowns */
+    /* transform: translateY(-2px); */
     box-shadow: var(--shadow-lg);
+    /* Use margin instead for lift effect without creating stacking context */
+    margin-top: -2px;
+    margin-bottom: calc(2rem + 2px);
+}
+
+/* Disable hover transform for cards containing interactive visualizations/plots */
+.modern-card.no-hover-transform:hover {
+    margin-top: 0;
+    margin-bottom: 2rem;
+    box-shadow: var(--shadow);
 }
 
 .modern-card h3, .modern-card h4, .modern-card h5 {
@@ -1268,7 +1350,10 @@ html {
     border-radius: 1rem;
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow);
-    overflow: hidden;
+    /* overflow: hidden; */ /* Removed to allow dropdowns to be visible */
+    overflow: visible;
+    position: relative;
+    z-index: 1;
 }
 
 .card-header {
@@ -1667,7 +1752,7 @@ th {
 }
 
 .animate-in {
-    animation: fadeInUp 0.6s ease-out;
+    animation: fadeInUp 0.6s ease-out forwards;
 }
 
 @keyframes spin {
@@ -2630,6 +2715,10 @@ body.homepage-body {
     background: linear-gradient(135deg, var(--success-color), var(--accent-color));
 }
 
+.episuite-icon {
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+}
+
 .option-card:hover .option-icon {
     transform: scale(1.1) rotate(5deg);
 }
@@ -2695,6 +2784,10 @@ body.homepage-body {
 
 .merger-button {
     background: linear-gradient(135deg, var(--success-color), var(--accent-color));
+}
+
+.episuite-button {
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
 }
 
 .option-button:hover {

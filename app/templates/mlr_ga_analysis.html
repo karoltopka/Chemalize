@@ -1,0 +1,1841 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="content-section">
+    <legend class="border-bottom mb-4">
+        <i class="fas fa-dna mr-2"></i>MLR with Genetic Algorithm Variable Selection
+    </legend>
+
+    <!-- Back button -->
+    <div class="mb-4">
+        <a href="{{ url_for('analysis.analysis_dashboard') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Analysis Dashboard
+        </a>
+        <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_reset') }}" class="d-inline">
+            <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Are you sure you want to reset the workflow?')">
+                <i class="fas fa-redo mr-2"></i>Reset Workflow
+            </button>
+        </form>
+    </div>
+
+    <!-- Current Dataset Info -->
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Dataset Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <strong>File Name:</strong> {% if filename %} {{filename}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col-6">
+                            <strong>Original Rows:</strong> {% if no_of_rows %} {{no_of_rows}} {% else %} None {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-6">
+                            <strong>Columns:</strong> {% if no_of_cols %} {{no_of_cols}} {% else %} None {% endif %}
+                        </div>
+                        <div class="col-6">
+                            {% if session.get('mlr_ga_step1_outliers_removed') or session.get('mlr_ga_step2_outliers_removed') %}
+                            <strong>Current Rows:</strong>
+                            {% if session.get('mlr_ga_step2_clean_indices') %}
+                                {{ session.get('mlr_ga_step2_clean_indices')|length }}
+                            {% elif session.get('mlr_ga_step1_clean_indices') %}
+                                {{ session.get('mlr_ga_step1_clean_indices')|length }}
+                            {% endif %}
+                            <small class="text-success">({{ session.get('mlr_ga_step1_n_removed', 0) + session.get('mlr_ga_step2_total_removed', 0) }} removed)</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">About MLR with GA</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        This module uses a Genetic Algorithm to automatically select the optimal subset of variables for Multiple Linear Regression.
+                    </p>
+                    <p class="mb-0">
+                        <small class="text-muted">
+                            The GA will explore different variable combinations to find the best predictive model based on cross-validation scores.
+                        </small>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Stepper -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col text-center">
+                    <div class="step {% if current_step == 'target_selection' %}active{% elif current_step != 'target_selection' %}completed{% endif %}">
+                        <div class="step-circle">1</div>
+                        <div class="step-label">Target Analysis</div>
+                    </div>
+                </div>
+                <div class="col text-center">
+                    <div class="step {% if current_step == 'split_selection' %}active{% elif current_step in ['preprocessing', 'ga_parameters', 'results'] %}completed{% endif %}">
+                        <div class="step-circle">2</div>
+                        <div class="step-label">Split Method</div>
+                    </div>
+                </div>
+                <div class="col text-center">
+                    <div class="step {% if current_step == 'preprocessing' %}active{% elif current_step in ['ga_parameters', 'results'] %}completed{% endif %}">
+                        <div class="step-circle">3</div>
+                        <div class="step-label">Preprocessing</div>
+                    </div>
+                </div>
+                <div class="col text-center">
+                    <div class="step {% if current_step == 'ga_parameters' %}active{% elif current_step == 'results' %}completed{% endif %}">
+                        <div class="step-circle">4</div>
+                        <div class="step-label">GA Parameters</div>
+                    </div>
+                </div>
+                <div class="col text-center">
+                    <div class="step {% if current_step == 'results' %}active{% endif %}">
+                        <div class="step-circle">5</div>
+                        <div class="step-label">Results</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 1: Target Variable Selection and Analysis -->
+    {% if current_step == 'target_selection' %}
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Step 1: Target Variable Analysis</h5>
+        </div>
+        <div class="card-body">
+            <!-- Form to select target and transformation - always visible -->
+            <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_step1') }}" id="target_analysis_form">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="target_var">Select Target Variable (Y):</label>
+                            <select class="form-control" id="target_var" name="target_var" required onchange="autoSubmitTargetForm()">
+                                <option value="" selected disabled>Choose target variable</option>
+                                {% for column in all_data_columns %}
+                                <option value="{{ column }}" {% if mlr_ga_target_var == column %}selected{% endif %}>
+                                    {{ column }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">Histogram will appear automatically when you select a variable</small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="y_transformation">Y Transformation:</label>
+                            <select class="form-control" id="y_transformation" name="y_transformation" onchange="autoSubmitTransformForm()">
+                                <option value="none" {% if y_transformation == 'none' %}selected{% endif %}>None</option>
+                                <option value="log" {% if y_transformation == 'log' %}selected{% endif %}>Logarithmic (log)</option>
+                                <option value="sqrt" {% if y_transformation == 'sqrt' %}selected{% endif %}>Square Root (sqrt)</option>
+                                <option value="square" {% if y_transformation == 'square' %}selected{% endif %}>Square (x²)</option>
+                                <option value="inverse" {% if y_transformation == 'inverse' %}selected{% endif %}>Inverse (1/x)</option>
+                            </select>
+                            <small class="form-text text-muted">Change transformation to see updated histogram</small>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Histogram section - shows when variable is selected -->
+            {% if y_histogram_plot %}
+            <div class="row mt-4">
+                <!-- Original Distribution -->
+                <div class="col-md-{% if y_histogram_plot_transformed %}6{% else %}12{% endif %}">
+                    <h6><i class="fas fa-chart-bar mr-2"></i>Original Distribution</h6>
+                    <img src="{{ url_for('utils.serve_temp_image', filename=y_histogram_plot) }}" class="img-fluid" alt="Original Y Distribution">
+
+                    {% if y_stats %}
+                    <div class="alert alert-info mt-3">
+                        <strong>Statistics:</strong><br>
+                        Mean: {{ "%.4f"|format(y_stats.mean) }} |
+                        Median: {{ "%.4f"|format(y_stats.median) }}<br>
+                        Std: {{ "%.4f"|format(y_stats.std) }} |
+                        Skewness: {{ "%.4f"|format(y_stats.skewness) }}<br>
+                        Kurtosis: {{ "%.4f"|format(y_stats.kurtosis) }} |
+                        Normality p-value: {{ "%.4f"|format(y_stats.normality_pvalue) }}
+                        {% if y_stats.is_normal %}
+                        <strong class="text-success">✓ Normal</strong>
+                        {% else %}
+                        <strong class="text-warning">⚠ Not Normal</strong>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Transformed Distribution (if transformation applied) -->
+                {% if y_histogram_plot_transformed %}
+                <div class="col-md-6">
+                    <h6><i class="fas fa-chart-bar mr-2"></i>After {{ y_transformation }} Transformation</h6>
+                    <img src="{{ url_for('utils.serve_temp_image', filename=y_histogram_plot_transformed) }}" class="img-fluid" alt="Transformed Y Distribution">
+
+                    {% if y_stats_transformed %}
+                    <div class="alert alert-success mt-3">
+                        <strong>Statistics:</strong><br>
+                        Mean: {{ "%.4f"|format(y_stats_transformed.mean) }} |
+                        Median: {{ "%.4f"|format(y_stats_transformed.median) }}<br>
+                        Std: {{ "%.4f"|format(y_stats_transformed.std) }} |
+                        Skewness: {{ "%.4f"|format(y_stats_transformed.skewness) }}<br>
+                        Kurtosis: {{ "%.4f"|format(y_stats_transformed.kurtosis) }} |
+                        Normality p-value: {{ "%.4f"|format(y_stats_transformed.normality_pvalue) }}
+                        {% if y_stats_transformed.is_normal %}
+                        <strong class="text-success">✓ Normal</strong>
+                        {% else %}
+                        <strong class="text-warning">⚠ Not Normal</strong>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Outlier Detection Section (less restrictive) -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card border-warning">
+                        <div class="card-header bg-warning text-dark">
+                            <h6 class="mb-0"><i class="fas fa-exclamation-triangle mr-2"></i>Optional: Check for Y Outliers</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted">
+                                Before proceeding, you can optionally check for and remove outliers from the target variable to improve normality.
+                                This is less restrictive than checking after splitting the data.
+                            </p>
+
+                            <!-- Outlier detection form -->
+                            <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_detect_outliers_step1') }}" id="outlier_detection_form">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="step1_outlier_method">Detection Method:</label>
+                                            <select class="form-control" id="step1_outlier_method" name="outlier_method">
+                                                <option value="iqr" selected>IQR (Interquartile Range)</option>
+                                                <option value="zscore">Z-Score</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="step1_outlier_threshold">Threshold:</label>
+                                            <input type="number" class="form-control" id="step1_outlier_threshold"
+                                                   name="outlier_threshold" value="1.5" step="0.1" min="0.1">
+                                            <small class="form-text text-muted">IQR: 1.5 (standard), Z-Score: 3.0</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label>&nbsp;</label>
+                                            <button type="submit" class="btn btn-warning btn-block">
+                                                <i class="fas fa-search mr-2"></i>Detect Outliers
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+
+                            <!-- Show outlier detection results with preview if available -->
+                            {% if session.get('mlr_ga_step1_outliers_detected') %}
+                            <div class="alert alert-warning mt-3">
+                                <h6><i class="fas fa-info-circle mr-2"></i>Outlier Detection Results</h6>
+                                <p class="mb-2">
+                                    <strong>{{ session.get('mlr_ga_step1_n_outliers', 0) }}</strong> outlier(s) detected
+                                    out of {{ session.get('mlr_ga_step1_total_samples', 0) }} samples
+                                    ({{ "%.1f"|format(session.get('mlr_ga_step1_outlier_pct', 0)) }}%)
+                                </p>
+                                <p class="mb-2">
+                                    <strong>Method:</strong> {{ session.get('mlr_ga_step1_outlier_method', 'IQR')|upper }}
+                                    (Threshold: {{ "%.2f"|format(session.get('mlr_ga_step1_outlier_threshold', 1.5)) }})
+                                </p>
+
+                                {% if session.get('mlr_ga_step1_n_outliers', 0) > 0 %}
+                                <!-- Show preview of before/after -->
+                                {% if session.get('mlr_ga_step1_preview_before') and session.get('mlr_ga_step1_preview_after') %}
+                                <div class="card border-info mt-3">
+                                    <div class="card-header bg-info text-white">
+                                        <h6 class="mb-0"><i class="fas fa-eye mr-2"></i>Preview: Current vs After Removal</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <!-- Current state -->
+                                            <div class="col-md-6">
+                                                <h6 class="text-center"><i class="fas fa-chart-bar mr-2 text-primary"></i>Current State</h6>
+                                                <img src="{{ url_for('utils.serve_temp_image', filename=session.get('mlr_ga_step1_preview_before')) }}"
+                                                     class="img-fluid" alt="Current State">
+                                                {% if session.get('mlr_ga_step1_preview_stats_before') %}
+                                                <div class="alert alert-light mt-2 mb-0">
+                                                    <small>
+                                                        <strong>Statistics:</strong><br>
+                                                        Normality p-value: {{ "%.4f"|format(session.get('mlr_ga_step1_preview_stats_before').normality_pvalue) }}
+                                                        {% if session.get('mlr_ga_step1_preview_stats_before').is_normal %}
+                                                        <strong class="text-success">✓ Normal</strong>
+                                                        {% else %}
+                                                        <strong class="text-danger">⚠ Not Normal</strong>
+                                                        {% endif %}
+                                                    </small>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                            <!-- Preview after removal -->
+                                            <div class="col-md-6">
+                                                <h6 class="text-center"><i class="fas fa-chart-bar mr-2 text-success"></i>Preview After Removal</h6>
+                                                <img src="{{ url_for('utils.serve_temp_image', filename=session.get('mlr_ga_step1_preview_after')) }}"
+                                                     class="img-fluid" alt="Preview After Removal">
+                                                {% if session.get('mlr_ga_step1_preview_stats_after') %}
+                                                <div class="alert alert-light mt-2 mb-0">
+                                                    <small>
+                                                        <strong>Statistics:</strong><br>
+                                                        Normality p-value: {{ "%.4f"|format(session.get('mlr_ga_step1_preview_stats_after').normality_pvalue) }}
+                                                        {% if session.get('mlr_ga_step1_preview_stats_after').is_normal %}
+                                                        <strong class="text-success">✓ Normal</strong>
+                                                        {% else %}
+                                                        <strong class="text-warning">⚠ Improved</strong>
+                                                        {% endif %}
+                                                    </small>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_remove_outliers_step1') }}" class="mt-3">
+                                    <button type="submit" class="btn btn-danger btn-lg">
+                                        <i class="fas fa-check mr-2"></i>Confirm: Remove {{ session.get('mlr_ga_step1_n_outliers', 0) }} Outlier(s)
+                                    </button>
+                                </form>
+                                {% else %}
+                                <p class="mb-0 text-success">
+                                    <i class="fas fa-check-circle mr-2"></i>No outliers detected! Your data looks good.
+                                </p>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
+                            <!-- Show outlier removal results if outliers were removed -->
+                            {% if session.get('mlr_ga_step1_outliers_removed') %}
+                            <div class="alert alert-success mt-3">
+                                <h6><i class="fas fa-check-circle mr-2"></i>Outliers Removed Successfully</h6>
+                                <p class="mb-2">
+                                    <strong>{{ session.get('mlr_ga_step1_n_removed', 0) }}</strong> sample(s) removed
+                                </p>
+                                <p class="mb-2">
+                                    <strong>Remaining samples:</strong> {{ session.get('mlr_ga_step1_remaining_samples', 0) }}
+                                </p>
+                                <p class="mb-2">
+                                    <strong>Normality Test (Shapiro-Wilk):</strong><br>
+                                    Before: p-value = {{ "%.4f"|format(session.get('mlr_ga_step1_normality_before', {}).get('p_value', 0)) }}
+                                    {% if session.get('mlr_ga_step1_normality_before', {}).get('is_normal') %}
+                                    <span class="text-success">(Normal)</span>
+                                    {% else %}
+                                    <span class="text-danger">(Not Normal)</span>
+                                    {% endif %}
+                                    →
+                                    After: p-value = {{ "%.4f"|format(session.get('mlr_ga_step1_normality_after', {}).get('p_value', 0)) }}
+                                    {% if session.get('mlr_ga_step1_normality_after', {}).get('is_normal') %}
+                                    <span class="text-success">(Normal)</span>
+                                    {% else %}
+                                    <span class="text-warning">(Improved)</span>
+                                    {% endif %}
+                                </p>
+                                <a href="{{ url_for('mlr_ga.download_step1_outliers') }}" class="btn btn-sm btn-outline-warning">
+                                    <i class="fas fa-download mr-1"></i>Download Removed Samples CSV
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Continue button - shows when histogram is visible -->
+            <div class="mt-4">
+                <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_step1') }}" class="d-inline mr-2">
+                    <button type="submit" class="btn btn-outline-secondary">
+                        <i class="fas fa-redo mr-2"></i>Choose Different Variable
+                    </button>
+                </form>
+                <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_advance_step') }}" class="d-inline">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="fas fa-arrow-right mr-2"></i>Continue to Split Selection
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Step 2: Split Method Selection -->
+    {% if current_step == 'split_selection' %}
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Step 2: Split Method Configuration</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_step2') }}" id="splitForm">
+                <div class="form-group">
+                    <label>Select Split Method:</label>
+
+                    <div class="custom-control custom-radio">
+                        <input type="radio" id="split_random" name="split_method" value="random" class="custom-control-input"
+                            {% if split_method == 'random' or not split_method %}checked{% endif %} onchange="toggleSplitOptions()">
+                        <label class="custom-control-label" for="split_random">Random Split</label>
+                    </div>
+
+                    <div class="custom-control custom-radio">
+                        <input type="radio" id="split_stratified" name="split_method" value="stratified" class="custom-control-input"
+                            {% if split_method == 'stratified' %}checked{% endif %} onchange="toggleSplitOptions()">
+                        <label class="custom-control-label" for="split_stratified">Stratified Split</label>
+                    </div>
+
+                    <div class="custom-control custom-radio">
+                        <input type="radio" id="split_time" name="split_method" value="time" class="custom-control-input"
+                            {% if split_method == 'time' %}checked{% endif %} onchange="toggleSplitOptions()">
+                        <label class="custom-control-label" for="split_time">Time-based Split</label>
+                    </div>
+
+                    <div class="custom-control custom-radio">
+                        <input type="radio" id="split_kfold" name="split_method" value="kfold" class="custom-control-input"
+                            {% if split_method == 'kfold' %}checked{% endif %} onchange="toggleSplitOptions()">
+                        <label class="custom-control-label" for="split_kfold">K-Fold Cross-Validation</label>
+                    </div>
+
+                    <div class="custom-control custom-radio">
+                        <input type="radio" id="split_loocv" name="split_method" value="loocv" class="custom-control-input"
+                            {% if split_method == 'loocv' %}checked{% endif %} onchange="toggleSplitOptions()">
+                        <label class="custom-control-label" for="split_loocv">Leave-One-Out CV</label>
+                    </div>
+
+                    <div class="custom-control custom-radio">
+                        <input type="radio" id="split_systematic" name="split_method" value="systematic" class="custom-control-input"
+                            {% if split_method == 'systematic' %}checked{% endif %} onchange="toggleSplitOptions()">
+                        <label class="custom-control-label" for="split_systematic">Systematic Sampling</label>
+                    </div>
+                </div>
+
+                <!-- Random Split Options -->
+                <div id="random_options" class="split-options mt-3" style="display:none;">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="test_size">Test Size:</label>
+                                <input type="number" class="form-control" id="test_size" name="test_size"
+                                       value="{{ test_size }}" min="0.01" max="0.99" step="0.01">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="random_state">Random State:</label>
+                                <input type="number" class="form-control" id="random_state" name="random_state"
+                                       value="{{ random_state }}">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group mt-4">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="shuffle" name="shuffle"
+                                           {% if shuffle %}checked{% endif %}>
+                                    <label class="custom-control-label" for="shuffle">Shuffle Data</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stratified Split Options -->
+                <div id="stratified_options" class="split-options mt-3" style="display:none;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="strat_test_size">Test Size:</label>
+                                <input type="number" class="form-control" id="strat_test_size" name="strat_test_size"
+                                       value="{{ strat_test_size }}" min="0.01" max="0.99" step="0.01">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="strat_bins">Number of Bins:</label>
+                                <input type="number" class="form-control" id="strat_bins" name="strat_bins"
+                                       value="{{ strat_bins }}" min="2" max="20">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Time-based Split Options -->
+                <div id="time_options" class="split-options mt-3" style="display:none;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="time_column">Time Column:</label>
+                                <select class="form-control" id="time_column" name="time_column">
+                                    <option value="">Select time column</option>
+                                    {% for column in all_data_columns %}
+                                    <option value="{{ column }}" {% if time_column == column %}selected{% endif %}>
+                                        {{ column }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="time_test_size">Test Size:</label>
+                                <input type="number" class="form-control" id="time_test_size" name="time_test_size"
+                                       value="{{ time_test_size }}" min="0.01" max="0.99" step="0.01">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- K-Fold Options -->
+                <div id="kfold_options" class="split-options mt-3" style="display:none;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="n_folds">Number of Folds:</label>
+                                <input type="number" class="form-control" id="n_folds" name="n_folds"
+                                       value="{{ n_folds }}" min="2" max="20">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mt-4">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="shuffle_kfold" name="shuffle_kfold"
+                                           {% if shuffle_kfold %}checked{% endif %}>
+                                    <label class="custom-control-label" for="shuffle_kfold">Shuffle Data</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Systematic Sampling Options -->
+                <div id="systematic_options" class="split-options mt-3" style="display:none;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="systematic_step">Systematic Step:</label>
+                                <input type="number" class="form-control" id="systematic_step" name="systematic_step"
+                                       value="{{ systematic_step }}" min="2" max="100">
+                                <small class="form-text text-muted">Every nth observation goes to test set</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mt-4">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="include_last_point" name="include_last_point"
+                                           {% if include_last_point %}checked{% endif %}>
+                                    <label class="custom-control-label" for="include_last_point">Include Last Point</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-chart-bar mr-2"></i>{% if session.get('mlr_ga_split_configured') %}Reconfigure Split{% else %}Preview Split{% endif %}
+                    </button>
+                </div>
+            </form>
+
+            <!-- Show split histograms if configured -->
+            {% if session.get('mlr_ga_split_configured') and session.get('mlr_ga_split_histogram') %}
+            <div class="mt-4">
+                <hr>
+                <h6><i class="fas fa-chart-area mr-2"></i>Train/Test Split Distributions</h6>
+                <div class="row">
+                    <div class="col-12">
+                        <img src="{{ url_for('utils.serve_temp_image', filename=session.get('mlr_ga_split_histogram')) }}"
+                             class="img-fluid" alt="Train/Test Split Distributions">
+                    </div>
+                </div>
+
+                <!-- Outlier Detection for Train/Test Sets -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <h6 class="mb-0"><i class="fas fa-exclamation-triangle mr-2"></i>Optional: Check for Outliers in Splits</h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted">
+                                    Check for outliers separately in training and test sets. This is more restrictive than Step 1.
+                                </p>
+
+                                <!-- Outlier detection form -->
+                                <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_detect_outliers_step2') }}">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="step2_outlier_method">Detection Method:</label>
+                                                <select class="form-control" id="step2_outlier_method" name="outlier_method">
+                                                    <option value="iqr" selected>IQR (Interquartile Range)</option>
+                                                    <option value="zscore">Z-Score</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="step2_outlier_threshold">Threshold:</label>
+                                                <input type="number" class="form-control" id="step2_outlier_threshold"
+                                                       name="outlier_threshold" value="1.5" step="0.1" min="0.1">
+                                                <small class="form-text text-muted">IQR: 1.5, Z-Score: 3.0</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label>&nbsp;</label>
+                                                <button type="submit" class="btn btn-warning btn-block">
+                                                    <i class="fas fa-search mr-2"></i>Detect Outliers
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+
+                                <!-- Show outlier detection results with preview if available -->
+                                {% if session.get('mlr_ga_step2_outliers_detected') %}
+                                <div class="alert alert-info mt-3">
+                                    <h6><i class="fas fa-info-circle mr-2"></i>Outlier Detection Results</h6>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <p class="mb-1"><strong>Train Set:</strong></p>
+                                            <p class="mb-2">
+                                                {{ session.get('mlr_ga_step2_train_n_outliers', 0) }} outlier(s) detected
+                                                out of {{ session.get('mlr_ga_step2_train_total', 0) }} samples
+                                                ({{ "%.1f"|format(session.get('mlr_ga_step2_train_outlier_pct', 0)) }}%)
+                                            </p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <p class="mb-1"><strong>Test Set:</strong></p>
+                                            <p class="mb-2">
+                                                {{ session.get('mlr_ga_step2_test_n_outliers', 0) }} outlier(s) detected
+                                                out of {{ session.get('mlr_ga_step2_test_total', 0) }} samples
+                                                ({{ "%.1f"|format(session.get('mlr_ga_step2_test_outlier_pct', 0)) }}%)
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {% if session.get('mlr_ga_step2_train_n_outliers', 0) > 0 or session.get('mlr_ga_step2_test_n_outliers', 0) > 0 %}
+                                    <!-- Show preview of current vs after removal -->
+                                    {% if session.get('mlr_ga_step2_preview_current') and session.get('mlr_ga_step2_preview_after') %}
+                                    <div class="card border-info mt-3">
+                                        <div class="card-header bg-info text-white">
+                                            <h6 class="mb-0"><i class="fas fa-eye mr-2"></i>Preview: Current vs After Removal</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <!-- Current split -->
+                                                <div class="col-md-6">
+                                                    <h6 class="text-center"><i class="fas fa-chart-bar mr-2 text-primary"></i>Current Split</h6>
+                                                    <img src="{{ url_for('utils.serve_temp_image', filename=session.get('mlr_ga_step2_preview_current')) }}"
+                                                         class="img-fluid" alt="Current Split">
+                                                </div>
+                                                <!-- Preview after removal -->
+                                                <div class="col-md-6">
+                                                    <h6 class="text-center"><i class="fas fa-chart-bar mr-2 text-success"></i>Preview After Removal</h6>
+                                                    <img src="{{ url_for('utils.serve_temp_image', filename=session.get('mlr_ga_step2_preview_after')) }}"
+                                                         class="img-fluid" alt="Preview After Removal">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_remove_outliers_step2') }}" class="mt-3">
+                                        <div class="form-group">
+                                            <label>Select which outliers to remove:</label>
+                                            <div class="custom-control custom-checkbox">
+                                                <input type="checkbox" class="custom-control-input" id="remove_train_outliers"
+                                                       name="remove_train_outliers" {% if session.get('mlr_ga_step2_train_n_outliers', 0) > 0 %}checked{% endif %}>
+                                                <label class="custom-control-label" for="remove_train_outliers">
+                                                    Train Set ({{ session.get('mlr_ga_step2_train_n_outliers', 0) }} outliers)
+                                                </label>
+                                            </div>
+                                            <div class="custom-control custom-checkbox">
+                                                <input type="checkbox" class="custom-control-input" id="remove_test_outliers"
+                                                       name="remove_test_outliers" {% if session.get('mlr_ga_step2_test_n_outliers', 0) > 0 %}checked{% endif %}>
+                                                <label class="custom-control-label" for="remove_test_outliers">
+                                                    Test Set ({{ session.get('mlr_ga_step2_test_n_outliers', 0) }} outliers)
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <button type="submit" class="btn btn-danger btn-lg">
+                                            <i class="fas fa-check mr-2"></i>Confirm: Remove Selected Outliers
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <p class="mb-0 text-success">
+                                        <i class="fas fa-check-circle mr-2"></i>No outliers detected in either set!
+                                    </p>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+
+                                <!-- Show outlier removal results if outliers were removed -->
+                                {% if session.get('mlr_ga_step2_outliers_removed') %}
+                                <div class="alert alert-success mt-3">
+                                    <h6><i class="fas fa-check-circle mr-2"></i>Outliers Removed Successfully</h6>
+                                    <p class="mb-2">
+                                        <strong>Total removed:</strong> {{ session.get('mlr_ga_step2_total_removed', 0) }} sample(s)
+                                    </p>
+                                    <p class="mb-2">
+                                        <strong>Remaining:</strong>
+                                        Train: {{ session.get('mlr_ga_step2_train_remaining', 0) }},
+                                        Test: {{ session.get('mlr_ga_step2_test_remaining', 0) }}
+                                    </p>
+                                    {% if session.get('mlr_ga_step2_removed_samples') %}
+                                    <a href="{{ url_for('mlr_ga.download_step2_outliers') }}" class="btn btn-sm btn-outline-warning">
+                                        <i class="fas fa-download mr-1"></i>Download Removed Samples CSV
+                                    </a>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Continue to Preprocessing button -->
+                <div class="mt-4">
+                    <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_advance_to_preprocessing') }}">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-arrow-right mr-2"></i>Continue to Preprocessing
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Step 3: Preprocessing (Standardization and Variance Check) -->
+    {% if current_step == 'preprocessing' %}
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Step 3: Standardization and Variance Check</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_step3') }}">
+                <div class="form-group">
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" id="autoscale" name="autoscale"
+                               {% if autoscale %}checked{% endif %}>
+                        <label class="custom-control-label" for="autoscale">
+                            <strong>Autoscaling (Standardization)</strong>
+                        </label>
+                        <small class="form-text text-muted">Standardize features to mean=0 and variance=1</small>
+                    </div>
+                </div>
+
+                <div class="form-group mt-3">
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" id="remove_zero_variance" name="remove_zero_variance"
+                               {% if remove_zero_variance %}checked{% endif %}>
+                        <label class="custom-control-label" for="remove_zero_variance">
+                            <strong>Remove Zero Variance Features</strong>
+                        </label>
+                        <small class="form-text text-muted">Remove features with zero variance (constant values)</small>
+                    </div>
+                </div>
+
+                <div class="form-group mt-3">
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" id="remove_low_variance" name="remove_low_variance"
+                               {% if remove_low_variance %}checked{% endif %} onchange="toggleVarianceThreshold()">
+                        <label class="custom-control-label" for="remove_low_variance">
+                            <strong>Remove Low Variance Features</strong>
+                        </label>
+                        <small class="form-text text-muted">Remove features with variance below threshold</small>
+                    </div>
+                </div>
+
+                <div id="variance_threshold_div" class="mt-3" style="display:none;">
+                    <div class="form-group">
+                        <label for="variance_threshold">Variance Threshold:</label>
+                        <input type="number" class="form-control" id="variance_threshold" name="variance_threshold"
+                               value="{{ variance_threshold }}" min="0.0001" max="1.0" step="0.01">
+                        <small class="form-text text-muted">Features with variance below this threshold will be removed</small>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-arrow-right mr-2"></i>Continue to GA Parameters
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Step 4: GA Parameters -->
+    {% if current_step == 'ga_parameters' %}
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Step 4: Genetic Algorithm Parameters</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_start') }}">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="n_variables">Number of Variables to Select:</label>
+                            <input type="number" class="form-control" id="n_variables" name="n_variables"
+                                   value="{{ n_variables }}" min="1" placeholder="Leave empty for automatic">
+                            <small class="form-text text-muted">Target number of variables (leave empty for automatic optimization)</small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="correlation_threshold">Correlation Threshold:</label>
+                            <input type="number" class="form-control" id="correlation_threshold" name="correlation_threshold"
+                                   value="{{ correlation_threshold }}" min="0" max="1" step="0.01">
+                            <small class="form-text text-muted">Maximum allowed correlation between selected features</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="mutation_rate">Mutation Rate:</label>
+                            <input type="number" class="form-control" id="mutation_rate" name="mutation_rate"
+                                   value="{{ mutation_rate }}" min="0" max="1" step="0.01">
+                            <small class="form-text text-muted">Probability of gene mutation (0.0 - 1.0)</small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="random_models_ratio">Random Models Ratio:</label>
+                            <input type="number" class="form-control" id="random_models_ratio" name="random_models_ratio"
+                                   value="{{ random_models_ratio }}" min="0" max="1" step="0.01">
+                            <small class="form-text text-muted">Ratio of completely random models in population</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group mt-3">
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" id="use_validation" name="use_validation"
+                               {% if use_validation %}checked{% endif %} onchange="toggleValidationOptions()">
+                        <label class="custom-control-label" for="use_validation">
+                            <strong>Include Scoring of Validation Set</strong>
+                        </label>
+                        <small class="form-text text-muted">
+                            Use validation set in optimization. Both training and validation scores will be calculated,
+                            and the worse result will be treated as final score.
+                        </small>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="population_size">Population Size:</label>
+                            <input type="number" class="form-control" id="population_size" name="population_size"
+                                   value="{{ population_size }}" min="10" max="500">
+                            <small class="form-text text-muted">Number of individuals in each generation</small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="n_iterations">Algorithm Iterations:</label>
+                            <input type="number" class="form-control" id="n_iterations" name="n_iterations"
+                                   value="{{ n_iterations }}" min="10" max="1000">
+                            <small class="form-text text-muted">Number of generations to evolve</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="max_retries">Maximum Number of Algorithm Re-tries:</label>
+                            <input type="number" class="form-control" id="max_retries" name="max_retries"
+                                   value="{{ max_retries }}" min="1" max="10">
+                            <small class="form-text text-muted">Number of independent GA runs</small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="cv_folds">Cross-Validation Folds:</label>
+                            <input type="number" class="form-control" id="cv_folds" name="cv_folds"
+                                   value="{{ cv_folds }}" min="2" max="20">
+                            <small class="form-text text-muted">Number of CV folds for training set</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="validation_options" class="row mt-3" style="display:none;">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="cv_folds_validation">CV Folds for Validation Set:</label>
+                            <input type="number" class="form-control" id="cv_folds_validation" name="cv_folds_validation"
+                                   value="{{ cv_folds_validation }}" min="2" max="20">
+                            <small class="form-text text-muted">Number of CV folds for validation set</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group mt-3">
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" id="test_normality" name="test_normality"
+                               {% if test_normality %}checked{% endif %} onchange="toggleNormalityAlpha()">
+                        <label class="custom-control-label" for="test_normality">
+                            <strong>Test Residuals Normality (D'Agostino and Pearson's test)</strong>
+                        </label>
+                        <small class="form-text text-muted">Penalize models with non-normal residuals</small>
+                    </div>
+                </div>
+
+                <div id="normality_alpha_div" class="mt-3" style="display:none;">
+                    <div class="form-group">
+                        <label for="normality_alpha">Normality Test Alpha (Statistical Significance):</label>
+                        <input type="number" class="form-control" id="normality_alpha" name="normality_alpha"
+                               value="{{ normality_alpha }}" min="0.001" max="0.1" step="0.001">
+                        <small class="form-text text-muted">Significance level for normality test</small>
+                    </div>
+                </div>
+
+                <div class="form-group mt-4">
+                    <label for="n_best_models">Number of Best Models to Keep:</label>
+                    <input type="number" class="form-control" id="n_best_models" name="n_best_models"
+                           value="{{ n_best_models }}" min="1" max="100">
+                    <small class="form-text text-muted">Number of top-ranked models to save for comparison (default: 50, showing first 5)</small>
+                </div>
+
+                <!-- Applicability Domain Check -->
+                <div class="card mt-4 border-info">
+                    <div class="card-header bg-info text-white">
+                        <strong>Applicability Domain (AD) Check</strong>
+                    </div>
+                    <div class="card-body">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="check_ad" name="check_ad"
+                                   {% if check_ad %}checked{% endif %} onchange="toggleADThreshold()">
+                            <label class="custom-control-label" for="check_ad">
+                                <strong>Require Training Set in Applicability Domain</strong>
+                            </label>
+                            <small class="form-text text-muted">
+                                Reject models where training samples fall outside AD (Williams Plot criteria: leverage &lt; h* and |std_residual| &lt; 3)
+                            </small>
+                        </div>
+
+                        <div id="ad_threshold_div" class="mt-3" {% if not check_ad %}style="display:none;"{% endif %}>
+                            <div class="form-group">
+                                <label for="ad_threshold">Minimum AD Coverage for Training Set (%):</label>
+                                <input type="number" class="form-control" id="ad_threshold" name="ad_threshold"
+                                       value="{{ ad_threshold }}" min="50" max="100" step="1"
+                                       {% if not check_ad %}disabled{% endif %}>
+                                <small class="form-text text-muted">
+                                    Models with training AD coverage below this threshold will be rejected.
+                                    Use 100% to require all training samples within AD.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning mt-4">
+                    <strong>Note:</strong> Running the Genetic Algorithm may take several minutes depending on your dataset size and parameters.
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success btn-lg" onclick="return showGALoadingScreen(event);">
+                        <i class="fas fa-play mr-2"></i>Run Genetic Algorithm
+                    </button>
+                </div>
+            </form>
+
+            <!-- GA Loading Overlay -->
+            <div id="ga-loading-overlay" style="display: none;">
+                <div class="ga-loading-content">
+                    <div class="spinner-border text-primary" role="status" style="width: 4rem; height: 4rem;">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <h3 class="mt-4 text-primary">Running Genetic Algorithm...</h3>
+                    <p class="lead">Real-time progress updates</p>
+
+                    <!-- Progress bar with percentage -->
+                    <div class="progress mt-4" style="width: 500px; height: 35px;">
+                        <div id="ga-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                             role="progressbar" style="width: 0%">
+                            <span id="ga-progress-text">Starting...</span>
+                        </div>
+                    </div>
+
+                    <!-- Real-time status -->
+                    <div class="mt-4">
+                        <div class="row">
+                            <div class="col-6">
+                                <p><strong>Retry:</strong> <span id="ga-retry">-</span> / <span id="ga-max-retries">-</span></p>
+                                <p><strong>Generation:</strong> <span id="ga-generation">-</span> / <span id="ga-total-gen">-</span></p>
+                                <p><strong>Best Score (R²):</strong> <strong class="text-success" id="ga-best-score">-</strong></p>
+                                <p><strong>Current Score:</strong> <strong class="text-info" id="ga-current-score">-</strong></p>
+                            </div>
+                            <div class="col-6">
+                                <p><strong>Features Selected:</strong> <span id="ga-n-features">-</span></p>
+                                <p><strong>Unique Models:</strong> <span id="ga-unique-models">-</span></p>
+                                <p><strong>R²:</strong> <strong class="text-primary" id="ga-r2">-</strong></p>
+                                <p><strong>Q²loo:</strong> <strong class="text-primary" id="ga-q2loo">-</strong></p>
+                                <p><strong>RMSE:</strong> <strong class="text-danger" id="ga-rmse">-</strong></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <p class="text-muted"><i class="fas fa-info-circle mr-2"></i>Real-time updates every iteration with detailed fitness metrics (R², Q²loo, RMSE)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Step 4.5: Model Selection -->
+    {% if current_step == 'model_selection' %}
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">Select Model for MLR Analysis</h5>
+        </div>
+        <div class="card-body">
+            <p class="lead">The Genetic Algorithm has identified {{ best_models|length }} candidate models. Select one to perform full MLR analysis with detailed regression equation and coefficients.</p>
+
+            <!-- Preprocessing Info: Removed Outliers -->
+            {% if preprocessing_info and preprocessing_info.y_outliers_removed > 0 %}
+            <div class="alert alert-warning">
+                <h6><i class="fas fa-exclamation-triangle mr-2"></i>Outliers Removed from Target Variable</h6>
+                <p class="mb-2">
+                    <strong>{{ preprocessing_info.y_outliers_removed }}</strong> sample(s) were removed as outliers from the target variable to improve normality.
+                </p>
+                <p class="mb-2">
+                    <strong>Method:</strong> {{ preprocessing_info.outlier_method|upper }}
+                    (Threshold: {{ "%.2f"|format(preprocessing_info.outlier_threshold) }})
+                </p>
+                <p class="mb-2">
+                    <strong>Normality Test (Shapiro-Wilk):</strong>
+                    Before removal: p-value = {{ "%.4f"|format(preprocessing_info.y_normality_before.p_value) if preprocessing_info.y_normality_before.p_value else 'N/A' }}
+                    {% if preprocessing_info.y_normality_before.is_normal %}<span class="text-success">(Normal)</span>{% else %}<span class="text-danger">(Not Normal)</span>{% endif %}
+                    →
+                    After removal: p-value = {{ "%.4f"|format(preprocessing_info.y_normality_after.p_value) if preprocessing_info.y_normality_after.p_value else 'N/A' }}
+                    {% if preprocessing_info.y_normality_after.is_normal %}<span class="text-success">(Normal)</span>{% else %}<span class="text-warning">(Improved)</span>{% endif %}
+                </p>
+                <a href="{{ url_for('mlr_ga.download_y_outliers') }}" class="btn btn-sm btn-outline-warning">
+                    <i class="fas fa-download mr-1"></i>Download Removed Samples CSV
+                </a>
+            </div>
+            {% endif %}
+
+            {% if best_models %}
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Rank</th>
+                            <th>CV R²</th>
+                            <th>Q²loo</th>
+                            <th>RMSE</th>
+                            <th>AD%</th>
+                            <th>N Feat.</th>
+                            <th>Selected Features</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ga-models-tbody">
+                        {% for model in best_models %}
+                        <tr class="ga-model-row {% if model.rank == 1 %}table-success{% endif %} {% if model.rank > 5 %}ga-hidden-row{% endif %}" data-rank="{{ model.rank }}">
+                            <td><strong>#{{ model.rank }}</strong></td>
+                            <td><strong class="text-primary">{{ "%.4f"|format(model.score) }}</strong></td>
+                            <td><strong class="text-success">{{ "%.4f"|format(model.q2loo) if model.q2loo is defined else 'N/A' }}</strong></td>
+                            <td><strong class="text-danger">{{ "%.4f"|format(model.rmse) if model.rmse is defined else 'N/A' }}</strong></td>
+                            <td><strong class="{% if model.ad_coverage is defined and model.ad_coverage >= 100 %}text-success{% elif model.ad_coverage is defined and model.ad_coverage >= 90 %}text-warning{% else %}text-danger{% endif %}">{{ "%.1f"|format(model.ad_coverage) if model.ad_coverage is defined else 'N/A' }}%</strong></td>
+                            <td>{{ model.n_features }}</td>
+                            <td>
+                                <small>{{ model.feature_names|join(', ') }}</small>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-info mr-1" onclick="toggleEquation({{ model.rank }})" title="Show Equation">
+                                    <i class="fas fa-superscript"></i>
+                                </button>
+                                <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_run_mlr') }}" class="d-inline">
+                                    <input type="hidden" name="selected_model" value="{{ model.rank }}">
+                                    <button type="submit" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-chart-line mr-1"></i>Run MLR
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        <!-- Equation details row (hidden by default) -->
+                        <tr class="equation-row {% if model.rank > 5 %}ga-hidden-row{% endif %}" id="equation-row-{{ model.rank }}" style="display: none;">
+                            <td colspan="8" class="equation-cell">
+                                <div class="p-3">
+                                    <h6 class="mb-3"><i class="fas fa-superscript mr-2"></i>Model #{{ model.rank }} - Equation & Coefficients</h6>
+                                    <div class="card mb-3">
+                                        <div class="card-header bg-primary text-white py-2">
+                                            <strong>Regression Equation</strong>
+                                        </div>
+                                        <div class="card-body">
+                                            <code class="equation-code" style="font-size: 0.9rem; word-break: break-all;">
+                                                Y = {{ "%.6f"|format(model.intercept) if model.intercept is defined else '0' }}
+                                                {% if model.coefficients is defined and model.feature_names is defined %}
+                                                    {% for i in range(model.coefficients|length) %}
+                                                        {% if model.coefficients[i] >= 0 %}
+                                                            + {{ "%.6f"|format(model.coefficients[i]) }} × {{ model.feature_names[i] }}
+                                                        {% else %}
+                                                            - {{ "%.6f"|format(model.coefficients[i]|abs) }} × {{ model.feature_names[i] }}
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                {% endif %}
+                                            </code>
+                                        </div>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered mb-0">
+                                            <thead class="thead-light">
+                                                <tr>
+                                                    <th>Term</th>
+                                                    <th>Coefficient</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td><strong>Intercept</strong></td>
+                                                    <td><code>{{ "%.6f"|format(model.intercept) if model.intercept is defined else 'N/A' }}</code></td>
+                                                </tr>
+                                                {% if model.coefficients is defined and model.feature_names is defined %}
+                                                    {% for i in range(model.coefficients|length) %}
+                                                    <tr>
+                                                        <td><strong>{{ model.feature_names[i] }}</strong></td>
+                                                        <td><code>{{ "%.6f"|format(model.coefficients[i]) }}</code></td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                {% endif %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Show More Button -->
+            {% if best_models|length > 5 %}
+            <div class="text-center mt-3" id="show-more-container">
+                <button class="btn btn-outline-primary" id="show-more-models" onclick="showMoreModels()">
+                    <i class="fas fa-chevron-down mr-2"></i>Show More Models (<span id="hidden-count">{{ best_models|length - 5 }}</span> hidden)
+                </button>
+            </div>
+            {% endif %}
+
+            <div class="alert alert-info mt-3">
+                <i class="fas fa-info-circle mr-2"></i>
+                <strong>Understanding Metrics:</strong><br>
+                • <strong>CV R²</strong> = {{ cv_folds }}-fold cross-validation R² (fitness function used by GA)<br>
+                • <strong>Q²loo</strong> = Leave-One-Out cross-validation R² (more accurate but slower)<br>
+                • <strong>RMSE</strong> = Root Mean Squared Error from cross-validation<br>
+                • <strong>AD%</strong> = Applicability Domain coverage for training set (100% means all samples within AD)<br>
+                <em>Note: Q²loo is generally higher than CV R² because LOO is less conservative. Click "Run MLR" to see full regression equation with coefficients and diagnostic plots.</em>
+            </div>
+
+            {% if ga_fitness_plot %}
+            <div class="mt-4">
+                <h6>GA Fitness Evolution:</h6>
+                <img src="{{ url_for('static', filename=ga_fitness_plot.replace('temp/', '')) }}" class="img-fluid" alt="GA Fitness Evolution">
+            </div>
+            {% endif %}
+
+            {% if removed_features %}
+            <div class="alert alert-warning mt-3">
+                <strong>Note:</strong> The following features were removed during preprocessing:<br>
+                <small>{{ removed_features|join(', ') }}</small>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Step 5: Results -->
+    {% if current_step == 'results' and mlr_ga_analysis_performed %}
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Analysis Results</h5>
+        </div>
+        <div class="card-body">
+            <!-- GA Results -->
+            <h6 class="mt-3"><i class="fas fa-dna mr-2"></i>Genetic Algorithm Results</h6>
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Selected Model:</strong> Rank #{{ selected_model_rank }} (from {{ best_models|length }} candidates)</p>
+                    <p><strong>Selected Variables:</strong> {{ selected_features|length }}</p>
+                    <p><strong>Model GA Score (R²):</strong> {{ "%.4f"|format(ga_best_score) }}</p>
+                    <div class="alert alert-info">
+                        <strong>Selected Features:</strong><br>
+                        {{ selected_features|join(', ') }}
+                    </div>
+                    {% if removed_features %}
+                    <div class="alert alert-warning">
+                        <strong>Removed During Preprocessing:</strong><br>
+                        {{ removed_features|join(', ') }}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    {% if ga_fitness_plot %}
+                    <img src="{{ url_for('static', filename=ga_fitness_plot.replace('temp/', '')) }}" class="img-fluid" alt="GA Fitness Evolution">
+                    {% endif %}
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- MLR Results -->
+            <h6 class="mt-4"><i class="fas fa-chart-line mr-2"></i>MLR Model Performance</h6>
+
+            <!-- Regression Equation -->
+            {% if coefficients and feature_names %}
+            <div class="alert alert-primary mt-3">
+                <h6><i class="fas fa-equals mr-2"></i>Regression Equation:</h6>
+                <div style="font-family: 'Courier New', monospace; font-size: 14px; overflow-x: auto;">
+                    <strong>{{ mlr_ga_target_var }}</strong> =
+                    {% if feature_names[0] == 'Intercept' %}
+                        <strong>{{ "%.4f"|format(coefficients[0]) }}</strong>
+                        {% for i in range(1, feature_names|length) %}
+                            {% if coefficients[i] >= 0 %}
+                                + <strong>{{ "%.4f"|format(coefficients[i]) }}</strong> × {{ feature_names[i] }}
+                            {% else %}
+                                - <strong>{{ "%.4f"|format(-coefficients[i]) }}</strong> × {{ feature_names[i] }}
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        {% for i in range(feature_names|length) %}
+                            {% if i > 0 %}
+                                {% if coefficients[i] >= 0 %}
+                                    + <strong>{{ "%.4f"|format(coefficients[i]) }}</strong> × {{ feature_names[i] }}
+                                {% else %}
+                                    - <strong>{{ "%.4f"|format(-coefficients[i]) }}</strong> × {{ feature_names[i] }}
+                                {% endif %}
+                            {% else %}
+                                <strong>{{ "%.4f"|format(coefficients[i]) }}</strong> × {{ feature_names[i] }}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table table-bordered">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Metric</th>
+                                <th>Training</th>
+                                <th>Test</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>R²</strong></td>
+                                <td>{{ "%.4f"|format(train_r2) if train_r2 else 'N/A' }}</td>
+                                <td>{{ "%.4f"|format(test_r2) if test_r2 else 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>RMSE</strong></td>
+                                <td>{{ "%.4f"|format(train_rmse) if train_rmse else 'N/A' }}</td>
+                                <td>{{ "%.4f"|format(test_rmse) if test_rmse else 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>MAE</strong></td>
+                                <td>{{ "%.4f"|format(train_mae) if train_mae else 'N/A' }}</td>
+                                <td>{{ "%.4f"|format(test_mae) if test_mae else 'N/A' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="col-md-6">
+                    <table class="table table-bordered">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Additional Metrics</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Adjusted R²</strong></td>
+                                <td>{{ "%.4f"|format(adj_r2) if adj_r2 else 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Q² (Test)</strong></td>
+                                <td>{{ "%.4f"|format(q2_test) if q2_test else 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Q²loo (Leave-One-Out)</strong></td>
+                                <td>{{ "%.4f"|format(q2_loo) if q2_loo else 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>RMSE (LOO)</strong></td>
+                                <td>{{ "%.4f"|format(rmse_loo) if rmse_loo else 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>F-Statistic</strong></td>
+                                <td>{{ "%.4f"|format(f_statistic) if f_statistic else 'N/A' }} (p={{ "%.4e"|format(f_pvalue) if f_pvalue else 'N/A' }})</td>
+                            </tr>
+                            <tr>
+                                <td><strong>AIC</strong></td>
+                                <td>{{ "%.4f"|format(aic) if aic else 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>BIC</strong></td>
+                                <td>{{ "%.4f"|format(bic) if bic else 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Durbin-Watson</strong></td>
+                                <td>{{ "%.4f"|format(dw_stat) if dw_stat else 'N/A' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Model Coefficients -->
+            <h6 class="mt-4">Model Coefficients</h6>
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Variable</th>
+                            <th>Coefficient</th>
+                            <th>Std Error</th>
+                            <th>t-value</th>
+                            <th>p-value</th>
+                            <th>VIF</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for i in range(feature_names|length) %}
+                        <tr>
+                            <td>{{ feature_names[i] }}</td>
+                            <td>{{ "%.4f"|format(coefficients[i]) }}</td>
+                            <td>{{ "%.4f"|format(std_errors[i]) }}</td>
+                            <td>{{ "%.4f"|format(t_values[i]) }}</td>
+                            <td>{{ "%.4e"|format(p_values[i]) }}</td>
+                            <td>
+                                {% if vif_values and i < vif_values|length %}
+                                {{ "%.4f"|format(vif_values[i]) }}
+                                {% else %}
+                                N/A
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Plots -->
+            <h6 class="mt-4">Diagnostic Plots</h6>
+            <div class="row">
+                {% if mlr_pred_actual_plot %}
+                <div class="col-md-6 mb-3">
+                    <h6>Predicted vs Actual</h6>
+                    <img src="{{ url_for('static', filename=mlr_pred_actual_plot.replace('temp/', '')) }}" class="img-fluid" alt="Predicted vs Actual">
+                </div>
+                {% endif %}
+
+                {% if mlr_residuals_plot %}
+                <div class="col-md-6 mb-3">
+                    <h6>Residuals Plot</h6>
+                    <img src="{{ url_for('static', filename=mlr_residuals_plot.replace('temp/', '')) }}" class="img-fluid" alt="Residuals">
+                </div>
+                {% endif %}
+
+                {% if mlr_qq_plot %}
+                <div class="col-md-6 mb-3">
+                    <h6>Q-Q Plot</h6>
+                    <img src="{{ url_for('static', filename=mlr_qq_plot.replace('temp/', '')) }}" class="img-fluid" alt="Q-Q Plot">
+                </div>
+                {% endif %}
+
+                {% if mlr_williams_plot %}
+                <div class="col-md-6 mb-3">
+                    <h6>Williams Plot</h6>
+                    <img src="{{ url_for('static', filename=mlr_williams_plot.replace('temp/', '')) }}" class="img-fluid" alt="Williams Plot">
+                    <p class="mt-2">
+                        <strong>Applicability Domain:</strong>
+                        Training: {{ "%.2f"|format(AD_train) }}% | Test: {{ "%.2f"|format(AD_test) }}%
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+/* Hide models beyond the initial 5 */
+.ga-hidden-row {
+    display: none;
+}
+
+.step {
+    display: inline-block;
+}
+
+.step-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #e9ecef;
+    color: #6c757d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 10px;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+.step.active .step-circle {
+    background-color: #007bff;
+    color: white;
+}
+
+.step.completed .step-circle {
+    background-color: #28a745;
+    color: white;
+}
+
+.step-label {
+    font-size: 12px;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.step.active .step-label {
+    color: #007bff;
+    font-weight: bold;
+}
+
+.step.completed .step-label {
+    color: #28a745;
+}
+
+.split-options {
+    border-left: 3px solid #007bff;
+    padding-left: 15px;
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+/* GA Loading Overlay */
+#ga-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.85);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.ga-loading-content {
+    background: white;
+    padding: 50px;
+    border-radius: 15px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    max-width: 600px;
+}
+
+.ga-loading-content h3 {
+    font-weight: bold;
+    margin-top: 20px;
+}
+
+.ga-loading-content p {
+    margin: 10px 0;
+    color: #555;
+}
+
+.ga-loading-content .progress {
+    margin: 20px auto;
+}
+
+/* Equation display - works in both light and dark mode */
+.equation-cell {
+    background-color: var(--bs-tertiary-bg, #f8f9fa);
+}
+
+.equation-code {
+    color: var(--bs-body-color, #212529);
+}
+
+/* Dark mode support */
+[data-bs-theme="dark"] .equation-cell,
+.dark-mode .equation-cell,
+body.dark .equation-cell {
+    background-color: var(--bs-tertiary-bg, #2b3035);
+}
+
+[data-bs-theme="dark"] .equation-code,
+.dark-mode .equation-code,
+body.dark .equation-code {
+    color: var(--bs-body-color, #dee2e6);
+}
+</style>
+
+<script>
+// Show More Models functionality
+let modelsVisible = 5; // Start with 5 models visible
+const modelsIncrement = 10; // Show 10 more each time
+
+function showMoreModels() {
+    // Only select model rows, not equation rows
+    const hiddenModelRows = document.querySelectorAll('.ga-model-row.ga-hidden-row');
+    const totalHidden = hiddenModelRows.length;
+
+    if (totalHidden === 0) return;
+
+    // Show next batch of models
+    let shown = 0;
+    hiddenModelRows.forEach(row => {
+        if (shown < modelsIncrement) {
+            row.classList.remove('ga-hidden-row');
+            shown++;
+            modelsVisible++;
+
+            // Also reveal the corresponding equation row (but keep it hidden with display:none)
+            const rank = row.dataset.rank;
+            const equationRow = document.getElementById('equation-row-' + rank);
+            if (equationRow) {
+                equationRow.classList.remove('ga-hidden-row');
+                // Ensure equation row stays hidden until user clicks the toggle button
+                equationRow.style.display = 'none';
+            }
+        }
+    });
+
+    // Update hidden count (only count model rows)
+    const remainingHidden = document.querySelectorAll('.ga-model-row.ga-hidden-row').length;
+    const hiddenCountSpan = document.getElementById('hidden-count');
+
+    if (remainingHidden === 0) {
+        // Hide the button if no more hidden rows
+        document.getElementById('show-more-container').style.display = 'none';
+    } else {
+        // Update count
+        hiddenCountSpan.textContent = remainingHidden;
+    }
+}
+
+function toggleSplitOptions() {
+    // Hide all options and disable their inputs
+    document.querySelectorAll('.split-options').forEach(el => {
+        el.style.display = 'none';
+        // Disable all inputs within this div
+        el.querySelectorAll('input, select').forEach(input => {
+            input.disabled = true;
+        });
+    });
+
+    // Show selected option and enable its inputs
+    const method = document.querySelector('input[name="split_method"]:checked').value;
+    const optionsMap = {
+        'random': 'random_options',
+        'stratified': 'stratified_options',
+        'time': 'time_options',
+        'kfold': 'kfold_options',
+        'systematic': 'systematic_options'
+    };
+
+    if (optionsMap[method]) {
+        const selectedDiv = document.getElementById(optionsMap[method]);
+        selectedDiv.style.display = 'block';
+        // Enable all inputs within this div
+        selectedDiv.querySelectorAll('input, select').forEach(input => {
+            input.disabled = false;
+        });
+    }
+}
+
+function toggleVarianceThreshold() {
+    const checkbox = document.getElementById('remove_low_variance');
+    const div = document.getElementById('variance_threshold_div');
+    const input = document.getElementById('variance_threshold');
+
+    if (checkbox.checked) {
+        div.style.display = 'block';
+        input.disabled = false;
+    } else {
+        div.style.display = 'none';
+        input.disabled = true;
+    }
+}
+
+function toggleValidationOptions() {
+    const checkbox = document.getElementById('use_validation');
+    const div = document.getElementById('validation_options');
+    const input = document.getElementById('cv_folds_validation');
+
+    if (checkbox.checked) {
+        div.style.display = 'block';
+        input.disabled = false;
+    } else {
+        div.style.display = 'none';
+        input.disabled = true;
+    }
+}
+
+function toggleNormalityAlpha() {
+    const checkbox = document.getElementById('test_normality');
+    const div = document.getElementById('normality_alpha_div');
+    const input = document.getElementById('normality_alpha');
+
+    if (checkbox.checked) {
+        div.style.display = 'block';
+        input.disabled = false;
+    } else {
+        div.style.display = 'none';
+        input.disabled = true;
+    }
+}
+
+function toggleADThreshold() {
+    const checkbox = document.getElementById('check_ad');
+    const div = document.getElementById('ad_threshold_div');
+    const input = document.getElementById('ad_threshold');
+
+    if (checkbox.checked) {
+        div.style.display = 'block';
+        input.disabled = false;
+    } else {
+        div.style.display = 'none';
+        input.disabled = true;
+    }
+}
+
+function toggleEquation(rank) {
+    const row = document.getElementById('equation-row-' + rank);
+    if (row) {
+        if (row.style.display === 'none') {
+            row.style.display = 'table-row';
+        } else {
+            row.style.display = 'none';
+        }
+    }
+}
+
+// Auto-submit form when target variable is selected
+function autoSubmitTargetForm() {
+    const form = document.getElementById('target_analysis_form');
+    if (form) {
+        form.submit();
+    }
+}
+
+// Auto-submit form when transformation is changed (only if target is already selected)
+function autoSubmitTransformForm() {
+    const targetVar = document.getElementById('target_var');
+    const form = document.getElementById('target_analysis_form');
+
+    // Only submit if a target variable is selected
+    if (form && targetVar && targetVar.value) {
+        form.submit();
+    }
+}
+
+// Show GA loading screen with real-time polling updates
+function showGALoadingScreen(event) {
+    // Prevent default form submission
+    if (event) {
+        event.preventDefault();
+    }
+
+    // Show the loading overlay
+    const overlay = document.getElementById('ga-loading-overlay');
+    if (overlay) {
+        overlay.style.display = 'flex';
+    }
+
+    // Get the form
+    const form = event.target.closest('form');
+    const formData = new FormData(form);
+
+    // Session ID for tracking
+    const sessionId = 'default';
+
+    // Start polling BEFORE sending the start request
+    let pollInterval = null;
+
+    function pollProgress() {
+        fetch(`{{ url_for('mlr_ga.mlr_ga_get_progress') }}?session_id=${sessionId}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('Progress update:', data);
+
+                // Update progress bar
+                if (data.generation && data.total_generations) {
+                    const percentage = (data.generation / data.total_generations) * 100;
+                    const progressBar = document.getElementById('ga-progress-bar');
+                    const progressText = document.getElementById('ga-progress-text');
+
+                    if (progressBar) {
+                        progressBar.style.width = percentage + '%';
+                    }
+                    if (progressText) {
+                        progressText.textContent = `${data.generation} / ${data.total_generations} (${percentage.toFixed(0)}%)`;
+                    }
+                }
+
+                // Update detailed stats
+                if (data.retry) document.getElementById('ga-retry').textContent = data.retry;
+                if (data.max_retries) document.getElementById('ga-max-retries').textContent = data.max_retries;
+                if (data.generation) document.getElementById('ga-generation').textContent = data.generation;
+                if (data.total_generations) document.getElementById('ga-total-gen').textContent = data.total_generations;
+                if (data.best_score !== undefined) document.getElementById('ga-current-score').textContent = data.best_score.toFixed(4);
+                if (data.overall_best_score !== undefined) document.getElementById('ga-best-score').textContent = data.overall_best_score.toFixed(4);
+                if (data.n_features !== undefined) document.getElementById('ga-n-features').textContent = data.n_features;
+                if (data.unique_models !== undefined) document.getElementById('ga-unique-models').textContent = data.unique_models;
+
+                // Update detailed metrics
+                if (data.r2 !== undefined) document.getElementById('ga-r2').textContent = data.r2.toFixed(4);
+                if (data.q2loo !== undefined) document.getElementById('ga-q2loo').textContent = data.q2loo.toFixed(4);
+                if (data.rmse !== undefined) document.getElementById('ga-rmse').textContent = data.rmse.toFixed(4);
+
+                // Check if complete
+                if (data.status === 'complete') {
+                    clearInterval(pollInterval);
+                    // Store results in session and redirect
+                    finishGA();
+                } else if (data.status === 'error') {
+                    clearInterval(pollInterval);
+                    alert('Error: ' + (data.message || 'Unknown error during GA execution'));
+                    window.location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Polling error:', error);
+            });
+    }
+
+    function finishGA() {
+        // Call complete endpoint to store results in session
+        fetch(`{{ url_for('mlr_ga.mlr_ga_complete') }}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                window.location.href = data.redirect;
+            } else {
+                alert('Error: ' + (data.message || 'Failed to retrieve results'));
+                window.location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error finishing GA:', error);
+            alert('Error finishing GA: ' + error);
+            window.location.reload();
+        });
+    }
+
+    // Start polling every 200ms
+    pollInterval = setInterval(pollProgress, 200);
+
+    // Send AJAX request to start GA in background
+    fetch(`{{ url_for('mlr_ga.mlr_ga_start') }}`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'started') {
+            console.log('GA started successfully');
+            // Polling will continue until complete
+        } else {
+            clearInterval(pollInterval);
+            alert('Error starting GA: ' + (data.message || 'Unknown error'));
+            window.location.reload();
+        }
+    })
+    .catch(error => {
+        clearInterval(pollInterval);
+        console.error('Error starting GA:', error);
+        alert('Error starting GA: ' + error);
+        window.location.reload();
+    });
+
+    return false;
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize split options toggle
+    const splitMethodInputs = document.querySelectorAll('input[name="split_method"]');
+    if (splitMethodInputs.length > 0) {
+        toggleSplitOptions();
+    }
+
+    // Initialize variance threshold toggle
+    const removeVarianceCheckbox = document.getElementById('remove_low_variance');
+    if (removeVarianceCheckbox) {
+        toggleVarianceThreshold();
+    }
+
+    // Initialize validation options toggle
+    const useValidationCheckbox = document.getElementById('use_validation');
+    if (useValidationCheckbox) {
+        toggleValidationOptions();
+    }
+
+    // Initialize normality test toggle
+    const testNormalityCheckbox = document.getElementById('test_normality');
+    if (testNormalityCheckbox) {
+        toggleNormalityAlpha();
+    }
+
+    // Initialize AD threshold toggle
+    const checkADCheckbox = document.getElementById('check_ad');
+    if (checkADCheckbox) {
+        toggleADThreshold();
+    }
+});
+</script>
+{% endblock content %}

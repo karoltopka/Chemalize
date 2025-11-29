@@ -166,7 +166,7 @@
                         <span class="method-category">Predictive Modeling</span>
                     </div>
                 </div>
-                
+
                 <div class="method-content">
                     <p>Model relationships between multiple features and a target variable using linear regression.</p>
                     <div class="method-features">
@@ -184,14 +184,51 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="method-footer">
                     <a href="{{ url_for('mlr.mlr_analysis') }}" class="modern-btn btn-info-modern w-100">
                         <i class="fas fa-chart-line"></i> Run MLR Analysis
                     </a>
                 </div>
             </div>
-            
+
+            <!-- MLR with GA Card -->
+            <div class="analysis-method-card mlr-ga-card">
+                <div class="method-header mlr-ga-header">
+                    <div class="method-icon">
+                        <i class="fas fa-dna"></i>
+                    </div>
+                    <div class="method-title">
+                        <h5>MLR with Genetic Algorithm</h5>
+                        <span class="method-category">Advanced Feature Selection</span>
+                    </div>
+                </div>
+
+                <div class="method-content">
+                    <p>Automatically select optimal variables for MLR using genetic algorithm optimization.</p>
+                    <div class="method-features">
+                        <div class="feature-item">
+                            <i class="fas fa-robot"></i>
+                            <span>Automated variable selection</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-brain"></i>
+                            <span>Evolutionary optimization</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-sliders-h"></i>
+                            <span>Advanced preprocessing</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="method-footer">
+                    <a href="{{ url_for('mlr_ga.mlr_ga_analysis') }}" class="modern-btn btn-success-modern w-100">
+                        <i class="fas fa-dna"></i> Run MLR with GA
+                    </a>
+                </div>
+            </div>
+
             <!-- Clustering Card -->
             <div class="analysis-method-card clustering-card">
                 <div class="method-header clustering-header">

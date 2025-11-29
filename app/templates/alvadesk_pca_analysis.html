@@ -1,0 +1,2755 @@
+{% extends "layout.html" %}
+
+{% block head %}
+<!-- Add Plotly.js for interactive visualizations -->
+<script src="https://cdn.jsdelivr.net/npm/plotly.js@2.24.2/dist/plotly.min.js"></script>
+<style>
+    /* PCA Plot Container - dynamically created */
+    #pca-plotly-wrapper {
+        width: 100%;
+        position: relative;
+    }
+
+    #pca-plotly {
+        width: 100%;
+        /* height set dynamically by setSquareHeight() */
+    }
+
+    /* Reduce padding for PCA plot body */
+    #alvadesk-pca-plot-container .plot-body {
+        padding: 0.5rem;
+    }
+
+    /* Modern card styling */
+    .modern-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .modern-card-inner {
+        background: rgba(248, 250, 252, 0.5);
+        border-radius: 12px;
+        padding: 1.25rem;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+    }
+
+    /* Descriptor groups selection */
+    .descriptor-groups-container {
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 1rem;
+        background: rgba(248, 250, 252, 0.5);
+        border-radius: 8px;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+    }
+
+    .descriptor-group-item {
+        padding: 0.5rem;
+        margin-bottom: 0.5rem;
+        border-left: 3px solid #3b82f6;
+        background: white;
+        border-radius: 4px;
+    }
+
+    .descriptor-group-item:hover {
+        background: rgba(59, 130, 246, 0.05);
+    }
+
+    .descriptor-count {
+        font-size: 0.875rem;
+        color: #6b7280;
+        font-style: italic;
+    }
+
+    /* Filter controls */
+    .filter-checkboxes {
+        padding: 10px;
+        background: rgba(248, 250, 252, 0.5);
+        border-radius: 8px;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .filter-checkboxes .form-check {
+        padding: 4px 0;
+    }
+
+    /* Summary badges */
+    .summary-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        font-weight: 600;
+        color: #1e40af;
+        margin: 0.25rem;
+    }
+
+    /* Select all/none buttons */
+    .select-buttons {
+        margin-bottom: 1rem;
+    }
+
+    .btn-sm-custom {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem;
+    }
+
+    .hidden {
+        display: none;
+    }
+
+    /* Dark mode styles */
+    body.dark-theme .modern-card {
+        background: #1f2937;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    }
+
+    body.dark-theme .modern-card h5,
+    body.dark-theme .modern-card h6 {
+        color: #f9fafb;
+    }
+
+    body.dark-theme .modern-card p,
+    body.dark-theme .modern-card label {
+        color: #d1d5db;
+    }
+
+    body.dark-theme .modern-card-inner {
+        background: rgba(31, 41, 55, 0.5);
+        border: 1px solid rgba(75, 85, 99, 0.8);
+    }
+
+    body.dark-theme .modern-card-inner h6 {
+        color: #f9fafb;
+    }
+
+    body.dark-theme .descriptor-groups-container {
+        background: rgba(31, 41, 55, 0.5);
+        border: 1px solid rgba(75, 85, 99, 0.8);
+    }
+
+    body.dark-theme .descriptor-group-item {
+        background: #111827;
+        border-left: 3px solid #60a5fa;
+    }
+
+    body.dark-theme .descriptor-group-item:hover {
+        background: rgba(59, 130, 246, 0.15);
+    }
+
+    body.dark-theme .descriptor-group-item label {
+        color: #f9fafb;
+    }
+
+    body.dark-theme .descriptor-count {
+        color: #9ca3af;
+    }
+
+    body.dark-theme .filter-checkboxes {
+        background: rgba(31, 41, 55, 0.5);
+        border: 1px solid rgba(75, 85, 99, 0.8);
+    }
+
+    body.dark-theme .filter-checkboxes label {
+        color: #d1d5db;
+    }
+
+    body.dark-theme .summary-badge {
+        background: rgba(37, 99, 235, 0.2);
+        border: 1px solid rgba(96, 165, 250, 0.3);
+        color: #93c5fd;
+    }
+
+    body.dark-theme .table {
+        color: #d1d5db;
+    }
+
+    body.dark-theme .table thead th {
+        color: #f9fafb;
+        border-color: #374151;
+    }
+
+    body.dark-theme .table-striped > tbody > tr:nth-of-type(odd) > * {
+        color: #d1d5db;
+        background-color: rgba(31, 41, 55, 0.3);
+    }
+
+    body.dark-theme .table > :not(caption) > * > * {
+        border-bottom-color: #374151;
+    }
+
+    body.dark-theme .form-control,
+    body.dark-theme .form-select {
+        background-color: #1f2937;
+        border-color: #374151;
+        color: #f9fafb;
+    }
+
+    body.dark-theme .form-control:focus,
+    body.dark-theme .form-select:focus {
+        background-color: #111827;
+        border-color: #60a5fa;
+        color: #f9fafb;
+    }
+
+    body.dark-theme .form-check-input {
+        background-color: #374151;
+        border-color: #4b5563;
+    }
+
+    body.dark-theme .form-check-input:checked {
+        background-color: #3b82f6;
+        border-color: #3b82f6;
+    }
+
+    body.dark-theme .form-check-label {
+        color: #d1d5db;
+    }
+
+    body.dark-theme .text-muted {
+        color: #9ca3af !important;
+    }
+
+    body.dark-theme .alert-success {
+        background-color: rgba(16, 185, 129, 0.1);
+        border-color: rgba(16, 185, 129, 0.3);
+        color: #6ee7b7;
+    }
+
+    body.dark-theme .alert-danger {
+        background-color: rgba(239, 68, 68, 0.1);
+        border-color: rgba(239, 68, 68, 0.3);
+        color: #fca5a5;
+    }
+
+    body.dark-theme .alert-warning {
+        background-color: rgba(245, 158, 11, 0.1);
+        border-color: rgba(245, 158, 11, 0.3);
+        color: #fcd34d;
+    }
+
+    body.dark-theme .alert-info {
+        background-color: rgba(59, 130, 246, 0.1);
+        border-color: rgba(59, 130, 246, 0.3);
+        color: #93c5fd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2 class="mb-4">
+        <i class="fas fa-project-diagram"></i> Alvadesk PCA Analysis with Descriptor Groups
+    </h2>
+
+    <!-- Dataset Info -->
+    <div class="modern-card">
+        <h5><i class="fas fa-database"></i> Current Dataset</h5>
+        <p><strong>File:</strong> {{ csv_name }}</p>
+        <p><strong>Shape:</strong> {{ n_samples }} rows × {{ n_features }} columns</p>
+    </div>
+
+    <!-- Step 1: Select Descriptor Groups -->
+    <div class="modern-card">
+        <h5><i class="fas fa-layer-group"></i> Step 1: Select Descriptor Groups</h5>
+        <p class="text-muted">Choose which Alvadesk descriptor groups to include in the PCA analysis. PCA will be recalculated each time you change the selection.</p>
+
+        <form id="alvadesk-pca-form" method="POST" action="{{ url_for('alvadesk_pca.perform_alvadesk_pca') }}">
+            <!-- Quick selection buttons -->
+            <div class="select-buttons">
+                <button type="button" class="btn btn-sm btn-outline-primary btn-sm-custom" onclick="selectAllGroups()">
+                    <i class="fas fa-check-double"></i> Select All
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary btn-sm-custom" onclick="selectNoneGroups()">
+                    <i class="fas fa-times"></i> Select None
+                </button>
+                <span class="ms-3 text-muted" id="selected-count">0 groups selected</span>
+            </div>
+
+            <!-- Descriptor groups checkboxes -->
+            <div class="descriptor-groups-container">
+                {% for group_id, group_info in descriptor_groups.items() %}
+                <div class="descriptor-group-item">
+                    <div class="form-check">
+                        <input class="form-check-input descriptor-group-checkbox"
+                               type="checkbox"
+                               name="descriptor_groups"
+                               value="{{ group_id }}"
+                               id="group_{{ group_id }}"
+                               {% if selected_groups and group_id in selected_groups %}checked{% endif %}
+                               onchange="updateSelectedCount()">
+                        <label class="form-check-label" for="group_{{ group_id }}">
+                            <strong>{{ group_info.full_name }}</strong>
+                            <span class="descriptor-count">({{ group_info.descriptors|length }} descriptors)</span>
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- PCA Parameters -->
+            <div class="mt-4 modern-card-inner">
+                <h6><i class="fas fa-sliders-h"></i> PCA Parameters</h6>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="n_components" class="form-label">Number of Components:</label>
+                        <input type="number" class="form-control" id="n_components" name="n_components"
+                               value="{% if alvadesk_pca_n_components %}{{ alvadesk_pca_n_components }}{% else %}5{% endif %}"
+                               min="2" max="50">
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" id="scale_data" name="scale_data"
+                                   {% if alvadesk_pca_scale_data is not defined or alvadesk_pca_scale_data %}checked{% endif %}>
+                            <label class="form-check-label" for="scale_data">
+                                Scale data (StandardScaler)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit button -->
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-calculator"></i> Perform Alvadesk PCA
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- PCA Results Section -->
+    {% if pca_performed %}
+    <div class="modern-card">
+        <h5><i class="fas fa-chart-line"></i> PCA Results</h5>
+
+        <!-- Summary -->
+        <div class="mb-3">
+            <span class="summary-badge">
+                <i class="fas fa-layer-group"></i> {{ group_summary.num_groups }} Groups Selected
+            </span>
+            <span class="summary-badge">
+                <i class="fas fa-hashtag"></i> {{ filtered_descriptors_count }} Descriptors Used
+            </span>
+            <span class="summary-badge">
+                <i class="fas fa-project-diagram"></i> {{ pca_n_components }} Components
+            </span>
+        </div>
+
+        <p class="text-muted"><strong>Selected Groups:</strong> {{ group_summary.group_names|join(', ') }}</p>
+
+        <!-- Variance Explained Plot -->
+        {% if pca_variance_plot %}
+        <div class="mb-4">
+            <h6>Variance Explained by Components</h6>
+            <img src="{{ pca_variance_plot }}" alt="PCA Variance Plot" class="img-fluid" style="max-width: 100%; height: auto;">
+        </div>
+        {% endif %}
+
+        {% if pca_loading_plot %}
+        <div class="mb-4">
+            <h6>Component Loadings (Top Contributors)</h6>
+            <img src="{{ pca_loading_plot }}" alt="PCA Component Loadings" class="img-fluid" style="max-width: 100%; height: auto;">
+        </div>
+        {% endif %}
+
+        <!-- Variance Table -->
+        <div class="table-responsive mb-4">
+            <table class="table table-sm table-striped">
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>Explained Variance (%)</th>
+                        <th>Cumulative Variance (%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in pca_summary %}
+                    <tr>
+                        <td>PC{{ item.component }}</td>
+                        <td>{{ item.explained_variance }}%</td>
+                        <td>{{ item.cumulative_variance }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Download Buttons -->
+        <div class="mb-3">
+            <h6><i class="fas fa-download"></i> Download Analysis Metrics</h6>
+
+            <!-- Primary download: All metrics in Excel -->
+            <div class="mb-3">
+                <a href="{{ url_for('alvadesk_pca.download_alvadesk_pca_all_metrics') }}" class="btn btn-primary btn-lg">
+                    <i class="fas fa-file-excel"></i> Download All Metrics (Excel with 4 sheets)
+                </a>
+            </div>
+
+            <!-- Optional: Individual CSV downloads -->
+            <details class="mt-2">
+                <summary class="text-muted" style="cursor: pointer;">
+                    <small><i class="fas fa-chevron-down"></i> Or download individual files as CSV</small>
+                </summary>
+                <div class="btn-group flex-wrap mt-2" role="group">
+                    <a href="{{ url_for('alvadesk_pca.download_alvadesk_pca_scores') }}" class="btn btn-sm btn-outline-success">
+                        <i class="fas fa-table"></i> PCA Scores
+                    </a>
+                    <a href="{{ url_for('alvadesk_pca.download_alvadesk_pca_eigenvalues') }}" class="btn btn-sm btn-outline-success">
+                        <i class="fas fa-chart-bar"></i> Eigenvalues
+                    </a>
+                    <a href="{{ url_for('alvadesk_pca.download_alvadesk_pca_explained_variance') }}" class="btn btn-sm btn-outline-success">
+                        <i class="fas fa-percentage"></i> Explained Variance
+                    </a>
+                    <a href="{{ url_for('alvadesk_pca.download_alvadesk_pca_loadings') }}" class="btn btn-sm btn-outline-success">
+                        <i class="fas fa-arrows-alt"></i> Loadings
+                    </a>
+                </div>
+            </details>
+
+            <p class="text-muted small mt-2">
+                <strong>Excel file contains 4 sheets:</strong><br>
+                • <strong>PCA_Scores:</strong> Projected data points (samples × PCs)<br>
+                • <strong>Eigenvalues:</strong> Variance captured by each component<br>
+                • <strong>Explained_Variance:</strong> Percentage of variance explained (individual & cumulative)<br>
+                • <strong>Loadings:</strong> Contribution of each variable to PCs (variables × PCs)
+            </p>
+        </div>
+    </div>
+
+    <!-- Step 2: Visualization with Coloring/Filtering -->
+    <div class="modern-card no-hover-transform">
+        <h5><i class="fas fa-eye"></i> Step 2: Interactive Visualization</h5>
+
+        <!-- Upload Color File Section -->
+        <div class="modern-card-inner mb-4">
+            <h6><i class="fas fa-palette"></i> External Coloring (Optional)</h6>
+            <p class="text-muted small">Upload a file with additional data for coloring and filtering the PCA plot</p>
+
+            <form id="alvadesk-color-upload-form" enctype="multipart/form-data">
+                <div class="row">
+                    <div class="col-md-8">
+                        <input type="file" class="form-control" id="alvadesk-color-file-input" accept=".csv,.xlsx,.xls,.txt">
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-info w-100" onclick="uploadAlvadeskColorFile()">
+                            <i class="fas fa-upload"></i> Upload Color File
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Color file status -->
+            <div id="alvadesk-color-status" class="mt-3" style="display: none;">
+                <div class="alert alert-success" role="alert">
+                    <i class="fas fa-check-circle"></i> <span id="alvadesk-color-status-message"></span>
+                </div>
+            </div>
+
+            <!-- Key column selection (if needed) -->
+            <div id="alvadesk-key-column-selection" class="mt-3" style="display: none;">
+                <label class="form-label">Select Key Column (for matching with PCA data):</label>
+                <select id="alvadesk-key-column-select" class="form-select">
+                    <option value="">-- Select --</option>
+                </select>
+                <button type="button" class="btn btn-primary mt-2" onclick="confirmAlvadeskKeyColumn()">
+                    <i class="fas fa-check"></i> Confirm
+                </button>
+            </div>
+        </div>
+
+        <!-- Visualization Controls -->
+        <form id="alvadesk-pca-visualize-form">
+            <div class="row">
+                <!-- PC Selection -->
+                <div class="col-md-3">
+                    <label for="alvadesk-pc-x" class="form-label">X-Axis Component:</label>
+                    <select id="alvadesk-pc-x" name="pc_x" class="form-select">
+                        {% for i in range(1, pca_n_components + 1) %}
+                        <option value="{{ i }}" {% if i == 1 %}selected{% endif %}>PC{{ i }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <label for="alvadesk-pc-y" class="form-label">Y-Axis Component:</label>
+                    <select id="alvadesk-pc-y" name="pc_y" class="form-select">
+                        {% for i in range(1, pca_n_components + 1) %}
+                        <option value="{{ i }}" {% if i == 2 %}selected{% endif %}>PC{{ i }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Hover Column -->
+                <div class="col-md-3">
+                    <label for="alvadesk-hover-column" class="form-label">Hover Text Column:</label>
+                    <select id="alvadesk-hover-column" name="hover_column" class="form-select">
+                        <option value="">-- None --</option>
+                        {% for col in pca_color_options %}
+                        <option value="{{ col }}">{{ col }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Color Source -->
+                <div class="col-md-3">
+                    <label for="alvadesk-color-source" class="form-label">Color Source:</label>
+                    <select id="alvadesk-color-source" class="form-select" onchange="updateAlvadeskColorOptions()">
+                        <option value="internal">Internal (from PCA data)</option>
+                        <option value="external" {% if color_file_loaded %}{% else %}disabled{% endif %}>
+                            External (from uploaded file)
+                        </option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Internal Coloring Options -->
+            <div id="alvadesk-internal-color-section" class="mt-3">
+                <label for="alvadesk-internal-color-column" class="form-label">Color By (Internal):</label>
+                <select id="alvadesk-internal-color-column" name="color_by" class="form-select">
+                    <option value="">-- No Coloring --</option>
+                    {% for col in pca_color_options %}
+                    <option value="{{ col }}">{{ col }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- External Coloring Options -->
+            <div id="alvadesk-external-color-section" class="mt-3" style="display: none;">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label for="alvadesk-external-key-column" class="form-label">Key Column:</label>
+                        <select id="alvadesk-external-key-column" class="form-select">
+                            <option value="">-- Select --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="alvadesk-external-color-column" class="form-label">Color By (External):</label>
+                        <select id="alvadesk-external-color-column" class="form-select">
+                            <option value="">-- No Coloring --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="alvadesk-external-filter-column" class="form-label">Filter By (External):</label>
+                        <select id="alvadesk-external-filter-column" class="form-select">
+                            <option value="">-- No Filter --</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generate Plot Button -->
+            <div class="mt-4 d-flex flex-wrap gap-3">
+                <button type="button" class="btn btn-primary btn-lg" onclick="generateAlvadeskPCAPlot()">
+                    <i class="fas fa-chart-scatter"></i> Generate PCA Plot
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-lg" id="alvadesk-save-plot-btn"
+                        onclick="saveAlvadeskColoredPlot()" disabled>
+                    <i class="fas fa-image"></i> Save Colored Plot
+                </button>
+            </div>
+        </form>
+
+        <!-- Biplot Controls (shown after plot is generated) -->
+        <div id="alvadesk-biplot-controls" class="mt-4" style="display: none;">
+            <div class="modern-card-inner">
+                <h6><i class="fas fa-arrows-alt"></i> Biplot with Loading Vectors</h6>
+                <p class="text-muted small">
+                    Overlay loading vectors (arrows) showing descriptor contributions.
+                    <strong>Top N arrows will be drawn for EACH visible PC component:</strong>
+                    <span class="badge bg-danger">Red</span> for PC X-axis,
+                    <span class="badge bg-primary">Blue</span> for PC Y-axis
+                </p>
+                <div class="alert alert-info py-2 px-3 mb-3" style="font-size: 0.9em;">
+                    <i class="fas fa-info-circle"></i> <strong>Interpretation:</strong>
+                    <ul class="mb-0 mt-1" style="font-size: 0.9em;">
+                        <li><strong>Arrow length</strong> = strength of correlation between descriptor and PC (loading magnitude)</li>
+                        <li><strong>Arrow direction</strong> = how the descriptor contributes to the PC space</li>
+                        <li><strong>Parallel arrows</strong> = descriptors that vary together (correlated)</li>
+                        <li><strong>Perpendicular arrows</strong> = descriptors that vary independently (uncorrelated)</li>
+                    </ul>
+                </div>
+
+                <div class="row align-items-end">
+                    <div class="col-md-4">
+                        <label for="alvadesk-biplot-arrows" class="form-label">
+                            Top Arrows per PC:
+                            <i class="fas fa-info-circle" title="Number of most important descriptors to show for each PC component"></i>
+                        </label>
+                        <input type="number" class="form-control" id="alvadesk-biplot-arrows"
+                               value="10" min="1" max="100" step="1">
+                        <small class="text-muted">Per component (1-100)</small>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" id="alvadesk-biplot-show-labels" checked>
+                            <label class="form-check-label" for="alvadesk-biplot-show-labels">
+                                Show descriptor labels
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-success w-100" onclick="generateAlvadeskBiplot()">
+                            <i class="fas fa-project-diagram"></i> Generate Biplot
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Point Display Options (shown after plot is generated) -->
+        <div id="alvadesk-point-options" class="mt-4" style="display: none;">
+            <div class="modern-card-inner">
+                <h6><i class="fas fa-circle"></i> Point Display Options</h6>
+                <p class="text-muted small">
+                    Adjust how points are displayed to better visualize overlapping compounds.
+                </p>
+
+                <div class="row align-items-end">
+                    <div class="col-md-3">
+                        <label for="alvadesk-jitter" class="form-label">
+                            Jitter Amount:
+                            <i class="fas fa-info-circle" title="Add random offset to separate overlapping points"></i>
+                        </label>
+                        <input type="range" class="form-range" id="alvadesk-jitter"
+                               value="0" min="0" max="1" step="0.05">
+                        <small class="text-muted">Value: <span id="alvadesk-jitter-value">0</span></small>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="alvadesk-opacity" class="form-label">
+                            Point Opacity:
+                            <i class="fas fa-info-circle" title="Make points semi-transparent to see overlapping"></i>
+                        </label>
+                        <input type="range" class="form-range" id="alvadesk-opacity"
+                               value="1" min="0.1" max="1" step="0.05">
+                        <small class="text-muted">Value: <span id="alvadesk-opacity-value">1.0</span></small>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="alvadesk-marker-size" class="form-label">
+                            Marker Size:
+                        </label>
+                        <input type="range" class="form-range" id="alvadesk-marker-size"
+                               value="8" min="3" max="20" step="1">
+                        <small class="text-muted">Size: <span id="alvadesk-marker-size-value">8</span></small>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="button" class="btn btn-outline-primary w-100" onclick="updatePointDisplay()">
+                            <i class="fas fa-sync-alt"></i> Update Display
+                        </button>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="alvadesk-show-overlaps" onchange="highlightOverlaps()">
+                            <label class="form-check-label" for="alvadesk-show-overlaps">
+                                <i class="fas fa-layer-group"></i> Highlight overlapping points
+                            </label>
+                        </div>
+                        <span id="overlap-count-badge" class="badge bg-warning ms-2" style="display: none;">
+                            <span id="overlap-count">0</span> overlapping groups found
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PCA Plot -->
+        <div id="alvadesk-pca-plot-container" class="plot-container mt-4" style="display: none;"></div>
+        <div id="alvadesk-colored-plot-section" class="modern-card mt-4" style="display: none;">
+            <h5><i class="fas fa-image"></i> Colored Plot Snapshot</h5>
+            <img id="alvadesk-colored-plot-img" class="img-fluid mb-3" alt="Colored PCA Plot">
+            <div>
+                <a id="alvadesk-colored-plot-download" class="btn btn-outline-primary" href="#" target="_blank">
+                    <i class="fas fa-download"></i> Download Plot
+                </a>
+            </div>
+        </div>
+
+        <!-- Filtering Controls (shown when filter available) -->
+        <div id="alvadesk-filter-section" class="mt-3" style="display: none;">
+            <div class="modern-card-inner">
+                <h6><i class="fas fa-filter"></i> Active Filter <span id="alvadesk-filter-column-badge"></span></h6>
+
+                <!-- Filter controls will be populated dynamically -->
+                <div id="alvadesk-filter-options"></div>
+
+                <button type="button" class="btn btn-sm btn-primary mt-2" onclick="applyAlvadeskFilter()">
+                    <i class="fas fa-check"></i> Apply Filter
+                </button>
+                <button type="button" class="btn btn-sm btn-secondary mt-2" onclick="clearAlvadeskFilter()">
+                    <i class="fas fa-times"></i> Clear Filter
+                </button>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Project New Compounds -->
+    <div class="modern-card no-hover-transform">
+        <h5><i class="fas fa-plus-circle"></i> Step 3: Project New Compounds</h5>
+        <p class="text-muted small">
+            Upload a file with new compounds (must contain the same descriptor columns as the original PCA)
+            to project them onto the existing PCA space. This allows comparing new structures to see where they fall
+            relative to your original compounds.
+        </p>
+
+        <div class="modern-card-inner mb-4">
+            <h6><i class="fas fa-upload"></i> Upload New Compounds File</h6>
+
+            <form id="alvadesk-project-form" enctype="multipart/form-data">
+                <div class="row mb-3">
+                    <div class="col-md-5">
+                        <label class="form-label">New Compounds File:</label>
+                        <input type="file" class="form-control" id="new-compounds-file" name="new_compounds_file" accept=".csv,.xlsx,.xls,.txt">
+                        <small class="text-muted">File must contain the same descriptor columns used in the original PCA ({{ filtered_descriptors_count }} descriptors)</small>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Label Column (optional):</label>
+                        <input type="text" class="form-control" id="new-compounds-label-col" name="label_column" placeholder="e.g., Name, ID, SMILES">
+                        <small class="text-muted">Column name for point labels</small>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">New Points Size:</label>
+                        <input type="number" class="form-control" id="projected-point-size" name="projected_point_size"
+                               value="12" min="4" max="40" step="1">
+                        <small class="text-muted d-block">Marker size on PCA plot</small>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="projected-show-labels" name="projected_show_labels">
+                            <label class="form-check-label" for="projected-show-labels">
+                                Show labels on plot
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-success w-100" onclick="projectNewCompounds()">
+                            <i class="fas fa-project-diagram"></i> Project
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Project status -->
+            <div id="project-status" class="mt-3" style="display: none;">
+                <div id="project-status-alert" class="alert" role="alert">
+                    <i id="project-status-icon"></i> <span id="project-status-message"></span>
+                </div>
+            </div>
+
+            <!-- Projected compounds info -->
+            <div id="projected-compounds-info" class="mt-3" style="display: none;">
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    <strong id="projected-count">0</strong> new compounds projected successfully.
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="toggleProjectedOnPlot()">
+                            <i class="fas fa-eye" id="toggle-projected-icon"></i>
+                            <span id="toggle-projected-text">Show on Plot</span>
+                        </button>
+                        <a href="{{ url_for('alvadesk_pca.download_alvadesk_pca_projected') }}" class="btn btn-sm btn-outline-success">
+                            <i class="fas fa-download"></i> Download Projected Scores
+                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearProjectedCompounds()">
+                            <i class="fas fa-trash"></i> Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- JavaScript -->
+<script>
+// Global variables
+let alvadeskColorFileData = null;
+let alvadeskExternalData = null;
+let latestAlvadeskPlotResponse = null;
+let currentBiplotArrows = null;  // Store arrow data for saving
+let alvadeskCurrentColorData = null;
+let alvadeskCurrentColorCategories = null;
+let alvadeskCurrentColorBy = null;
+let alvadeskUseExternalColoring = false;
+let alvadeskCurrentPlotData = null;
+let alvadeskPcXRaw = null;
+let alvadeskPcYRaw = null;
+// Advanced filtering variables
+let originalAlvadeskPCAData = null;
+let currentAlvadeskFilterColumn = null;
+let currentAlvadeskFilterValues = null;
+
+// Update selected groups count
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.descriptor-group-checkbox:checked');
+    const count = checkboxes.length;
+    document.getElementById('selected-count').textContent = `${count} groups selected`;
+}
+
+// Select all groups
+function selectAllGroups() {
+    document.querySelectorAll('.descriptor-group-checkbox').forEach(cb => cb.checked = true);
+    updateSelectedCount();
+}
+
+// Select none groups
+function selectNoneGroups() {
+    document.querySelectorAll('.descriptor-group-checkbox').forEach(cb => cb.checked = false);
+    updateSelectedCount();
+}
+
+// Update color options based on source selection
+function updateAlvadeskColorOptions() {
+    const colorSource = document.getElementById('alvadesk-color-source').value;
+    const internalSection = document.getElementById('alvadesk-internal-color-section');
+    const externalSection = document.getElementById('alvadesk-external-color-section');
+
+    if (colorSource === 'external') {
+        internalSection.style.display = 'none';
+        externalSection.style.display = 'block';
+    } else {
+        internalSection.style.display = 'block';
+        externalSection.style.display = 'none';
+    }
+}
+
+// Advanced filter function (from visualize.html)
+function filterAlvadeskPCAData(pcaData, filterColumn, filterValues) {
+    console.log('=== filterAlvadeskPCAData ===');
+    console.log('Filter column:', filterColumn);
+    console.log('Filter values:', filterValues);
+    console.log('Input pcaData:', pcaData);
+
+    const filteredData = JSON.parse(JSON.stringify(pcaData));
+    console.log('Deep copied data');
+
+    let filterDataArray = null;
+    if (pcaData.external_data && pcaData.external_data[filterColumn]) {
+        filterDataArray = pcaData.external_data[filterColumn];
+    } else if (pcaData.color_by === filterColumn && pcaData.color_data) {
+        filterDataArray = pcaData.color_data;
+    } else if (pcaData.pc_x_raw && pcaData.pc_x_raw.length) {
+        filterDataArray = pcaData.pc_x_raw.map((_, idx) => idx);
+    }
+
+    if (!filterDataArray || filterDataArray.length === 0) {
+        console.error('No filter data available for column:', filterColumn);
+        alert('Cannot filter - no data available for column: ' + filterColumn);
+        return pcaData;
+    }
+
+    const keepIndices = [];
+    if (Array.isArray(filterValues)) {
+        // Categorical filtering
+        console.log('Categorical filtering with', filterValues.length, 'values');
+
+        filterDataArray.forEach((value, idx) => {
+            if (value === null || value === undefined) {
+                // Check if filtering for null/undefined
+                if (filterValues.includes('null') || filterValues.includes('undefined')) {
+                    keepIndices.push(idx);
+                }
+                return;
+            }
+
+            // Try both string comparison and numeric comparison
+            const valueStr = String(value);
+            const valueNum = parseFloat(value);
+
+            const matches = filterValues.some(filterVal => {
+                const filterStr = String(filterVal);
+
+                // First try exact string match
+                if (valueStr === filterStr) return true;
+
+                // If both are valid numbers, compare numerically
+                if (!isNaN(valueNum)) {
+                    const filterNum = parseFloat(filterVal);
+                    if (!isNaN(filterNum) && Math.abs(valueNum - filterNum) < 0.0001) {
+                        return true;
+                    }
+                }
+
+                return false;
+            });
+
+            if (matches) {
+                keepIndices.push(idx);
+            }
+        });
+
+        console.log('Found', keepIndices.length, 'matching indices');
+    } else if (filterValues && filterValues.min !== undefined && filterValues.max !== undefined) {
+        // Numeric filtering
+        filterDataArray.forEach((value, idx) => {
+            const numVal = parseFloat(value);
+            if (!isNaN(numVal) && numVal >= filterValues.min && numVal <= filterValues.max) {
+                keepIndices.push(idx);
+            }
+        });
+    }
+
+    if (keepIndices.length === 0) {
+        alert('No points match the filter criteria!');
+        return pcaData;
+    }
+
+    const keepSet = new Set(keepIndices);
+    const filterArrayByIndices = (arr) => {
+        if (!arr) return arr;
+        const result = [];
+        for (let i = 0; i < arr.length; i++) {
+            if (keepSet.has(i)) {
+                result.push(arr[i]);
+            }
+        }
+        return result;
+    };
+
+    if (filteredData.plot_data) {
+        // Check if we have categorical OR mixed mode (numeric + N/A)
+        const hasMixedMode = !pcaData.color_categories && pcaData.plot_data.length > 1 &&
+                             pcaData.plot_data[1].label === 'N/A';
+
+        if (pcaData.color_categories || hasMixedMode) {
+            // Categorical or mixed mode - filter each trace
+            const newPlotData = [];
+            const newCategories = [];
+            let newColorData = null; // For mixed mode numeric coloring
+
+            pcaData.plot_data.forEach((dataset, datasetIdx) => {
+                const indices = dataset.indices || [];
+                const color = dataset.color;
+                const opacity = dataset.opacity;
+                const label = dataset.label || `Group ${datasetIdx + 1}`;
+
+                // Handle both formats: data array (categorical/N/A) or x,y arrays (numeric)
+                if (dataset.data) {
+                    // Categorical or N/A trace with data array
+                    const points = dataset.data;
+                    const hover = dataset.hover_text || [];
+
+                    const filteredPoints = [];
+                    const filteredHover = [];
+                    const filteredIndices = [];
+
+                    for (let pos = 0; pos < indices.length; pos++) {
+                        const idx = indices[pos];
+                        if (keepSet.has(idx)) {
+                            filteredPoints.push(points[pos]);
+                            filteredIndices.push(idx);
+                            if (hover && hover.length > pos) {
+                                filteredHover.push(hover[pos]);
+                            }
+                        }
+                    }
+
+                    if (filteredPoints.length > 0) {
+                        const newDataset = {
+                            label,
+                            data: filteredPoints,
+                            indices: filteredIndices
+                        };
+                        if (color) newDataset.color = color;
+                        if (opacity !== undefined) newDataset.opacity = opacity;
+                        if (filteredHover.length > 0) newDataset.hover_text = filteredHover;
+                        newPlotData.push(newDataset);
+                        newCategories.push(label);
+                    }
+                } else if (dataset.x && dataset.y) {
+                    // Numeric trace with x,y arrays (for mixed mode)
+                    const filteredX = [];
+                    const filteredY = [];
+                    const filteredIndices = [];
+                    const filteredHover = [];
+                    const hover = dataset.hover_text || [];
+
+                    // For mixed mode first trace, also filter color_data
+                    const filteredColorData = [];
+                    const isFirstTrace = datasetIdx === 0;
+
+                    for (let pos = 0; pos < indices.length; pos++) {
+                        const idx = indices[pos];
+                        if (keepSet.has(idx)) {
+                            filteredX.push(dataset.x[pos]);
+                            filteredY.push(dataset.y[pos]);
+                            filteredIndices.push(idx);
+                            if (hover && hover.length > pos) {
+                                filteredHover.push(hover[pos]);
+                            }
+                            // Filter color_data for first trace in mixed mode
+                            if (isFirstTrace && hasMixedMode && pcaData.color_data) {
+                                // Find position of this index in original first trace
+                                const origFirstTrace = pcaData.plot_data[0];
+                                if (origFirstTrace && origFirstTrace.indices) {
+                                    const origPos = origFirstTrace.indices.indexOf(idx);
+                                    if (origPos !== -1 && origPos < pcaData.color_data.length) {
+                                        filteredColorData.push(pcaData.color_data[origPos]);
+                                    }
+                                } else {
+                                    // Fallback: use pos if indices not available
+                                    if (pos < pcaData.color_data.length) {
+                                        filteredColorData.push(pcaData.color_data[pos]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (filteredX.length > 0) {
+                        const newDataset = {
+                            x: filteredX,
+                            y: filteredY,
+                            indices: filteredIndices
+                        };
+                        if (label) newDataset.label = label;
+                        if (filteredHover.length > 0) newDataset.hover_text = filteredHover;
+                        newPlotData.push(newDataset);
+                        if (label) newCategories.push(label);
+
+                        // Store filtered color_data for first trace in mixed mode
+                        if (isFirstTrace && hasMixedMode && filteredColorData.length > 0) {
+                            newColorData = filteredColorData;
+                        }
+                    }
+                }
+            });
+
+            filteredData.plot_data = newPlotData;
+            if (pcaData.color_categories) {
+                filteredData.color_categories = newCategories;
+            }
+            // Update color_data for mixed mode
+            if (hasMixedMode && newColorData) {
+                console.log('Mixed mode: updating color_data');
+                console.log('  Original color_data length:', pcaData.color_data ? pcaData.color_data.length : 0);
+                console.log('  Filtered color_data length:', newColorData.length);
+                console.log('  First trace filtered length:', newPlotData[0] ? (newPlotData[0].x ? newPlotData[0].x.length : 'no x') : 'no first trace');
+                console.log('  Sample filtered color values:', newColorData.slice(0, 5));
+                filteredData.color_data = newColorData;
+            }
+        } else {
+            filteredData.plot_data = filteredData.plot_data.map(dataset => {
+                if (dataset.x && dataset.y) {
+                    const newDataset = { ...dataset };
+                    newDataset.x = filterArrayByIndices(dataset.x);
+                    newDataset.y = filterArrayByIndices(dataset.y);
+                    if (dataset.hover_text) {
+                        newDataset.hover_text = filterArrayByIndices(dataset.hover_text);
+                    }
+                    return newDataset;
+                }
+                return dataset;
+            });
+        }
+    }
+
+    filteredData.pc_x_raw = filterArrayByIndices(filteredData.pc_x_raw);
+    filteredData.pc_y_raw = filterArrayByIndices(filteredData.pc_y_raw);
+
+    // Filter color_data ONLY if not already filtered in mixed mode
+    const hasMixedMode = !pcaData.color_categories && pcaData.plot_data.length > 1 &&
+                         pcaData.plot_data[1].label === 'N/A';
+
+    if (hasMixedMode) {
+        // color_data already filtered in mixed mode block above
+        console.log('Skipping color_data filtering - already done in mixed mode');
+    } else if (pcaData.color_data) {
+        filteredData.color_data = filterArrayByIndices(pcaData.color_data);
+    } else {
+        filteredData.color_data = pcaData.color_data;
+    }
+
+    // Filter external_data arrays to match filtered indices (CRITICAL FIX)
+    if (pcaData.external_data && Object.keys(pcaData.external_data).length > 0) {
+        filteredData.external_data = {};
+        Object.keys(pcaData.external_data).forEach(key => {
+            filteredData.external_data[key] = filterArrayByIndices(pcaData.external_data[key]);
+        });
+    } else {
+        filteredData.external_data = pcaData.external_data;
+    }
+
+    filteredData.filter_info = {
+        column: filterColumn,
+        values: filterValues,
+        total_points: filterDataArray.length,
+        filtered_points: keepIndices.length
+    };
+    filteredData.use_external_coloring = pcaData.use_external_coloring;
+
+    return filteredData;
+}
+// Upload color file
+function uploadAlvadeskColorFile() {
+    const fileInput = document.getElementById('alvadesk-color-file-input');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        alert('Please select a file first');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('color_file', file);
+
+    fetch('{{ url_for("alvadesk_pca.upload_alvadesk_color_file") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Show success message
+            document.getElementById('alvadesk-color-status').style.display = 'block';
+            document.getElementById('alvadesk-color-status-message').textContent = data.message;
+
+            // Store data
+            alvadeskColorFileData = data;
+            alvadeskExternalData = data.external_data || {};
+
+            // Populate key column if auto-detected
+            if (data.auto_detected && data.key_column) {
+                populateAlvadeskExternalColumns(data.key_column, data.available_color_columns);
+                // Enable the "External" option in color source dropdown
+                const colorSource = document.getElementById('alvadesk-color-source');
+                const externalOption = colorSource.querySelector('option[value="external"]');
+                if (externalOption) {
+                    externalOption.disabled = false;
+                }
+            } else {
+                // Show key column selection
+                const keyColumnSelect = document.getElementById('alvadesk-key-column-select');
+                keyColumnSelect.innerHTML = '<option value="">-- Select --</option>';
+                data.common_columns.forEach(col => {
+                    keyColumnSelect.innerHTML += `<option value="${col}">${col}</option>`;
+                });
+                document.getElementById('alvadesk-key-column-selection').style.display = 'block';
+            }
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error uploading file');
+    });
+}
+
+// Confirm key column selection
+function confirmAlvadeskKeyColumn() {
+    const keyColumn = document.getElementById('alvadesk-key-column-select').value;
+
+    if (!keyColumn) {
+        alert('Please select a key column');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('key_column', keyColumn);
+
+    fetch('{{ url_for("alvadesk_pca.confirm_alvadesk_key_column") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            document.getElementById('alvadesk-key-column-selection').style.display = 'none';
+            alvadeskExternalData = data.external_data || {};
+            populateAlvadeskExternalColumns(keyColumn, data.available_color_columns);
+            // Enable the "External" option in color source dropdown
+            const colorSource = document.getElementById('alvadesk-color-source');
+            const externalOption = colorSource.querySelector('option[value="external"]');
+            if (externalOption) {
+                externalOption.disabled = false;
+            }
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error confirming key column');
+    });
+}
+
+// Populate external color columns
+function populateAlvadeskExternalColumns(keyColumn, colorColumns) {
+    const keySelect = document.getElementById('alvadesk-external-key-column');
+    const colorSelect = document.getElementById('alvadesk-external-color-column');
+    const filterSelect = document.getElementById('alvadesk-external-filter-column');
+
+    keySelect.innerHTML = `<option value="${keyColumn}" selected>${keyColumn}</option>`;
+
+    colorSelect.innerHTML = '<option value="">-- No Coloring --</option>';
+    colorColumns.forEach(col => {
+        colorSelect.innerHTML += `<option value="${col}">${col}</option>`;
+    });
+
+    filterSelect.innerHTML = '<option value="">-- No Filter --</option>';
+    colorColumns.forEach(col => {
+        filterSelect.innerHTML += `<option value="${col}">${col}</option>`;
+    });
+}
+
+// Generate PCA plot
+function generateAlvadeskPCAPlot() {
+    // Validate that PCA was performed
+    const pcXSelect = document.getElementById('alvadesk-pc-x');
+    const pcYSelect = document.getElementById('alvadesk-pc-y');
+
+    if (!pcXSelect || !pcYSelect) {
+        alert('Please perform Alvadesk PCA analysis first before generating plots!');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('pc_x', pcXSelect.value);
+    formData.append('pc_y', pcYSelect.value);
+    formData.append('hover_column', document.getElementById('alvadesk-hover-column').value);
+
+    const colorSource = document.getElementById('alvadesk-color-source').value;
+
+    if (colorSource === 'external') {
+        formData.append('use_external_coloring', '1');
+        formData.append('external_key_column', document.getElementById('alvadesk-external-key-column').value);
+        formData.append('external_color_column', document.getElementById('alvadesk-external-color-column').value);
+        formData.append('external_filter_column', document.getElementById('alvadesk-external-filter-column').value);
+    } else {
+        formData.append('use_external_coloring', '0');
+        formData.append('color_by', document.getElementById('alvadesk-internal-color-column').value);
+    }
+
+    fetch('{{ url_for("alvadesk_pca.alvadesk_pca_visualize") }}', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Received data:', data);
+
+        if (data.status === 'success') {
+            // Get color source to determine filter column
+            const colorSource = document.getElementById('alvadesk-color-source').value;
+            const filterColumn = colorSource === 'external' ?
+                document.getElementById('alvadesk-external-filter-column').value : '';
+
+            data.use_external_coloring = (colorSource === 'external');
+
+            // Store original data for filtering
+            originalAlvadeskPCAData = JSON.parse(JSON.stringify(data));
+
+            // Store data
+            latestAlvadeskPlotResponse = data;
+            alvadeskCurrentPlotData = data.plot_data;
+            alvadeskPcXRaw = data.pc_x_raw;
+            alvadeskPcYRaw = data.pc_y_raw;
+            alvadeskCurrentColorData = data.color_data || null;
+            alvadeskCurrentColorCategories = data.color_categories || null;
+            alvadeskCurrentColorBy = data.color_by || null;
+            alvadeskUseExternalColoring = data.use_external_coloring || false;
+
+            if (data.external_data) {
+                alvadeskExternalData = data.external_data;
+            }
+
+            const saveBtn = document.getElementById('alvadesk-save-plot-btn');
+            if (saveBtn) {
+                saveBtn.disabled = false;
+            }
+
+            // Reset filter state
+            currentAlvadeskFilterColumn = null;
+            currentAlvadeskFilterValues = null;
+
+            // Store filter column info in data if available
+            if (filterColumn) {
+                data.filter_column = filterColumn;
+            }
+
+            // Render plot
+            renderAlvadeskPCAPlot(data);
+
+            // Show plot container
+            document.getElementById('alvadesk-pca-plot-container').style.display = 'block';
+
+            // Show biplot controls
+            document.getElementById('alvadesk-biplot-controls').style.display = 'block';
+
+            // Show point display options
+            document.getElementById('alvadesk-point-options').style.display = 'block';
+
+            // Setup filter controls if filter column was selected
+            if (filterColumn) {
+                setupAlvadeskFilterControls(originalAlvadeskPCAData, filterColumn);
+            } else {
+                document.getElementById('alvadesk-filter-section').style.display = 'none';
+            }
+        } else {
+            console.error('Server error:', data.message);
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        alert('Error generating plot: ' + error.message + '\n\nCheck browser console for details.');
+    });
+}
+
+// Render PCA plot with Plotly
+function renderAlvadeskPCAPlot(data) {
+    // Reset point display settings for new plot
+    originalPointPositions = null;
+
+    latestAlvadeskPlotResponse = data;
+    alvadeskCurrentPlotData = data.plot_data;
+    alvadeskPcXRaw = data.pc_x_raw;
+    alvadeskPcYRaw = data.pc_y_raw;
+    alvadeskCurrentColorData = data.color_data || null;
+    alvadeskCurrentColorCategories = data.color_categories || null;
+    alvadeskCurrentColorBy = data.color_by || null;
+    alvadeskUseExternalColoring = data.use_external_coloring || false;
+    if (data.external_data) {
+        alvadeskExternalData = data.external_data;
+    }
+    const saveBtn = document.getElementById('alvadesk-save-plot-btn');
+    if (saveBtn) {
+        saveBtn.disabled = false;
+    }
+    // Build title with filter info
+    let titleText = `PC${data.pc_x} vs PC${data.pc_y}`;
+    let filterBadge = '';
+    let colorBadge = '';
+
+    if (data.color_by) {
+        colorBadge = `<span class="badge badge-info ml-2">Colored by: ${data.color_by}</span>`;
+    }
+
+    if (data.filter_info) {
+        const filterInfo = data.filter_info;
+        filterBadge = `<span class="badge badge-warning ml-2">Filtered: ${filterInfo.filtered_points}/${filterInfo.total_points} points</span>`;
+    }
+
+    // Create plot structure dynamically
+    const container = document.getElementById('alvadesk-pca-plot-container');
+    container.innerHTML = `
+        <div class="plot-card">
+            <div class="plot-header">
+                <h6><i class="fas fa-project-diagram"></i> ${titleText}</h6>
+                ${colorBadge}
+                ${filterBadge}
+            </div>
+            <div class="plot-body">
+                <div id="pca-plotly-wrapper">
+                    <div id="pca-plotly"></div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const plotDiv = document.getElementById('pca-plotly');
+
+    // Dynamically set height (square)
+    function setSquareHeight() {
+        const wrapper = document.getElementById('pca-plotly-wrapper');
+        const pcaPlotly = document.getElementById('pca-plotly');
+        if (wrapper && pcaPlotly) {
+            const width = wrapper.offsetWidth;
+            pcaPlotly.style.height = width + 'px';
+        }
+    }
+
+    let traces = [];
+
+    // Build hover template with color and filter info
+    let hoverTemplate = '<b>%{text}</b><br>PC' + data.pc_x + ': %{x:.3f}<br>PC' + data.pc_y + ': %{y:.3f}';
+
+    // Build hover template for when customdata is NOT available
+    let hoverTemplateNoCustom = hoverTemplate;
+
+    let customdataIndex = 0;
+    let hasCustomData = false;
+
+    // Add color column to hover if available
+    if (data.color_by && data.external_data && data.external_data[data.color_by]) {
+        hoverTemplate += '<br>' + data.color_by + ': %{customdata[' + customdataIndex + ']}';
+        customdataIndex++;
+        hasCustomData = true;
+    } else if (data.color_by && data.color_data) {
+        hoverTemplate += '<br>' + data.color_by + ': %{marker.color}';
+        hoverTemplateNoCustom += '<br>' + data.color_by + ': %{marker.color}';
+    }
+
+    // Add filter column to hover if available and different from color column
+    if (data.filter_column && data.external_data && data.external_data[data.filter_column] &&
+        data.filter_column !== data.color_by) {
+        hoverTemplate += '<br>' + data.filter_column + ': %{customdata[' + customdataIndex + ']}';
+        customdataIndex++;
+        hasCustomData = true;
+    }
+
+    hoverTemplate += '<extra></extra>';
+    hoverTemplateNoCustom += '<extra></extra>';
+
+    // Build index mapping for filtered data (if filtered)
+    let indexToFilteredPosition = null;
+    if (data.filter_info && data.plot_data && data.plot_data.length > 0) {
+        // Collect all indices from all categories to build the mapping
+        const allFilteredIndices = [];
+        data.plot_data.forEach(category => {
+            if (category.indices) {
+                allFilteredIndices.push(...category.indices);
+            }
+        });
+        // Sort to get consistent mapping
+        const uniqueSortedIndices = [...new Set(allFilteredIndices)].sort((a, b) => a - b);
+        indexToFilteredPosition = new Map();
+        uniqueSortedIndices.forEach((idx, pos) => {
+            indexToFilteredPosition.set(idx, pos);
+        });
+    }
+
+    // Check if we have mixed data (numeric + N/A trace)
+    const hasMixedData = !data.color_categories && data.plot_data.length > 1 &&
+                         data.plot_data[1].label === 'N/A';
+
+    if (data.color_categories || hasMixedData) {
+        // Categorical coloring OR mixed numeric + N/A - multiple traces
+        data.plot_data.forEach((category, categoryIdx) => {
+
+            // Handle both formats: data array (categorical/N/A) or x,y arrays (numeric)
+            let xVals, yVals;
+            if (category.data) {
+                xVals = category.data.map(p => p.x);
+                yVals = category.data.map(p => p.y);
+            } else if (category.x && category.y) {
+                xVals = category.x;
+                yVals = category.y;
+            } else {
+                console.error('Invalid trace format:', category);
+                return;
+            }
+
+            // Build custom data for hover (color + filter columns)
+            let customdata = null;
+            if (data.external_data && Object.keys(data.external_data).length > 0) {
+                customdata = [];
+
+                // CRITICAL FIX: After filtering, external_data is already filtered
+                // We need to map category.indices (original indices) to positions in filtered external_data
+                if (category.indices && indexToFilteredPosition) {
+                    // Data has been filtered - map original indices to filtered positions
+                    for (let i = 0; i < category.indices.length; i++) {
+                        const originalIdx = category.indices[i];
+                        const filteredPos = indexToFilteredPosition.get(originalIdx);
+
+                        if (filteredPos !== undefined) {
+                            const row = [];
+                            // Add color column value
+                            if (data.color_by && data.external_data[data.color_by] && filteredPos < data.external_data[data.color_by].length) {
+                                row.push(data.external_data[data.color_by][filteredPos]);
+                            }
+                            // Add filter column value (if different from color)
+                            if (data.filter_column && data.external_data[data.filter_column] &&
+                                data.filter_column !== data.color_by && filteredPos < data.external_data[data.filter_column].length) {
+                                row.push(data.external_data[data.filter_column][filteredPos]);
+                            }
+                            customdata.push(row);
+                        }
+                    }
+                } else if (category.indices) {
+                    // Data has NOT been filtered - use original indices
+                    for (let i = 0; i < category.indices.length; i++) {
+                        const idx = category.indices[i];
+                        const row = [];
+                        // Add color column value
+                        if (data.color_by && data.external_data[data.color_by] && idx < data.external_data[data.color_by].length) {
+                            row.push(data.external_data[data.color_by][idx]);
+                        }
+                        // Add filter column value (if different from color)
+                        if (data.filter_column && data.external_data[data.filter_column] &&
+                            data.filter_column !== data.color_by && idx < data.external_data[data.filter_column].length) {
+                            row.push(data.external_data[data.filter_column][idx]);
+                        }
+                        customdata.push(row);
+                    }
+                } else {
+                    // No indices available - use sequential mapping
+                    for (let i = 0; i < xVals.length; i++) {
+                        const row = [];
+                        if (data.color_by && data.external_data[data.color_by]) {
+                            row.push(data.external_data[data.color_by][i]);
+                        }
+                        if (data.filter_column && data.external_data[data.filter_column] &&
+                            data.filter_column !== data.color_by) {
+                            row.push(data.external_data[data.filter_column][i]);
+                        }
+                        customdata.push(row);
+                    }
+                }
+            }
+
+            // Handle coloring - different for numeric trace vs N/A trace
+            let markerColor = category.color;
+            let markerOpacity = 1.0;
+            let useRgbaColor = false;
+            let useNumericColor = false;
+
+            // For mixed mode: first trace uses numeric coloring, others use category colors
+            if (hasMixedData && categoryIdx === 0 && data.color_data) {
+                // First trace in mixed mode - use numeric coloring
+                markerColor = data.color_data;
+                useNumericColor = true;
+            } else if (category.opacity !== undefined && category.opacity < 1.0 && category.color) {
+                // N/A or categorical with transparency - convert hex to rgba
+                const hex = category.color.replace('#', '');
+                const r = parseInt(hex.substring(0, 2), 16);
+                const g = parseInt(hex.substring(2, 4), 16);
+                const b = parseInt(hex.substring(4, 6), 16);
+                markerColor = `rgba(${r}, ${g}, ${b}, ${category.opacity})`;
+                useRgbaColor = true;
+            } else if (category.opacity !== undefined) {
+                markerOpacity = category.opacity;
+            }
+
+            const trace = {
+                x: xVals,
+                y: yVals,
+                mode: 'markers',
+                type: 'scatter',
+                name: category.label || (useNumericColor ? 'Samples' : `Group ${categoryIdx + 1}`),
+                marker: {
+                    size: 8,
+                    color: markerColor || undefined,
+                    line: { width: 0.5, color: 'white' }
+                },
+                text: category.hover_text || []
+            };
+
+            // Add colorscale for numeric coloring
+            if (useNumericColor) {
+                trace.marker.colorscale = 'Viridis';
+                trace.marker.showscale = true;
+                trace.marker.colorbar = { title: data.color_by || 'Value' };
+            }
+
+            // Only set opacity if NOT using rgba color (to avoid conflicts)
+            if (!useRgbaColor && !useNumericColor) {
+                trace.marker.opacity = markerOpacity;
+            }
+
+            // Only add customdata if it has values
+            if (customdata && customdata.length > 0 && customdata[0] && customdata[0].length > 0) {
+                trace.customdata = customdata;
+                trace.hovertemplate = hoverTemplate;
+            } else {
+                trace.hovertemplate = hoverTemplateNoCustom;
+            }
+
+            traces.push(trace);
+        });
+    } else {
+        // Single trace (numeric coloring or no coloring)
+        const plotData = data.plot_data[0];
+
+        // Build custom data for hover
+        let customdata = null;
+        if (data.external_data && Object.keys(data.external_data).length > 0) {
+            const numPoints = plotData.x.length;
+            customdata = [];
+            // After filtering, external_data is already aligned with plot points
+            for (let i = 0; i < numPoints; i++) {
+                const row = [];
+                // Add color column value
+                if (data.color_by && data.external_data[data.color_by] && i < data.external_data[data.color_by].length) {
+                    row.push(data.external_data[data.color_by][i]);
+                }
+                // Add filter column value (if different from color)
+                if (data.filter_column && data.external_data[data.filter_column] &&
+                    data.filter_column !== data.color_by && i < data.external_data[data.filter_column].length) {
+                    row.push(data.external_data[data.filter_column][i]);
+                }
+                customdata.push(row);
+            }
+        }
+
+        const trace = {
+            x: plotData.x,
+            y: plotData.y,
+            mode: 'markers',
+            type: 'scatter',
+            marker: {
+                size: 8,
+                line: { width: 0.5, color: 'white' }
+            },
+            text: plotData.hover_text || []
+        };
+
+        // Only add customdata if it has values
+        if (customdata && customdata.length > 0 && customdata[0] && customdata[0].length > 0) {
+            trace.customdata = customdata;
+            trace.hovertemplate = hoverTemplate;
+        } else {
+            trace.hovertemplate = hoverTemplateNoCustom;
+        }
+
+        if (data.color_data) {
+            trace.marker.color = data.color_data;
+            trace.marker.colorscale = 'Viridis';
+            trace.marker.showscale = true;
+            trace.marker.colorbar = { title: data.color_by || 'Value' };
+        }
+
+        traces.push(trace);
+    }
+
+    const layout = {
+        xaxis: {
+            title: `PC${data.pc_x} (${data.variance_x}% variance)`,
+            gridcolor: 'rgba(230, 230, 230, 0.8)',
+            titlefont: { color: '#1f2937', size: 14 },
+            zeroline: true,
+            zerolinecolor: 'rgba(0, 0, 0, 0.3)',
+            zerolinewidth: 1,
+            scaleanchor: 'y',
+            scaleratio: 1
+        },
+        yaxis: {
+            title: `PC${data.pc_y} (${data.variance_y}% variance)`,
+            gridcolor: 'rgba(230, 230, 230, 0.8)',
+            titlefont: { color: '#1f2937', size: 14 },
+            zeroline: true,
+            zerolinecolor: 'rgba(0, 0, 0, 0.3)',
+            zerolinewidth: 1,
+            constrain: 'domain'
+        },
+        paper_bgcolor: 'rgba(0, 0, 0, 0)',
+        plot_bgcolor: 'rgba(0, 0, 0, 0)',
+        margin: {
+            l: 50,
+            r: data.color_categories ? 120 : 20,
+            b: 50,
+            t: 10,
+            pad: 2
+        },
+        autosize: true,
+        hovermode: 'closest',
+        showlegend: data.color_categories ? true : false,
+        legend: {
+            orientation: 'v',
+            yanchor: 'top',
+            y: 0.98,
+            xanchor: 'left',
+            x: 1.02,
+            bgcolor: 'rgba(255, 255, 255, 0.8)',
+            bordercolor: 'rgba(0, 0, 0, 0.2)',
+            borderwidth: 1,
+            font: { size: 10 }
+        }
+    };
+
+    Plotly.newPlot(plotDiv, traces, layout, {
+        responsive: true,
+        displayModeBar: true,
+        modeBarButtonsToRemove: ['lasso2d', 'select2d']
+    }).then(() => {
+        // Set square height after plot is created
+        setTimeout(() => {
+            setSquareHeight();
+            Plotly.Plots.resize('pca-plotly');
+        }, 100);
+    });
+
+    // Add resize listener
+    const resizeHandler = function() {
+        clearTimeout(resizeHandler.timeout);
+        resizeHandler.timeout = setTimeout(() => {
+            setSquareHeight();
+            Plotly.Plots.resize('pca-plotly');
+        }, 250);
+    };
+    window.addEventListener('resize', resizeHandler);
+}
+
+function saveAlvadeskColoredPlot() {
+    if (!latestAlvadeskPlotResponse) {
+        alert('Please generate the PCA plot first!');
+        return;
+    }
+
+    const saveBtn = document.getElementById('alvadesk-save-plot-btn');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+    }
+
+    const payload = {
+        pc_x: latestAlvadeskPlotResponse.pc_x,
+        pc_y: latestAlvadeskPlotResponse.pc_y,
+        variance_x: latestAlvadeskPlotResponse.variance_x,
+        variance_y: latestAlvadeskPlotResponse.variance_y,
+        color_by: latestAlvadeskPlotResponse.color_by,
+        color_categories: latestAlvadeskPlotResponse.color_categories,
+        color_data: latestAlvadeskPlotResponse.color_data,
+        filter_info: latestAlvadeskPlotResponse.filter_info || null,
+        filter_column: latestAlvadeskPlotResponse.filter_column || null,
+        plot_data: latestAlvadeskPlotResponse.plot_data,
+        use_external_coloring: alvadeskUseExternalColoring,
+        external_data: {}
+    };
+
+    if (latestAlvadeskPlotResponse.external_data) {
+        const neededKeys = new Set();
+        if (latestAlvadeskPlotResponse.color_by && latestAlvadeskPlotResponse.external_data[latestAlvadeskPlotResponse.color_by]) {
+            neededKeys.add(latestAlvadeskPlotResponse.color_by);
+        }
+        if (latestAlvadeskPlotResponse.filter_column && latestAlvadeskPlotResponse.external_data[latestAlvadeskPlotResponse.filter_column]) {
+            neededKeys.add(latestAlvadeskPlotResponse.filter_column);
+        }
+        neededKeys.forEach(key => {
+            payload.external_data[key] = latestAlvadeskPlotResponse.external_data[key];
+        });
+    }
+
+    payload.title = `PC${payload.pc_x} vs PC${payload.pc_y}` + (payload.color_by ? ` • Colored by ${payload.color_by}` : '');
+
+    // Add biplot arrows if available
+    if (currentBiplotArrows) {
+        payload.biplot_arrows = currentBiplotArrows;
+        console.log('DEBUG: Sending biplot arrows:', currentBiplotArrows);
+        console.log('DEBUG: Number of PCs with arrows:', Object.keys(currentBiplotArrows.arrows_by_pc || {}).length);
+    } else {
+        console.log('DEBUG: No biplot arrows to send (currentBiplotArrows is null)');
+    }
+
+    fetch('{{ url_for("alvadesk_pca.save_alvadesk_colored_plot") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(res => {
+        if (res.status === 'success') {
+            const section = document.getElementById('alvadesk-colored-plot-section');
+            const img = document.getElementById('alvadesk-colored-plot-img');
+            const downloadLink = document.getElementById('alvadesk-colored-plot-download');
+            if (img && res.image_url) {
+                const url = res.image_url + '&rand=' + Date.now();
+                img.src = url;
+                if (downloadLink) {
+                    downloadLink.href = url;
+                }
+                if (section) {
+                    section.style.display = 'block';
+                }
+            }
+        } else {
+            alert('Error saving colored plot: ' + (res.message || 'Unknown error'));
+        }
+    })
+    .catch(err => {
+        console.error('Error saving colored plot:', err);
+        alert('Error saving colored plot: ' + err.message);
+    })
+    .finally(() => {
+        const btn = document.getElementById('alvadesk-save-plot-btn');
+        if (btn) {
+            btn.disabled = false;
+        }
+    });
+}
+
+// Setup filter controls after plot is generated
+function setupAlvadeskFilterControls(pcaData, filterColumn) {
+    console.log('setupAlvadeskFilterControls called with filterColumn:', filterColumn);
+
+    const filterSection = document.getElementById('alvadesk-filter-section');
+    const filterBadge = document.getElementById('alvadesk-filter-column-badge');
+    const filterOptionsDiv = document.getElementById('alvadesk-filter-options');
+
+    if (!filterColumn || !pcaData.external_data || !pcaData.external_data[filterColumn]) {
+        filterSection.style.display = 'none';
+        return;
+    }
+
+    // Store current filter column
+    currentAlvadeskFilterColumn = filterColumn;
+
+    // Get values from pcaData
+    const values = pcaData.external_data[filterColumn];
+
+    if (!values || values.length === 0) {
+        console.warn('No filter data available for column:', filterColumn);
+        filterSection.style.display = 'none';
+        return;
+    }
+
+    // Check if numeric - improved detection
+    const numericValues = values.filter(v => {
+        if (v === null || v === undefined || v === '') return false;
+        const num = parseFloat(v);
+        if (isNaN(num)) return false;
+
+        // Accept if it's a number type
+        if (typeof v === 'number') return true;
+
+        // Accept if string representation is purely numeric (including decimals)
+        const str = String(v).trim();
+        // Match: optional sign, digits, optional decimal point and more digits
+        return /^-?\d+\.?\d*$/.test(str);
+    });
+
+    // Also check uniqueness - if too many unique values, likely numeric
+    const uniqueValues = [...new Set(values.filter(v => v !== null && v !== undefined && v !== ''))];
+    const isNumeric = (numericValues.length > 0 && numericValues.length > values.length * 0.5) ||
+                      (numericValues.length > 10 && uniqueValues.length > 10);
+
+    console.log('Filter column:', filterColumn, 'isNumeric:', isNumeric,
+                'numericCount:', numericValues.length, 'totalCount:', values.length);
+
+    // Update badge
+    filterBadge.innerHTML = `<span class="badge badge-info">${filterColumn}</span>`;
+
+    // Show filter section
+    filterSection.style.display = 'block';
+
+    if (isNumeric) {
+        // Create range sliders for numeric data
+        const nums = values.map(v => parseFloat(v)).filter(v => !isNaN(v));
+        const minVal = Math.min(...nums);
+        const maxVal = Math.max(...nums);
+
+        filterOptionsDiv.innerHTML = `
+            <div class="mb-3">
+                <label class="form-label"><strong>Range:</strong></label>
+                <div class="d-flex gap-2 mb-2">
+                    <input type="number" id="alvadesk-filter-min" class="form-control form-control-sm"
+                           value="${minVal}" min="${minVal}" max="${maxVal}" step="any">
+                    <span class="align-self-center">to</span>
+                    <input type="number" id="alvadesk-filter-max" class="form-control form-control-sm"
+                           value="${maxVal}" min="${minVal}" max="${maxVal}" step="any">
+                </div>
+                <input type="range" id="alvadesk-filter-range-min" class="form-range"
+                       min="${minVal}" max="${maxVal}" value="${minVal}" step="any">
+                <input type="range" id="alvadesk-filter-range-max" class="form-range"
+                       min="${minVal}" max="${maxVal}" value="${maxVal}" step="any">
+                <small class="text-muted">Original range: ${minVal.toFixed(2)} - ${maxVal.toFixed(2)}</small>
+            </div>
+        `;
+
+        // Sync number inputs with range sliders
+        setTimeout(() => {
+            document.getElementById('alvadesk-filter-range-min').addEventListener('input', function() {
+                document.getElementById('alvadesk-filter-min').value = this.value;
+            });
+            document.getElementById('alvadesk-filter-range-max').addEventListener('input', function() {
+                document.getElementById('alvadesk-filter-max').value = this.value;
+            });
+            document.getElementById('alvadesk-filter-min').addEventListener('input', function() {
+                document.getElementById('alvadesk-filter-range-min').value = this.value;
+            });
+            document.getElementById('alvadesk-filter-max').addEventListener('input', function() {
+                document.getElementById('alvadesk-filter-range-max').value = this.value;
+            });
+        }, 100);
+
+    } else {
+        // Create checkboxes for categorical data
+        const uniqueValues = [...new Set(values.filter(v => v !== null && v !== undefined))].sort();
+
+        let html = `
+            <div class="form-check mb-2">
+                <input type="checkbox" class="form-check-input" id="alvadesk-filter-select-all" checked>
+                <label class="form-check-label" for="alvadesk-filter-select-all">
+                    <strong>Select All</strong>
+                </label>
+            </div>
+            <hr style="margin: 8px 0;">
+        `;
+
+        html += uniqueValues.map((value, index) => {
+            const count = values.filter(v => v === value).length;
+            return `
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input alvadesk-filter-checkbox"
+                           value="${value}" id="alvadesk-filter-${index}" checked>
+                    <label class="form-check-label" for="alvadesk-filter-${index}">
+                        ${value} <span class="text-muted">(${count})</span>
+                    </label>
+                </div>
+            `;
+        }).join('');
+
+        filterOptionsDiv.innerHTML = html;
+
+        // Setup select all functionality
+        setTimeout(() => {
+            document.getElementById('alvadesk-filter-select-all').addEventListener('change', function() {
+                document.querySelectorAll('.alvadesk-filter-checkbox').forEach(cb => cb.checked = this.checked);
+            });
+
+            // Update select all when individual checkboxes change
+            document.querySelectorAll('.alvadesk-filter-checkbox').forEach(cb => {
+                cb.addEventListener('change', function() {
+                    const allCheckboxes = document.querySelectorAll('.alvadesk-filter-checkbox');
+                    const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+                    document.getElementById('alvadesk-filter-select-all').checked = allChecked;
+                });
+            });
+        }, 100);
+    }
+}
+
+// Apply filter
+function applyAlvadeskFilter() {
+    console.log('=== applyAlvadeskFilter ===');
+
+    if (!currentAlvadeskFilterColumn || !originalAlvadeskPCAData) {
+        alert('Please select a filter column first!');
+        return;
+    }
+
+    try {
+        // Get filter values based on control type
+        let filterValues = null;
+
+        // Check if numeric (has min/max inputs)
+        const minInput = document.getElementById('alvadesk-filter-min');
+        if (minInput) {
+            // Numeric filtering
+            const minVal = parseFloat(document.getElementById('alvadesk-filter-min').value);
+            const maxVal = parseFloat(document.getElementById('alvadesk-filter-max').value);
+
+            if (isNaN(minVal) || isNaN(maxVal)) {
+                alert('Please enter valid numeric values');
+                return;
+            }
+
+            filterValues = { min: minVal, max: maxVal };
+            console.log('Numeric filter:', filterValues);
+        } else {
+            // Categorical filtering
+            const checkboxes = document.querySelectorAll('.alvadesk-filter-checkbox:checked');
+            filterValues = Array.from(checkboxes).map(cb => cb.value);
+
+            if (filterValues.length === 0) {
+                alert('Please select at least one value');
+                return;
+            }
+
+            console.log('Categorical filter:', filterValues.length, 'values selected');
+        }
+
+        // Store current filter values
+        currentAlvadeskFilterValues = filterValues;
+
+        console.log('Calling filterAlvadeskPCAData...');
+        // Apply filter to original data
+        const filteredData = filterAlvadeskPCAData(originalAlvadeskPCAData, currentAlvadeskFilterColumn, filterValues);
+
+        console.log('Filtered data:', filteredData);
+        console.log('Calling renderAlvadeskPCAPlot...');
+
+        // Re-render plot with filtered data
+        renderAlvadeskPCAPlot(filteredData);
+
+        console.log('Filter applied successfully');
+    } catch (error) {
+        console.error('Error applying filter:', error);
+        alert('Error applying filter: ' + error.message);
+    }
+}
+
+// Clear filter
+function clearAlvadeskFilter() {
+    console.log('=== clearAlvadeskFilter ===');
+
+    if (!originalAlvadeskPCAData) {
+        console.warn('No original data to restore');
+        return;
+    }
+
+    // Reset filter state
+    currentAlvadeskFilterValues = null;
+
+    // Reset UI controls
+    const minInput = document.getElementById('alvadesk-filter-min');
+    if (minInput) {
+        // Reset numeric sliders to full range
+        const nums = alvadeskExternalData[currentAlvadeskFilterColumn].map(v => parseFloat(v)).filter(v => !isNaN(v));
+        const minVal = Math.min(...nums);
+        const maxVal = Math.max(...nums);
+
+        document.getElementById('alvadesk-filter-min').value = minVal;
+        document.getElementById('alvadesk-filter-max').value = maxVal;
+        document.getElementById('alvadesk-filter-range-min').value = minVal;
+        document.getElementById('alvadesk-filter-range-max').value = maxVal;
+    } else {
+        // Reset categorical checkboxes to all checked
+        document.querySelectorAll('.alvadesk-filter-checkbox').forEach(cb => cb.checked = true);
+        const selectAll = document.getElementById('alvadesk-filter-select-all');
+        if (selectAll) selectAll.checked = true;
+    }
+
+    // Re-render plot with original unfiltered data
+    renderAlvadeskPCAPlot(originalAlvadeskPCAData);
+
+    console.log('Filter cleared, showing all data');
+}
+
+// Generate biplot with loading vectors
+function generateAlvadeskBiplot() {
+    console.log('=== generateAlvadeskBiplot ===');
+
+    if (!latestAlvadeskPlotResponse) {
+        alert('Please generate PCA plot first!');
+        return;
+    }
+
+    const pcXSelect = document.getElementById('alvadesk-pc-x');
+    const pcYSelect = document.getElementById('alvadesk-pc-y');
+    const topNArrows = parseInt(document.getElementById('alvadesk-biplot-arrows').value);
+    const showLabels = document.getElementById('alvadesk-biplot-show-labels').checked;
+
+    if (!pcXSelect || !pcYSelect) {
+        alert('PC selection not available');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('pc_x', pcXSelect.value);
+    formData.append('pc_y', pcYSelect.value);
+    formData.append('top_n_arrows', topNArrows);
+
+    fetch('{{ url_for("alvadesk_pca.generate_biplot_data") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Biplot data received:', data);
+
+        if (data.status === 'success') {
+            // Add arrows to the current plot - now with arrows_by_pc
+            renderAlvadeskBiplot(latestAlvadeskPlotResponse, data.arrows_by_pc, data.pc_x, data.pc_y, showLabels);
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        alert('Error generating biplot: ' + error.message);
+    });
+}
+
+// Render biplot (PCA plot with loading vectors overlay for each PC)
+function renderAlvadeskBiplot(pcaData, arrowsByPC, pcX, pcY, showLabels) {
+    console.log('=== renderAlvadeskBiplot ===');
+    console.log('Arrows by PC:', arrowsByPC);
+    console.log('PC X:', pcX, 'PC Y:', pcY);
+    console.log('Show labels:', showLabels);
+
+    // Re-render the PCA plot first (to clear any previous arrows)
+    renderAlvadeskPCAPlot(pcaData);
+
+    // Get the plotly div
+    const plotDiv = document.getElementById('pca-plotly');
+    if (!plotDiv || !plotDiv.data) {
+        console.error('Plot not found');
+        return;
+    }
+
+    // Calculate scaling factor based on data range
+    const allX = [];
+    const allY = [];
+    plotDiv.data.forEach(trace => {
+        if (trace.x) allX.push(...trace.x);
+        if (trace.y) allY.push(...trace.y);
+    });
+
+    const maxX = Math.max(...allX.map(Math.abs));
+    const maxY = Math.max(...allY.map(Math.abs));
+
+    // Find the maximum loading value across all arrows to normalize
+    let maxLoading = 0;
+    Object.keys(arrowsByPC).forEach(pc => {
+        arrowsByPC[pc].forEach(arrow => {
+            const loadingMagnitude = Math.sqrt(arrow.x * arrow.x + arrow.y * arrow.y);
+            if (loadingMagnitude > maxLoading) {
+                maxLoading = loadingMagnitude;
+            }
+        });
+    });
+
+    // Scale factor to make longest arrow ~80% of plot size
+    // This preserves relative lengths while fitting in the plot
+    const targetMaxLength = Math.min(maxX, maxY) * 0.8;
+    const scaleFactor = maxLoading > 0 ? targetMaxLength / maxLoading : 1;
+
+    // Define colors for each PC
+    const pcColors = {
+        [pcX]: '#ff0000',  // Red for PC X
+        [pcY]: '#0000ff'   // Blue for PC Y
+    };
+
+    // Create arrow shapes and annotations for Plotly
+    const shapes = [];
+    const annotations = [];
+
+    // Process arrows for each PC component
+    let totalArrows = 0;
+    Object.keys(arrowsByPC).forEach(pc => {
+        const pcNum = parseInt(pc);
+        const arrows = arrowsByPC[pc];
+        const color = pcColors[pcNum] || '#ff00ff'; // Fallback to magenta
+
+        arrows.forEach((arrow, idx) => {
+            const arrowX = arrow.x * scaleFactor;
+            const arrowY = arrow.y * scaleFactor;
+
+            // Convert hex color to rgba with opacity
+            const hexToRgba = (hex, alpha) => {
+                const r = parseInt(hex.slice(1, 3), 16);
+                const g = parseInt(hex.slice(3, 5), 16);
+                const b = parseInt(hex.slice(5, 7), 16);
+                return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            };
+
+            const shaftColor = hexToRgba(color, 0.2);  // 20% opacity for shaft (more transparent)
+            const headColor = hexToRgba(color, 0.35);  // 35% opacity for head (more transparent)
+
+            // Add arrow shaft with transparency
+            shapes.push({
+                type: 'line',
+                x0: 0,
+                y0: 0,
+                x1: arrowX,
+                y1: arrowY,
+                line: {
+                    color: shaftColor,
+                    width: 1.2
+                },
+                xref: 'x',
+                yref: 'y'
+            });
+
+            // Add arrowhead - much smaller relative to arrow length
+            const angle = Math.atan2(arrowY, arrowX);
+            const arrowLength = Math.sqrt(arrowX * arrowX + arrowY * arrowY);
+            const headLength = Math.min(arrowLength * 0.08, scaleFactor * 0.015);  // 8% of arrow length, max 1.5% of plot
+            const headAngle = Math.PI / 8; // ~22.5 degrees (even narrower)
+
+            shapes.push({
+                type: 'line',
+                x0: arrowX,
+                y0: arrowY,
+                x1: arrowX - headLength * Math.cos(angle - headAngle),
+                y1: arrowY - headLength * Math.sin(angle - headAngle),
+                line: {
+                    color: headColor,
+                    width: 1.2
+                },
+                xref: 'x',
+                yref: 'y'
+            });
+
+            shapes.push({
+                type: 'line',
+                x0: arrowX,
+                y0: arrowY,
+                x1: arrowX - headLength * Math.cos(angle + headAngle),
+                y1: arrowY - headLength * Math.sin(angle + headAngle),
+                line: {
+                    color: headColor,
+                    width: 1.2
+                },
+                xref: 'x',
+                yref: 'y'
+            });
+
+            // Add label if requested
+            if (showLabels) {
+                const loadingMagnitude = Math.sqrt(arrow.x * arrow.x + arrow.y * arrow.y);
+                const labelText = `${arrow.name}\n(loading: ${loadingMagnitude.toFixed(3)})`;
+
+                annotations.push({
+                    x: arrowX * 1.1,
+                    y: arrowY * 1.1,
+                    text: labelText,
+                    showarrow: false,
+                    font: {
+                        size: 9,
+                        color: color
+                    },
+                    xref: 'x',
+                    yref: 'y',
+                    bgcolor: 'rgba(255, 255, 255, 0.8)',
+                    borderpad: 2
+                });
+            }
+
+            totalArrows++;
+        });
+    });
+
+    // Add legend explaining colors
+    const legendY = 0.98;
+    let legendIdx = 0;
+    Object.keys(arrowsByPC).forEach(pc => {
+        const pcNum = parseInt(pc);
+        const color = pcColors[pcNum];
+        const arrowCount = arrowsByPC[pc].length;
+
+        annotations.push({
+            x: 1.02,
+            y: legendY - (legendIdx * 0.05),
+            text: `PC${pcNum} (${arrowCount} arrows)`,
+            showarrow: false,
+            font: {
+                size: 11,
+                color: color,
+                family: 'Arial, sans-serif'
+            },
+            xref: 'paper',
+            yref: 'paper',
+            xanchor: 'left',
+            yanchor: 'top'
+        });
+        legendIdx++;
+    });
+
+    // Update the layout with shapes and annotations
+    Plotly.relayout(plotDiv, {
+        shapes: shapes,
+        annotations: annotations
+    });
+
+    console.log('Biplot rendered with', totalArrows, 'total arrows from', Object.keys(arrowsByPC).length, 'PCs');
+
+    // Store arrow data for saving plot
+    currentBiplotArrows = {
+        arrows_by_pc: arrowsByPC,
+        pc_x: pcX,
+        pc_y: pcY,
+        show_labels: showLabels
+    };
+}
+
+// ============ Point Display Options ============
+let originalPointPositions = null;  // Store original positions for jitter reset
+let currentJitterOffsets = null;    // Store current jitter offsets
+
+// Initialize slider value displays
+document.addEventListener('DOMContentLoaded', function() {
+    const jitterSlider = document.getElementById('alvadesk-jitter');
+    const opacitySlider = document.getElementById('alvadesk-opacity');
+    const markerSizeSlider = document.getElementById('alvadesk-marker-size');
+
+    if (jitterSlider) {
+        jitterSlider.addEventListener('input', function() {
+            document.getElementById('alvadesk-jitter-value').textContent = this.value;
+        });
+    }
+    if (opacitySlider) {
+        opacitySlider.addEventListener('input', function() {
+            document.getElementById('alvadesk-opacity-value').textContent = parseFloat(this.value).toFixed(2);
+        });
+    }
+    if (markerSizeSlider) {
+        markerSizeSlider.addEventListener('input', function() {
+            document.getElementById('alvadesk-marker-size-value').textContent = this.value;
+        });
+    }
+});
+
+// Update point display with jitter, opacity, and size
+function updatePointDisplay() {
+    const plotDiv = document.getElementById('pca-plotly');
+    if (!plotDiv || !plotDiv.data) {
+        console.log('Plot not ready');
+        return;
+    }
+
+    const jitterAmount = parseFloat(document.getElementById('alvadesk-jitter').value);
+    const opacity = parseFloat(document.getElementById('alvadesk-opacity').value);
+    const markerSize = parseInt(document.getElementById('alvadesk-marker-size').value);
+
+    console.log('Updating display - Jitter:', jitterAmount, 'Opacity:', opacity, 'Size:', markerSize);
+
+    // Calculate data range for jitter scaling
+    let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+    plotDiv.data.forEach(trace => {
+        if (trace.x && trace.y && trace.name !== 'New Compounds') {
+            trace.x.forEach(v => { if (v < xMin) xMin = v; if (v > xMax) xMax = v; });
+            trace.y.forEach(v => { if (v < yMin) yMin = v; if (v > yMax) yMax = v; });
+        }
+    });
+    const xRange = xMax - xMin || 1;
+    const yRange = yMax - yMin || 1;
+
+    // Store original positions if not already stored
+    if (!originalPointPositions) {
+        originalPointPositions = plotDiv.data.map(trace => ({
+            x: trace.x ? [...trace.x] : null,
+            y: trace.y ? [...trace.y] : null
+        }));
+    }
+
+    // Generate new jitter offsets
+    const updates = {};
+    const newX = [];
+    const newY = [];
+    const newOpacity = [];
+    const newSize = [];
+
+    plotDiv.data.forEach((trace, traceIdx) => {
+        if (trace.x && trace.y && trace.name !== 'New Compounds') {
+            const origX = originalPointPositions[traceIdx].x;
+            const origY = originalPointPositions[traceIdx].y;
+
+            if (origX && origY) {
+                // Apply jitter
+                const jitteredX = origX.map(v => v + (Math.random() - 0.5) * jitterAmount * xRange * 0.1);
+                const jitteredY = origY.map(v => v + (Math.random() - 0.5) * jitterAmount * yRange * 0.1);
+
+                newX.push(jitteredX);
+                newY.push(jitteredY);
+            }
+        }
+    });
+
+    // Build update object for all traces
+    const traceIndices = [];
+    const xUpdates = [];
+    const yUpdates = [];
+    const opacityUpdates = [];
+    const sizeUpdates = [];
+
+    plotDiv.data.forEach((trace, traceIdx) => {
+        if (trace.x && trace.y && trace.name !== 'New Compounds') {
+            traceIndices.push(traceIdx);
+
+            const origX = originalPointPositions[traceIdx].x;
+            const origY = originalPointPositions[traceIdx].y;
+
+            if (jitterAmount > 0) {
+                xUpdates.push(origX.map(v => v + (Math.random() - 0.5) * jitterAmount * xRange * 0.1));
+                yUpdates.push(origY.map(v => v + (Math.random() - 0.5) * jitterAmount * yRange * 0.1));
+            } else {
+                xUpdates.push(origX);
+                yUpdates.push(origY);
+            }
+            opacityUpdates.push(opacity);
+            sizeUpdates.push(markerSize);
+        }
+    });
+
+    // Apply updates using Plotly.restyle
+    if (traceIndices.length > 0) {
+        Plotly.restyle(plotDiv, {
+            'x': xUpdates,
+            'y': yUpdates,
+            'marker.opacity': opacityUpdates,
+            'marker.size': sizeUpdates
+        }, traceIndices);
+    }
+
+    console.log('Display updated for', traceIndices.length, 'traces');
+}
+
+// Find and highlight overlapping points with different sizes
+function highlightOverlaps() {
+    const plotDiv = document.getElementById('pca-plotly');
+    const showOverlaps = document.getElementById('alvadesk-show-overlaps').checked;
+    const overlapBadge = document.getElementById('overlap-count-badge');
+    const overlapCount = document.getElementById('overlap-count');
+
+    if (!plotDiv || !plotDiv.data) return;
+
+    const baseSize = parseInt(document.getElementById('alvadesk-marker-size').value) || 8;
+
+    // If unchecked, reset all points to base size
+    if (!showOverlaps) {
+        overlapBadge.style.display = 'none';
+        plotDiv.data.forEach((trace, traceIdx) => {
+            if (trace.x && trace.y && trace.name !== 'New Compounds') {
+                const sizes = new Array(trace.x.length).fill(baseSize);
+                Plotly.restyle(plotDiv, {'marker.size': [sizes]}, [traceIdx]);
+            }
+        });
+        return;
+    }
+
+    // Collect all points with their trace and point indices
+    const points = [];
+    plotDiv.data.forEach((trace, traceIdx) => {
+        if (trace.x && trace.y && trace.name !== 'New Compounds') {
+            trace.x.forEach((x, pointIdx) => {
+                points.push({
+                    x: x,
+                    y: trace.y[pointIdx],
+                    traceIdx: traceIdx,
+                    pointIdx: pointIdx,
+                    label: trace.text ? trace.text[pointIdx] : `Point ${pointIdx}`
+                });
+            });
+        }
+    });
+
+    // Find overlapping points - ONLY exact same coordinates (with tiny epsilon for floating point)
+    const epsilon = 1e-9;  // Very small threshold for exact match
+
+    // Group overlapping points
+    const overlappingGroups = [];
+    const visited = new Set();
+
+    points.forEach((p1, i) => {
+        if (visited.has(i)) return;
+
+        const group = [p1];
+        visited.add(i);
+
+        points.forEach((p2, j) => {
+            if (i !== j && !visited.has(j)) {
+                // Only match if coordinates are exactly the same (within floating point epsilon)
+                if (Math.abs(p1.x - p2.x) < epsilon && Math.abs(p1.y - p2.y) < epsilon) {
+                    group.push(p2);
+                    visited.add(j);
+                }
+            }
+        });
+
+        if (group.length > 1) {
+            overlappingGroups.push(group);
+        }
+    });
+
+    // Create size arrays for each trace
+    const traceSizes = {};
+    plotDiv.data.forEach((trace, traceIdx) => {
+        if (trace.x && trace.y && trace.name !== 'New Compounds') {
+            traceSizes[traceIdx] = new Array(trace.x.length).fill(baseSize);
+        }
+    });
+
+    if (overlappingGroups.length > 0) {
+        overlapBadge.style.display = 'inline';
+        overlapCount.textContent = overlappingGroups.length;
+
+        // Log overlapping groups to console
+        console.log('Overlapping groups found:', overlappingGroups.length);
+        overlappingGroups.forEach((group, idx) => {
+            console.log(`Group ${idx + 1}:`, group.map(p => p.label).join(', '));
+        });
+
+        // Assign cascade sizes: first point LARGEST (bottom), last point SMALLEST (top, visible)
+        // Subtle differences: +3, +2, +1, 0 per point in group
+        overlappingGroups.forEach(group => {
+            const groupSize = group.length;
+            group.forEach((point, idx) => {
+                // First point (idx=0) gets largest size, last point gets base size
+                // This way smaller points render on top and are visible
+                const sizeOffset = (groupSize - 1 - idx) * 2;  // Subtle: 2px per step
+                traceSizes[point.traceIdx][point.pointIdx] = baseSize + sizeOffset;
+            });
+        });
+    } else {
+        overlapBadge.style.display = 'none';
+    }
+
+    // Apply sizes to all traces
+    Object.entries(traceSizes).forEach(([traceIdx, sizes]) => {
+        Plotly.restyle(plotDiv, {'marker.size': [sizes]}, [parseInt(traceIdx)]);
+    });
+}
+
+// ============ New Compounds Projection ============
+let projectedCompoundsData = null;
+let showProjectedOnPlot = false;
+
+// Project new compounds onto existing PCA
+function projectNewCompounds() {
+    const fileInput = document.getElementById('new-compounds-file');
+    const labelCol = document.getElementById('new-compounds-label-col').value;
+    const statusDiv = document.getElementById('project-status');
+    const statusAlert = document.getElementById('project-status-alert');
+    const statusIcon = document.getElementById('project-status-icon');
+    const statusMessage = document.getElementById('project-status-message');
+
+    if (!fileInput.files || fileInput.files.length === 0) {
+        statusDiv.style.display = 'block';
+        statusAlert.className = 'alert alert-warning';
+        statusIcon.className = 'fas fa-exclamation-triangle';
+        statusMessage.textContent = 'Please select a file to upload.';
+        return;
+    }
+
+    // Show loading
+    statusDiv.style.display = 'block';
+    statusAlert.className = 'alert alert-info';
+    statusIcon.className = 'fas fa-spinner fa-spin';
+    statusMessage.textContent = 'Projecting new compounds...';
+
+    const formData = new FormData();
+    formData.append('new_compounds_file', fileInput.files[0]);
+    formData.append('label_column', labelCol);
+
+    fetch("{{ url_for('alvadesk_pca.alvadesk_pca_project_new') }}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            statusDiv.style.display = 'none';
+            projectedCompoundsData = data.plot_data;
+
+            // Show projected compounds info
+            document.getElementById('projected-compounds-info').style.display = 'block';
+            document.getElementById('projected-count').textContent = data.n_compounds;
+
+            // Auto-show on plot if plot is visible
+            const plotDiv = document.getElementById('pca-plotly');
+            if (plotDiv && plotDiv.data) {
+                showProjectedOnPlot = true;
+                updateProjectedToggleButton();
+                addProjectedToPlot();
+            }
+        } else {
+            statusAlert.className = 'alert alert-danger';
+            statusIcon.className = 'fas fa-times-circle';
+            statusMessage.textContent = data.message || 'Error projecting compounds.';
+
+            if (data.missing_columns) {
+                statusMessage.textContent += ' Missing columns: ' + data.missing_columns.slice(0, 5).join(', ') + '...';
+            }
+        }
+    })
+    .catch(error => {
+        statusAlert.className = 'alert alert-danger';
+        statusIcon.className = 'fas fa-times-circle';
+        statusMessage.textContent = 'Error: ' + error.message;
+    });
+}
+
+// Toggle projected compounds visibility on plot
+function toggleProjectedOnPlot() {
+    showProjectedOnPlot = !showProjectedOnPlot;
+    updateProjectedToggleButton();
+
+    if (showProjectedOnPlot) {
+        addProjectedToPlot();
+    } else {
+        removeProjectedFromPlot();
+    }
+}
+
+// Update toggle button state
+function updateProjectedToggleButton() {
+    const icon = document.getElementById('toggle-projected-icon');
+    const text = document.getElementById('toggle-projected-text');
+
+    if (showProjectedOnPlot) {
+        icon.className = 'fas fa-eye-slash';
+        text.textContent = 'Hide from Plot';
+    } else {
+        icon.className = 'fas fa-eye';
+        text.textContent = 'Show on Plot';
+    }
+}
+
+// Add projected compounds to the plot
+function addProjectedToPlot() {
+    if (!projectedCompoundsData || projectedCompoundsData.length === 0) {
+        console.log('No projected data to add');
+        return;
+    }
+
+    const plotDiv = document.getElementById('pca-plotly');
+    if (!plotDiv || !plotDiv.data) {
+        console.log('Plot not ready yet');
+        return;
+    }
+
+    // Get desired marker size (fallback to 12)
+    let markerSize = 12;
+    const sizeInput = document.getElementById('projected-point-size');
+    if (sizeInput) {
+        const parsed = parseFloat(sizeInput.value);
+        if (!isNaN(parsed) && parsed > 0) {
+            markerSize = parsed;
+        }
+    }
+
+    const pcX = parseInt(document.getElementById('alvadesk-pc-x').value);
+    const pcY = parseInt(document.getElementById('alvadesk-pc-y').value);
+
+    // Prepare data for new trace
+    const x = projectedCompoundsData.map(p => p['PC' + pcX]);
+    const y = projectedCompoundsData.map(p => p['PC' + pcY]);
+    const labels = projectedCompoundsData.map(p => p.label || 'New');
+
+    // Compute which labels can be shown without heavy overlap (simple distance-based pruning)
+    // All labels remain available in hover; only a subset is drawn on the plot.
+    const displayLabels = new Array(labels.length).fill('');
+    if (labels.length > 0) {
+        const xMin = Math.min(...x);
+        const xMax = Math.max(...x);
+        const yMin = Math.min(...y);
+        const yMax = Math.max(...y);
+        const xRange = xMax - xMin || 1;
+        const yRange = yMax - yMin || 1;
+        const fracThreshold = 0.03; // fraction of axis range
+        const distThresholdSq = fracThreshold * fracThreshold;
+
+        for (let i = 0; i < labels.length; i++) {
+            let tooClose = false;
+            for (let j = 0; j < i; j++) {
+                if (!displayLabels[j]) continue;
+                const dx = (x[i] - x[j]) / xRange;
+                const dy = (y[i] - y[j]) / yRange;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < distThresholdSq) {
+                    tooClose = true;
+                    break;
+                }
+            }
+            if (!tooClose) {
+                displayLabels[i] = labels[i];
+            }
+        }
+    }
+
+    // Check if labels should be shown directly on the plot
+    let showLabelsOnPlot = false;
+    const showLabelsCheckbox = document.getElementById('projected-show-labels');
+    if (showLabelsCheckbox) {
+        showLabelsOnPlot = showLabelsCheckbox.checked;
+    }
+
+    console.log('Adding projected compounds:', x.length, 'points');
+
+    const newTrace = {
+        x: x,
+        y: y,
+        mode: showLabelsOnPlot ? 'markers+text' : 'markers',
+        type: 'scatter',
+        name: 'New Compounds',
+        text: showLabelsOnPlot ? displayLabels : [],
+        hovertext: labels,
+        textposition: showLabelsOnPlot ? 'top center' : undefined,
+        textfont: showLabelsOnPlot ? {
+            size: 10,
+            color: '#dc3545'
+        } : undefined,
+        marker: {
+            symbol: 'diamond',
+            size: markerSize,
+            color: '#dc3545',
+            line: {
+                color: '#fff',
+                width: 2
+            }
+        },
+        hovertemplate: '<b>%{hovertext}</b><br>PC' + pcX + ': %{x:.4f}<br>PC' + pcY + ': %{y:.4f}<extra>New Compound</extra>'
+    };
+
+    // Check if trace already exists and remove it
+    const existingTraceIdx = plotDiv.data.findIndex(t => t.name === 'New Compounds');
+    if (existingTraceIdx >= 0) {
+        Plotly.deleteTraces(plotDiv, existingTraceIdx);
+    }
+
+    // Add new trace
+    Plotly.addTraces(plotDiv, newTrace);
+}
+
+// Remove projected compounds from plot
+function removeProjectedFromPlot() {
+    const plotDiv = document.getElementById('pca-plotly');
+    if (!plotDiv || !plotDiv.data) return;
+
+    const traceIdx = plotDiv.data.findIndex(t => t.name === 'New Compounds');
+    if (traceIdx >= 0) {
+        Plotly.deleteTraces(plotDiv, traceIdx);
+    }
+}
+
+// Clear projected compounds
+function clearProjectedCompounds() {
+    fetch("{{ url_for('alvadesk_pca.alvadesk_pca_clear_projected') }}", {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        projectedCompoundsData = null;
+        showProjectedOnPlot = false;
+        document.getElementById('projected-compounds-info').style.display = 'none';
+        document.getElementById('project-status').style.display = 'none';
+        document.getElementById('new-compounds-file').value = '';
+        removeProjectedFromPlot();
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Alvadesk PCA page loaded');
+
+    // Check if PCA was performed
+    const pcaPerformed = {{ 'true' if pca_performed else 'false' }};
+    console.log('PCA performed:', pcaPerformed);
+
+    if (pcaPerformed) {
+        const nComponents = {{ pca_n_components if pca_n_components else 0 }};
+        console.log('Number of components:', nComponents);
+    }
+
+    updateSelectedCount();
+    updateAlvadeskColorOptions();
+
+    // When user changes the size of new points, update them on the plot if visible
+    const projectedSizeInput = document.getElementById('projected-point-size');
+    if (projectedSizeInput) {
+        projectedSizeInput.addEventListener('change', function() {
+            if (showProjectedOnPlot) {
+                addProjectedToPlot();
+            }
+        });
+    }
+
+    // When user toggles label visibility for new points, update them on the plot if visible
+    const projectedShowLabelsInput = document.getElementById('projected-show-labels');
+    if (projectedShowLabelsInput) {
+        projectedShowLabelsInput.addEventListener('change', function() {
+            if (showProjectedOnPlot) {
+                addProjectedToPlot();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

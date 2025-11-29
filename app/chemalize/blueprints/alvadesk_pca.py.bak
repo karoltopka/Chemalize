@@ -1,0 +1,652 @@
+"""
+Alvadesk PCA Analysis with Descriptor Group Selection
+Allows users to select specific descriptor groups from Descriptors_group.txt
+and perform PCA only on those descriptors with visualization capabilities.
+"""
+from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify, send_file
+import os
+import pandas as pd
+import numpy as np
+import time
+import json
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from werkzeug.utils import secure_filename
+
+from app.config import (
+    get_clean_path,
+    get_temp_path,
+    TEMP_DIR,
+    DESCRIPTOR_GROUPS_FILE
+)
+from app.utils import read_dataset, check_dataset, get_dataset_info, ensure_temp_dir
+from app.utils.descriptor_groups import (
+    parse_descriptor_groups,
+    filter_dataframe_by_groups,
+    get_group_summary,
+    get_descriptors_for_groups
+)
+from app.visualization import coloring
+from app.nocache import nocache
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+
+alvadesk_pca_bp = Blueprint('alvadesk_pca', __name__)
+
+
+@alvadesk_pca_bp.route("/alvadesk_pca_analysis", methods=['GET', 'POST'])
+@nocache
+def alvadesk_pca_analysis():
+    """Main route for Alvadesk PCA analysis with descriptor group selection."""
+
+    if not check_dataset():
+        flash('Please upload a dataset first!', 'danger')
+        return redirect(url_for('preprocessing.preprocess'))
+
+    # Parse descriptor groups
+    try:
+        groups_dict = parse_descriptor_groups(DESCRIPTOR_GROUPS_FILE)
+    except Exception as e:
+        flash(f'Error loading descriptor groups: {str(e)}', 'danger')
+        return redirect(url_for('main.home'))
+
+    # Load dataset info
+    clean_path = get_clean_path(session["csv_name"])
+
+    # Check if file exists before trying to read
+    if not os.path.exists(clean_path):
+        flash('Dataset file not found. Please upload a dataset.', 'danger')
+        return redirect(url_for('preprocessing.preprocess'))
+
+    df = read_dataset(clean_path)
+    info = get_dataset_info(df)
+
+    # Check if any PCA has been performed
+    pca_performed = session.get('alvadesk_pca_performed', False)
+
+    # Prepare template variables
+    template_vars = {
+        'title': 'Alvadesk PCA Analysis',
+        'active': 'alvadesk_pca',
+        'descriptor_groups': groups_dict,
+        'pca_performed': pca_performed,
+        **info
+    }
+
+    # If PCA was performed, add results
+    if pca_performed:
+        template_vars.update({
+            'selected_groups': session.get('alvadesk_selected_groups', []),
+            'pca_summary': session.get('alvadesk_pca_summary', []),
+            'pca_n_components': session.get('alvadesk_pca_n_components', 0),
+            'pca_variance_plot': session.get('alvadesk_pca_variance_plot'),
+            'group_summary': session.get('alvadesk_group_summary', {}),
+            'filtered_descriptors_count': session.get('alvadesk_filtered_descriptors_count', 0),
+            # For visualization
+            'pca_color_options': session.get('alvadesk_pca_color_options', []),
+            'color_file_loaded': session.get('alvadesk_color_file_loaded', False),
+        })
+
+    return render_template('alvadesk_pca_analysis.html', **template_vars)
+
+
+@alvadesk_pca_bp.route("/perform_alvadesk_pca", methods=['POST'])
+def perform_alvadesk_pca():
+    """Perform PCA on selected descriptor groups."""
+
+    if not check_dataset():
+        flash('Please upload a dataset first!', 'danger')
+        return redirect(url_for('preprocessing.preprocess'))
+
+    # Get selected descriptor groups
+    selected_groups = request.form.getlist('descriptor_groups')
+
+    if not selected_groups:
+        flash('Please select at least one descriptor group!', 'warning')
+        return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))
+
+    # Get PCA parameters
+    n_components = int(request.form.get('n_components', 2))
+    n_components = max(2, n_components)
+    scale_data = 'scale_data' in request.form
+
+    # Load dataset
+    clean_path = get_clean_path(session["csv_name"])
+    df = read_dataset(clean_path)
+
+    try:
+        # Parse descriptor groups
+        groups_dict = parse_descriptor_groups(DESCRIPTOR_GROUPS_FILE)
+
+        # Filter dataframe by selected groups
+        filtered_df, descriptor_columns = filter_dataframe_by_groups(
+            df, groups_dict, selected_groups, keep_non_descriptors=True
+        )
+
+        if len(descriptor_columns) == 0:
+            flash('No matching descriptors found in the dataset for selected groups!', 'danger')
+            return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))
+
+        # Get group summary
+        group_summary = get_group_summary(groups_dict, selected_groups)
+
+        # Adjust n_components if necessary
+        max_components = min(len(descriptor_columns), len(filtered_df))
+        if n_components > max_components:
+            n_components = max_components
+            flash(f'Number of components adjusted to {n_components} based on data dimensions', 'info')
+
+        # Prepare data for PCA - only descriptor columns
+        X = filtered_df[descriptor_columns].select_dtypes(include=[np.number])
+
+        # Handle missing values
+        if X.isnull().any().any():
+            X = X.fillna(X.mean())
+
+        # Scale data if requested
+        if scale_data:
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X)
+        else:
+            X_scaled = X.values
+
+        # Perform PCA
+        pca_model = PCA(n_components=n_components)
+        principal_components = pca_model.fit_transform(X_scaled)
+
+        # Create PC DataFrame with all original non-descriptor columns
+        pc_columns = [f'PC{i+1}' for i in range(n_components)]
+        pc_df = pd.DataFrame(principal_components, columns=pc_columns, index=filtered_df.index)
+
+        # Add non-descriptor columns to PC dataframe
+        non_descriptor_cols = [col for col in filtered_df.columns if col not in descriptor_columns]
+        for col in non_descriptor_cols:
+            pc_df[col] = filtered_df[col].values
+
+        # Save PC components to temp
+        temp_path = ensure_temp_dir()
+        pca_components_file = os.path.join(temp_path, 'alvadesk_pca_components.csv')
+        pc_df.to_csv(pca_components_file, index=False)
+
+        # Prepare summary
+        variance_explained = pca_model.explained_variance_ratio_ * 100
+        cumulative_variance = np.cumsum(variance_explained)
+
+        pca_summary = []
+        for i in range(n_components):
+            pca_summary.append({
+                'component': i + 1,
+                'explained_variance': round(variance_explained[i], 2),
+                'cumulative_variance': round(cumulative_variance[i], 2)
+            })
+
+        # Generate variance plot
+        plt.figure(figsize=(10, 6))
+        plt.bar(range(1, n_components + 1), variance_explained, alpha=0.7, label='Individual')
+        plt.plot(range(1, n_components + 1), cumulative_variance, 'ro-', label='Cumulative')
+        plt.xlabel('Principal Component')
+        plt.ylabel('Variance Explained (%)')
+        plt.title('Alvadesk PCA - Variance Explained by Each Component')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+
+        variance_plot_path = os.path.join(temp_path, 'alvadesk_pca_variance.png')
+        plt.savefig(variance_plot_path, dpi=150, bbox_inches='tight')
+        plt.close()
+
+        # Store results in session
+        session['alvadesk_pca_performed'] = True
+        session['alvadesk_selected_groups'] = selected_groups
+        session['alvadesk_pca_summary'] = pca_summary
+        session['alvadesk_pca_n_components'] = n_components
+        session['alvadesk_pca_scale_data'] = scale_data
+        session['alvadesk_group_summary'] = group_summary
+        session['alvadesk_filtered_descriptors_count'] = len(descriptor_columns)
+
+        # Create plot URL with timestamp
+        timestamp = int(time.time() * 1000)
+        session['alvadesk_pca_variance_plot'] = url_for('utils.serve_temp_image',
+                                                         filename='alvadesk_pca_variance.png',
+                                                         t=timestamp)
+
+        # Store color options for visualization
+        session['alvadesk_pca_color_options'] = non_descriptor_cols
+
+        flash(f'Alvadesk PCA completed successfully using {len(descriptor_columns)} descriptors from {len(selected_groups)} groups!', 'success')
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        flash(f'Error performing Alvadesk PCA: {str(e)}', 'danger')
+
+    return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))
+
+
+@alvadesk_pca_bp.route("/alvadesk_pca_visualize", methods=['POST'])
+@nocache
+def alvadesk_pca_visualize():
+    """Generate PCA visualization with coloring and filtering options."""
+
+    try:
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+        if not session.get('alvadesk_pca_performed'):
+            error_msg = "Alvadesk PCA analysis has not been performed yet. Please run PCA first."
+            if is_ajax:
+                return jsonify({"status": "error", "message": error_msg})
+            flash(error_msg, "warning")
+            return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))
+
+        # Get visualization parameters
+        pc_x = int(request.form.get("pc_x", 1))
+        pc_y = int(request.form.get("pc_y", 2))
+        hover_column = request.form.get("hover_column", "")
+
+        use_external_coloring = request.form.get("use_external_coloring") == "1"
+
+        # Load PCA components
+        temp_path = ensure_temp_dir()
+        pca_file = os.path.join(temp_path, 'alvadesk_pca_components.csv')
+
+        if not os.path.exists(pca_file):
+            error_msg = "PCA components file not found. Please run PCA analysis again."
+            if is_ajax:
+                return jsonify({"status": "error", "message": error_msg})
+            flash(error_msg, "danger")
+            return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))
+
+        pc_df = pd.read_csv(pca_file)
+
+        # Validate PC columns exist
+        pc_x_col = f'PC{pc_x}'
+        pc_y_col = f'PC{pc_y}'
+
+        if pc_x_col not in pc_df.columns or pc_y_col not in pc_df.columns:
+            error_msg = f"Selected principal components not found in PCA results."
+            if is_ajax:
+                return jsonify({"status": "error", "message": error_msg})
+            flash(error_msg, "danger")
+            return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))
+
+        # Prepare hover text
+        hover_text = None
+        if hover_column and hover_column in pc_df.columns:
+            hover_text = pc_df[hover_column].tolist()
+
+        # Initialize plot data
+        plot_data = []
+        color_data = None
+        color_categories = None
+        color_by = None
+        external_data = {}
+
+        if use_external_coloring:
+            # External coloring from uploaded file
+            key_column = request.form.get("external_key_column")
+            color_column = request.form.get("external_color_column")
+
+            if not key_column:
+                error_msg = "External key column missing"
+                if is_ajax:
+                    return jsonify({"status": "error", "message": error_msg})
+                flash(error_msg, "danger")
+                return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))
+
+            color_file_path = session.get('alvadesk_color_file_path')
+            if not color_file_path or not os.path.exists(color_file_path):
+                error_msg = "Color file not found. Please upload it again."
+                if is_ajax:
+                    return jsonify({"status": "error", "message": error_msg})
+                flash(error_msg, "danger")
+                return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))
+
+            df_color = coloring.load_coloring_file(color_file_path)
+
+            # Prepare coloring if color column is specified
+            if color_column:
+                color_result = coloring.prepare_color_data(pc_df, df_color, key_column, color_column)
+
+                if not color_result['success']:
+                    error_msg = color_result['message']
+                    if is_ajax:
+                        return jsonify({"status": "error", "message": error_msg})
+                    flash(error_msg, "danger")
+                    return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))
+
+                color_series = color_result['data']
+                is_numeric = color_result['is_numeric']
+
+                if is_numeric:
+                    # Numeric coloring
+                    plot_data = [{'x': pc_df[pc_x_col].tolist(), 'y': pc_df[pc_y_col].tolist()}]
+                    color_data = color_series.tolist()
+                    color_by = color_column
+                    if hover_text:
+                        plot_data[0]['hover_text'] = hover_text
+                else:
+                    # Categorical coloring
+                    unique_categories = color_series.dropna().unique()
+                    n_categories = len(unique_categories)
+                    color_palette = coloring.generate_distinct_colors(n_categories)
+                    color_map = {cat: color_palette[i] for i, cat in enumerate(unique_categories)}
+                    color_categories = unique_categories.tolist()
+
+                    for category in unique_categories:
+                        mask = color_series == category
+                        subset = pc_df[mask]
+                        category_data = {
+                            'label': str(category),
+                            'data': [{'x': row[pc_x_col], 'y': row[pc_y_col]} for _, row in subset.iterrows()],
+                            'color': color_map[category]
+                        }
+                        if hover_text:
+                            subset_indices = subset.index.tolist()
+                            category_data['hover_text'] = [hover_text[i] for i in subset_indices]
+                        plot_data.append(category_data)
+
+                    color_by = color_column
+            else:
+                # No coloring - basic plot
+                plot_data = [{'x': pc_df[pc_x_col].tolist(), 'y': pc_df[pc_y_col].tolist()}]
+                if hover_text:
+                    plot_data[0]['hover_text'] = hover_text
+
+            # Build external_data dictionary for filtering
+            available_columns = [col for col in df_color.columns if col != key_column]
+            for col_name in available_columns:
+                try:
+                    col_result = coloring.prepare_color_data(pc_df, df_color, key_column, col_name)
+                    if col_result['success']:
+                        col_series = col_result['data']
+                        external_data[col_name] = col_series.tolist()
+                except Exception as e:
+                    print(f"Warning: Could not prepare data for column {col_name}: {e}")
+                    continue
+        else:
+            # Internal coloring from PCA data
+            color_by = request.form.get("color_by", "")
+
+            if color_by and color_by in pc_df.columns:
+                if pc_df[color_by].dtype == 'object' or pd.api.types.is_categorical_dtype(pc_df[color_by]):
+                    # Categorical
+                    color_categories = pc_df[color_by].unique().tolist()
+                    for category in color_categories:
+                        subset = pc_df[pc_df[color_by] == category]
+                        category_data = {
+                            'label': str(category),
+                            'data': [{'x': row[pc_x_col], 'y': row[pc_y_col]} for _, row in subset.iterrows()]
+                        }
+                        if hover_text:
+                            subset_indices = subset.index.tolist()
+                            category_data['hover_text'] = [hover_text[i] for i in subset_indices]
+                        plot_data.append(category_data)
+                else:
+                    # Numeric
+                    plot_data = [{'x': pc_df[pc_x_col].tolist(), 'y': pc_df[pc_y_col].tolist()}]
+                    color_data = pc_df[color_by].tolist()
+                    if hover_text:
+                        plot_data[0]['hover_text'] = hover_text
+            else:
+                # No coloring
+                plot_data = [{'x': pc_df[pc_x_col].tolist(), 'y': pc_df[pc_y_col].tolist()}]
+                if hover_text:
+                    plot_data[0]['hover_text'] = hover_text
+
+        # Get variance explained
+        pca_summary = session.get('alvadesk_pca_summary', [])
+        variance_x = pca_summary[pc_x-1]['explained_variance'] if pc_x <= len(pca_summary) else 0
+        variance_y = pca_summary[pc_y-1]['explained_variance'] if pc_y <= len(pca_summary) else 0
+
+        success_msg = f"Alvadesk PCA scatter plot created: PC{pc_x} vs PC{pc_y}"
+        if use_external_coloring and color_by:
+            success_msg += f" with external coloring from column '{color_by}'"
+
+        # Get raw PC data for filtering
+        pc_x_raw = pc_df[pc_x_col].tolist()
+        pc_y_raw = pc_df[pc_y_col].tolist()
+
+        if is_ajax:
+            response_data = {
+                "status": "success",
+                "message": success_msg,
+                "pc_x": pc_x,
+                "pc_y": pc_y,
+                "variance_x": round(variance_x, 2),
+                "variance_y": round(variance_y, 2),
+                "plot_data": plot_data,
+                "color_data": color_data,
+                "color_categories": color_categories,
+                "color_by": color_by,
+                "hover_column": hover_column,
+                "pc_x_raw": pc_x_raw,
+                "pc_y_raw": pc_y_raw
+            }
+
+            if external_data:
+                response_data["external_data"] = external_data
+
+            return jsonify(response_data)
+
+        flash(success_msg, "success")
+        return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+
+        error_msg = f"Visualization error: {str(e)}"
+        if is_ajax:
+            return jsonify({"status": "error", "message": error_msg})
+        flash(error_msg, "danger")
+        return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))
+
+
+@alvadesk_pca_bp.route("/upload_alvadesk_color_file", methods=['POST'])
+def upload_alvadesk_color_file():
+    """Upload external color file for Alvadesk PCA visualization."""
+
+    try:
+        if 'color_file' not in request.files:
+            return jsonify({"status": "error", "message": "No file uploaded"})
+
+        file = request.files['color_file']
+
+        if file.filename == '':
+            return jsonify({"status": "error", "message": "No file selected"})
+
+        # Save file temporarily
+        temp_path = ensure_temp_dir()
+        color_file_path = os.path.join(temp_path, 'alvadesk_color_' + secure_filename(file.filename))
+        file.save(color_file_path)
+
+        # Save path in session
+        session['alvadesk_color_file_path'] = color_file_path
+
+        # Load color file
+        df_color = coloring.load_coloring_file(color_file_path)
+
+        if df_color is None:
+            return jsonify({
+                "status": "error",
+                "message": "Failed to load color file. Please check the file format."
+            })
+
+        # Load PCA data
+        pca_file = os.path.join(temp_path, 'alvadesk_pca_components.csv')
+        if not os.path.exists(pca_file):
+            return jsonify({
+                "status": "error",
+                "message": "PCA data not found. Please run Alvadesk PCA analysis first."
+            })
+
+        df_pca = pd.read_csv(pca_file)
+
+        # Detect key column
+        detection = coloring.detect_key_column(df_pca, df_color)
+
+        # Validate setup
+        validation = coloring.validate_coloring_setup(
+            df_pca,
+            df_color,
+            detection['key_column'] if detection['found'] else None
+        )
+
+        # Prepare color column info
+        color_column_info = {}
+        if validation['available_color_columns']:
+            for col in validation['available_color_columns']:
+                is_numeric = pd.api.types.is_numeric_dtype(df_color[col])
+                n_unique = df_color[col].nunique()
+                color_column_info[col] = {
+                    'is_numeric': is_numeric,
+                    'n_unique': n_unique
+                }
+
+        # Prepare merged data for all columns
+        merged_data = {}
+        if detection['found'] and detection['key_column']:
+            key_column = detection['key_column']
+            available_columns = [col for col in df_color.columns if col != key_column]
+
+            for col_name in available_columns:
+                try:
+                    col_result = coloring.prepare_color_data(df_pca, df_color, key_column, col_name)
+                    if col_result['success']:
+                        col_series = col_result['data']
+                        merged_data[col_name] = col_series.tolist()
+                except Exception as e:
+                    print(f"Warning: Could not prepare merged data for column {col_name}: {e}")
+                    continue
+
+        # Save in session
+        session['alvadesk_color_file_loaded'] = True
+        session['alvadesk_color_detection'] = detection
+        session['alvadesk_color_validation'] = validation
+        session['alvadesk_color_column_info'] = color_column_info
+        session['alvadesk_color_merged_data'] = merged_data
+
+        response_data = {
+            "status": "success",
+            "auto_detected": detection['found'],
+            "key_column": detection['key_column'],
+            "common_columns": detection.get('common_columns', []),
+            "available_color_columns": validation['available_color_columns'],
+            "color_column_info": color_column_info,
+            "merged_data": merged_data,
+            "message": validation['recommendations'][0] if validation['recommendations'] else "File uploaded successfully",
+            "warnings": validation['warnings']
+        }
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": f"Error processing color file: {str(e)}"
+        })
+
+
+@alvadesk_pca_bp.route("/confirm_alvadesk_key_column", methods=['POST'])
+def confirm_alvadesk_key_column():
+    """Confirm key column selection for external coloring."""
+
+    try:
+        key_column = request.form.get('key_column')
+
+        if not key_column:
+            return jsonify({"status": "error", "message": "No key column provided"})
+
+        color_file_path = session.get('alvadesk_color_file_path')
+        if not color_file_path:
+            return jsonify({
+                "status": "error",
+                "message": "Color file not found. Please upload the file again."
+            })
+
+        # Load files
+        df_color = coloring.load_coloring_file(color_file_path)
+        temp_path = ensure_temp_dir()
+        pca_file = os.path.join(temp_path, 'alvadesk_pca_components.csv')
+        df_pca = pd.read_csv(pca_file)
+
+        # Validate with selected key column
+        validation = coloring.validate_coloring_setup(df_pca, df_color, key_column)
+
+        if not validation['valid']:
+            return jsonify({"status": "error", "message": "Invalid key column selection"})
+
+        # Prepare color column info
+        color_column_info = {}
+        for col in validation['available_color_columns']:
+            is_numeric = pd.api.types.is_numeric_dtype(df_color[col])
+            n_unique = df_color[col].nunique()
+            color_column_info[col] = {
+                'is_numeric': is_numeric,
+                'n_unique': n_unique
+            }
+
+        # Prepare merged data
+        merged_data = {}
+        available_columns = [col for col in df_color.columns if col != key_column]
+
+        for col_name in available_columns:
+            try:
+                col_result = coloring.prepare_color_data(df_pca, df_color, key_column, col_name)
+                if col_result['success']:
+                    col_series = col_result['data']
+                    merged_data[col_name] = col_series.tolist()
+            except Exception as e:
+                print(f"Warning: Could not prepare merged data for column {col_name}: {e}")
+                continue
+
+        # Update session
+        session['alvadesk_color_key_column'] = key_column
+        session['alvadesk_color_validation'] = validation
+        session['alvadesk_color_column_info'] = color_column_info
+        session['alvadesk_color_merged_data'] = merged_data
+
+        return jsonify({
+            "status": "success",
+            "key_column": key_column,
+            "available_color_columns": validation['available_color_columns'],
+            "color_column_info": color_column_info,
+            "merged_data": merged_data,
+            "message": f"Key column '{key_column}' confirmed successfully"
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": f"Error confirming key column: {str(e)}"
+        })
+
+
+@alvadesk_pca_bp.route("/download_alvadesk_pca_components")
+def download_alvadesk_pca_components():
+    """Download Alvadesk PCA components as CSV."""
+
+    if not session.get('alvadesk_pca_performed'):
+        flash('No Alvadesk PCA analysis results available', 'danger')
+        return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))
+
+    try:
+        temp_path = ensure_temp_dir()
+        pca_file = os.path.join(temp_path, 'alvadesk_pca_components.csv')
+
+        if not os.path.exists(pca_file):
+            flash('PCA components file not found', 'danger')
+            return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))
+
+        return send_file(pca_file, as_attachment=True, download_name='alvadesk_pca_components.csv')
+
+    except Exception as e:
+        flash(f'Error downloading file: {str(e)}', 'danger')
+        return redirect(url_for('alvadesk_pca.alvadesk_pca_analysis'))

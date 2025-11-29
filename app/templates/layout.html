@@ -17,7 +17,8 @@
     <title>ChemAlize</title>
     {% endif %}
 
-    
+    <!-- Extra head content from child templates -->
+    {% block head %}{% endblock %}
 </head>
 
 <body>
@@ -44,6 +45,9 @@
                         </li>
                         <li class="nav-item">
                             <a class="nav-link {% if active == 'visualize' %} active {% endif %}" href="{{ url_for('visualization.visualize') }}">Visualize</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if active == 'alvadesk' %} active {% endif %}" href="{{ url_for('alvadesk_pca.alvadesk_main') }}">AlvaDesk</a>
                         </li>
                     </ul>
                     

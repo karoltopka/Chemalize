@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EPI Suiter - Applicability Domain Analysis</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="shortcut icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath d='M256 398.8c-11.8 5.1-23.4 9.7-34.9 13.5c16.7 33.8 31 35.7 34.9 35.7s18.1-1.9 34.9-35.7c-11.4-3.9-23.1-8.4-34.9-13.5zM446 256c33 45.2 44.3 90.9 23.6 128c-20.2 36.3-62.5 49.3-115.2 43.2c-22 52.1-55.6 84.8-98.4 84.8s-76.4-32.7-98.4-84.8c-52.7 6.1-95-6.8-115.2-43.2C21.7 346.9 33 301.2 66 256c-33-45.2-44.3-90.9-23.6-128c20.2-36.3 62.5-49.3 115.2-43.2C179.6 32.7 213.2 0 256 0s76.4 32.7 98.4 84.8c52.7-6.1 95 6.8 115.2 43.2c20.7 37.1 9.4 82.8-23.6 128zm-65.8 67.4c-1.7 14.2-3.9 28-6.7 41.2c31.8 1.4 38.6-8.7 40.2-11.7c2.3-4.2 7-17.9-11.9-48.1c-6.8 6.3-14 12.5-21.6 18.6zm-6.7-175.9c2.8 13.1 5 26.9 6.7 41.2c7.6 6.1 14.8 12.3 21.6 18.6c18.9-30.2 14.2-44 11.9-48.1c-1.6-2.9-8.4-13-40.2-11.7zM290.9 99.7C274.1 65.9 259.9 64 256 64s-18.1 1.9-34.9 35.7c11.4 3.9 23.1 8.4 34.9 13.5c11.8-5.1 23.4-9.7 34.9-13.5zm-159 88.9c1.7-14.3 3.9-28 6.7-41.2c-31.8-1.4-38.6 8.7-40.2 11.7c-2.3 4.2-7 17.9 11.9 48.1c6.8-6.3 14-12.5 21.6-18.6zM110.2 304.8C91.4 335 96 348.7 98.3 352.9c1.6 2.9 8.4 13 40.2 11.7c-2.8-13.1-5-26.9-6.7-41.2c-7.6-6.1-14.8-12.3-21.6-18.6zM336 256a80 80 0 1 0 -160 0 80 80 0 1 0 160 0zm-80-32a32 32 0 1 1 0 64 32 32 0 1 1 0-64z'/%3E%3C/svg%3E" type="image/svg+xml">
+    <link href="{{ url_for('static', filename='main.css') }}" rel="stylesheet">
+    <style>
+        /* EPI Suite specific dropdown fixes - MUST be after main.css */
+
+        /* Force all dropdowns to highest z-index with absolute positioning */
+        .dropdown-menu {
+            z-index: 99999 !important;
+            position: absolute !important;
+        }
+
+        /* Force btn-group to have proper positioning */
+        .btn-group {
+            position: relative !important;
+            z-index: 100;
+        }
+
+        /* When dropdown is open, make sure it's on top */
+        .dropdown-menu.show {
+            z-index: 99999 !important;
+            position: absolute !important;
+        }
+
+        /* Fix dropdown-menu-end (right-aligned dropdowns) */
+        .dropdown-menu-end {
+            z-index: 99999 !important;
+        }
+
+        /* Remove ALL stacking contexts from cards */
+        .modern-card,
+        .card {
+            transform: none !important;
+            filter: none !important;
+            perspective: none !important;
+            contain: none !important;
+            will-change: auto !important;
+            overflow: visible !important;
+            position: static !important;
+        }
+
+        /* Remove stacking context from content containers (but not navbar) */
+        main .container,
+        main .container-fluid,
+        main form,
+        main .row,
+        main [class*="col-"] {
+            transform: none !important;
+            filter: none !important;
+            perspective: none !important;
+            overflow: visible !important;
+        }
+
+        /* Remove stacking context from main content area */
+        main {
+            overflow: visible !important;
+        }
+
+        /* Disable animations on cards that might interfere */
+        .modern-card.animate-in,
+        .card.animate-in {
+            animation: none !important;
+            transform: none !important;
+        }
+
+        /* Remove backdrop-filter only from cards (creates stacking context) */
+        .modern-card,
+        .card {
+            backdrop-filter: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <header class="site-header">
+        <nav class="navbar navbar-expand-md navbar-dark fixed-top">
+            <div class="container-fluid">
+                <a class="navbar-brand mr-4" href="/chemalize">
+                    <span class="atom-wrapper">
+                        <i class="fas fa-atom"></i>
+                    </span>
+                    ChemAlize
+                </a>
+
+                <div class="d-flex align-items-center gap-3">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-outline-secondary btn-sm theme-btn" id="lightTheme">
+                            <i class="fas fa-sun"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm theme-btn" id="darkTheme">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Navbar Subtitle -->
+        <div class="navbar-subtitle">
+            <div class="container-fluid">
+                <p class="navbar-subtitle-text">
+                    <i class="fas fa-calculator"></i>
+                    EPI Suiter - Applicability Domain Assessment Tool
+                </p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main id="main" role="main" class="container">
+        <div class="row">
+            <div class="col-lg-12">
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Upload Section -->
+        <div class="modern-card animate-in">
+            <h4><i class="fas fa-upload"></i> Upload EPI Suite Output File</h4>
+            <p class="text-muted mb-4">Upload your EPI Suite output file for applicability domain analysis</p>
+
+            <form id="epi-upload-form" method="POST" action="{{ url_for('episuite.upload_epi_file') }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="epi-file-input" class="form-label fw-bold">Select EPI Suite Output File</label>
+                    <input type="file" class="form-control" id="epi-file-input" name="epi_file" accept=".txt,.out" required>
+                    <div class="form-text">Accepted formats: .txt, .out (EPI Suite output files)</div>
+                </div>
+                <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-cloud-upload-alt"></i> Upload and Analyze
+                    </button>
+                </div>
+                {% if results %}
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-download"></i> Download Basic
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('episuite.download_results', mode='basic', format='csv') }}">
+                                    <i class="fas fa-file-csv text-success me-2"></i>CSV
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('episuite.download_results', mode='basic', format='xlsx') }}">
+                                    <i class="fas fa-file-excel text-success me-2"></i>XLSX
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-file-alt"></i> Download Advanced
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('episuite.download_results', mode='advanced', format='csv') }}">
+                                    <i class="fas fa-file-csv text-success me-2"></i>CSV
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('episuite.download_results', mode='advanced', format='xlsx') }}">
+                                    <i class="fas fa-file-excel text-success me-2"></i>XLSX
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+            </form>
+        </div>
+
+        <!-- Results Section (shown after upload) -->
+        {% if results %}
+        <div class="modern-card animate-in" id="results-section">
+            <h4><i class="fas fa-chart-bar"></i> Analysis Results</h4>
+            <p class="text-muted mb-4">Applicability Domain Assessment</p>
+
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i> File processed successfully: <strong>{{ results.filename }}</strong>
+                <br><small>Total compounds: <strong>{{ results.records|length }}</strong></small>
+                <span id="showing-count"></span>
+            </div>
+
+            {% for record in results.records %}
+            <div class="card mb-4 compound-result" data-compound-index="{{ loop.index0 }}" style="display: none;">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-flask"></i>
+                        Compound #{{ record.index }}
+                    </h5>
+                    {% if record.smiles %}
+                    <span class="badge bg-light text-dark">SMILES: <code>{{ record.smiles }}</code></span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-lg-3 col-md-6">
+                            <strong>Identifier:</strong><br>
+                            <code>{{ record.chem_id or 'Not available' }}</code>
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <strong>SMILES:</strong><br>
+                            <code>{{ record.smiles or 'Not available' }}</code>
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <strong>Molecular Formula:</strong><br>
+                            <code>{{ record.mol_formula or 'Not available' }}</code>
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <strong>Molecular Weight:</strong><br>
+                            <code>
+                                {% if record.mol_weight is not none %}
+                                    {{ "%.2f"|format(record.mol_weight) }}
+                                {% else %}
+                                    Not available
+                                {% endif %}
+                            </code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% for node_name, node_data in record.nodes.items() %}
+            <div class="card mb-3">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-cog"></i> {{ node_name }} Results</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Property</th>
+                                    <th>Value</th>
+                                    <th>Assessment</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for prop_name, prop_value in node_data.items() %}
+                                {% if not prop_name.endswith('_Assessment') and prop_name not in ['Assessment_Details', 'Warnings'] %}
+                                <tr>
+                                    <td><strong>{{ prop_name.replace('_', ' ') }}</strong></td>
+                                    <td><code>{{ prop_value }}</code></td>
+                                    <td>
+                                        {% set assessment_key = prop_name ~ '_Assessment' %}
+                                        {% if assessment_key in node_data %}
+                                            {% set assessment = node_data[assessment_key] %}
+                                            {% if 'IN AD' in assessment %}
+                                                <span class="badge bg-success"><i class="fas fa-check"></i> {{ assessment }}</span>
+                                            {% elif 'OUT OF AD' in assessment %}
+                                                <span class="badge bg-danger"><i class="fas fa-times"></i> {{ assessment }}</span>
+                                            {% elif 'CANNOT DETERMINE' in assessment %}
+                                                <span class="badge bg-secondary"><i class="fas fa-question"></i> {{ assessment }}</span>
+                                            {% else %}
+                                                <span class="badge bg-warning">{{ assessment }}</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {% if 'Assessment_Details' in node_data %}
+                    <div class="alert alert-info mt-3 mb-2">
+                        <strong><i class="fas fa-info-circle"></i> Details:</strong> {{ node_data.Assessment_Details }}
+                    </div>
+                    {% endif %}
+
+                    {% if 'Warnings' in node_data and node_data.Warnings != 'None' %}
+                    <div class="alert alert-warning mt-2">
+                        <strong><i class="fas fa-exclamation-triangle"></i> Warnings:</strong><br>
+                        {{ node_data.Warnings }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% endfor %}
+
+            <!-- Load More Section -->
+            <div id="load-more-section" class="text-center my-4" style="display: none;">
+                <div class="alert alert-warning mb-3">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Large dataset detected!</strong>
+                    For faster page loading, results are shown in batches of 10 compounds.
+                    <a href="{{ url_for('episuite.download_results', mode='advanced', format='xlsx') }}" class="alert-link">Download full results</a> to view all data at once.
+                </div>
+                <button id="load-more-btn" class="btn btn-primary btn-lg">
+                    <i class="fas fa-chevron-down"></i> Load Next 10 Compounds
+                </button>
+                <div class="mt-2 text-muted">
+                    <small id="progress-text"></small>
+                </div>
+            </div>
+
+            <!-- Download Buttons -->
+            <div class="d-flex flex-wrap justify-content-md-end gap-2 mt-4">
+                <div class="btn-group" style="position: relative; z-index: 1000;">
+                    <button type="button" class="btn btn-outline-success dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">
+                        <i class="fas fa-download"></i> Download Basic
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" style="position: absolute; z-index: 9999;">
+                        <li>
+                            <a class="dropdown-item" href="{{ url_for('episuite.download_results', mode='basic', format='csv') }}">
+                                <i class="fas fa-file-csv text-success me-2"></i>CSV
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="{{ url_for('episuite.download_results', mode='basic', format='xlsx') }}">
+                                <i class="fas fa-file-excel text-success me-2"></i>XLSX
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="btn-group" style="position: relative; z-index: 1000;">
+                    <button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">
+                        <i class="fas fa-file-alt"></i> Download Advanced
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" style="position: absolute; z-index: 9999;">
+                        <li>
+                            <a class="dropdown-item" href="{{ url_for('episuite.download_results', mode='advanced', format='csv') }}">
+                                <i class="fas fa-file-csv text-success me-2"></i>CSV
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="{{ url_for('episuite.download_results', mode='advanced', format='xlsx') }}">
+                                <i class="fas fa-file-excel text-success me-2"></i>XLSX
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- EPI Suite Info Card -->
+        <div class="modern-card animate-in">
+            <h4><i class="fas fa-info-circle"></i> About EPI Suite</h4>
+            <p class="text-muted">EPI Suite™ is a suite of physical/chemical property and environmental fate estimation programs developed by the US EPA.</p>
+
+            <div class="descriptor-groups-info">
+                <div class="group-category">
+                    <strong>Currently Supported Modules:</strong>
+                    <ul>
+                        <li><strong>KOWWIN</strong> - Octanol-water partition coefficient (Log Kow)</li>
+                        <li><strong>BIOWIN</strong> - Biodegradation probability (Biowin1–Biowin6)</li>
+                        <li><strong>BCFBAF</strong> - Bioconcentration &amp; bioaccumulation factors</li>
+                        <li><strong>KOCWIN</strong> - Soil sorption coefficient (Koc)</li>
+                    </ul>
+                </div>
+                <div class="group-category">
+                    <strong>Planned Modules:</strong>
+                    <ul>
+                        <li>WSKOW - Water solubility</li>
+                        <li>AOPWIN - Atmospheric oxidation</li>
+                        <li>HYDROWIN - Hydrolysis rates</li>
+                        <li>KOCWIN - Soil sorption coefficient</li>
+                        <li>HENRY - Henry's Law constant</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Theme Scripts -->
+    <script>
+        function applyDarkThemeStyles() {
+            document.querySelectorAll('.alert').forEach(alert => {
+                alert.classList.add('bg-dark', 'text-light');
+            });
+        }
+
+        function applyLightThemeStyles() {
+            document.querySelectorAll('.alert').forEach(alert => {
+                alert.classList.remove('bg-dark', 'text-light');
+            });
+        }
+
+        document.getElementById('darkTheme').addEventListener('click', () => {
+            document.body.classList.add('dark-theme');
+            localStorage.setItem('theme', 'dark');
+            applyDarkThemeStyles();
+        });
+
+        document.getElementById('lightTheme').addEventListener('click', () => {
+            document.body.classList.remove('dark-theme');
+            localStorage.setItem('theme', 'light');
+            applyLightThemeStyles();
+        });
+
+        // Inicjalizacja motywu
+        const savedTheme = localStorage.getItem('theme');
+        if(savedTheme === 'dark') {
+            document.body.classList.add('dark-theme');
+            applyDarkThemeStyles();
+        }
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const setLightTheme = (enable) => {
+                if(enable) {
+                    document.body.classList.add('light-theme');
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    localStorage.setItem('theme', 'light');
+                } else {
+                    document.body.classList.remove('light-theme');
+                    document.documentElement.removeAttribute('data-theme');
+                    localStorage.setItem('theme', 'dark');
+                }
+            };
+
+            // Obsługa przycisków
+            document.getElementById('lightTheme').addEventListener('click', () => setLightTheme(true));
+            document.getElementById('darkTheme').addEventListener('click', () => setLightTheme(false));
+
+            // Inicjalizacja
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            setLightTheme(savedTheme === 'light');
+        });
+    </script>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Dropdown z-index fix -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Fix dropdown z-index issues
+            const dropdowns = document.querySelectorAll('.dropdown-toggle');
+
+            dropdowns.forEach(function(dropdown) {
+                dropdown.addEventListener('shown.bs.dropdown', function() {
+                    // Find the dropdown menu
+                    const menu = this.nextElementSibling;
+                    if (menu && menu.classList.contains('dropdown-menu')) {
+                        // Force highest z-index with absolute positioning
+                        menu.style.zIndex = '99999';
+                        menu.style.position = 'absolute';
+
+                        // Ensure parent has relative positioning
+                        const btnGroup = this.closest('.btn-group');
+                        if (btnGroup) {
+                            btnGroup.style.position = 'relative';
+                            btnGroup.style.zIndex = '1000';
+                        }
+                    }
+                });
+            });
+
+            // Also monitor for dynamically added dropdowns
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    mutation.addedNodes.forEach(function(node) {
+                        if (node.classList && node.classList.contains('dropdown-menu')) {
+                            node.style.zIndex = '99999';
+                            node.style.position = 'absolute';
+                        }
+                    });
+                });
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+
+            // File upload validation
+            const uploadForm = document.getElementById('epi-upload-form');
+            const fileInput = document.getElementById('epi-file-input');
+
+            if (uploadForm && fileInput) {
+                uploadForm.addEventListener('submit', function(e) {
+                    const files = fileInput.files;
+
+                    if (files.length === 0) {
+                        alert('Please select a file first!');
+                        e.preventDefault();
+                        return false;
+                    }
+
+                    // Check file extension
+                    const fileName = files[0].name;
+                    const fileExt = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
+
+                    if (fileExt !== '.txt' && fileExt !== '.out') {
+                        alert('Please select a .txt or .out file!');
+                        e.preventDefault();
+                        return false;
+                    }
+
+                    return true;
+                });
+            }
+
+            // Pagination for compound results
+            const compoundCards = document.querySelectorAll('.compound-result');
+            const totalCompounds = compoundCards.length;
+            let currentlyShowing = 0;
+            const batchSize = 10;
+
+            function showNextBatch() {
+                const start = currentlyShowing;
+                const end = Math.min(currentlyShowing + batchSize, totalCompounds);
+
+                for (let i = start; i < end; i++) {
+                    compoundCards[i].style.display = 'block';
+                }
+
+                currentlyShowing = end;
+                updateUI();
+            }
+
+            function updateUI() {
+                // Update showing count
+                const showingCount = document.getElementById('showing-count');
+                if (showingCount && totalCompounds > 0) {
+                    showingCount.innerHTML = `<br><small class="text-muted">Showing: <strong>${currentlyShowing}</strong> of <strong>${totalCompounds}</strong></small>`;
+                }
+
+                // Show/hide load more section
+                const loadMoreSection = document.getElementById('load-more-section');
+                const progressText = document.getElementById('progress-text');
+
+                if (totalCompounds > 10) {
+                    if (currentlyShowing < totalCompounds) {
+                        loadMoreSection.style.display = 'block';
+                        const remaining = totalCompounds - currentlyShowing;
+                        progressText.textContent = `${remaining} compounds remaining`;
+                    } else {
+                        loadMoreSection.style.display = 'none';
+                    }
+                }
+            }
+
+            // Load More button handler
+            const loadMoreBtn = document.getElementById('load-more-btn');
+            if (loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', function() {
+                    showNextBatch();
+
+                    // Smooth scroll to first newly loaded card
+                    setTimeout(() => {
+                        const firstNewCard = compoundCards[currentlyShowing - batchSize];
+                        if (firstNewCard) {
+                            firstNewCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }
+                    }, 100);
+                });
+            }
+
+            // Initialize - show first batch
+            if (totalCompounds > 0) {
+                showNextBatch();
+            }
+        });
+    </script>
+</body>
+</html>

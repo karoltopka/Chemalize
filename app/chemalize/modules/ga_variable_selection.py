@@ -1,0 +1,1112 @@
+"""
+Genetic Algorithm for Variable Selection in Multiple Linear Regression
+"""
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import cross_val_score, train_test_split, LeaveOneOut
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.feature_selection import VarianceThreshold
+from sklearn.metrics import mean_squared_error
+from scipy import stats
+import random
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+
+
+class GeneticAlgorithmSelector:
+    """
+    Genetic Algorithm for selecting optimal variable subset for MLR
+    """
+
+    def __init__(self,
+                 n_variables=None,
+                 correlation_threshold=0.95,
+                 mutation_rate=0.1,
+                 random_models_ratio=0.1,
+                 population_size=50,
+                 n_iterations=100,
+                 max_retries=3,
+                 cv_folds=5,
+                 cv_folds_validation=3,
+                 use_validation=False,
+                 test_normality=True,
+                 normality_alpha=0.05,
+                 n_best_models=5,
+                 check_ad=False,
+                 ad_threshold=100.0,
+                 progress_callback=None,
+                 random_state=42):
+        """
+        Initialize GA selector
+
+        Parameters:
+        -----------
+        n_variables : int or None
+            Target number of variables to select. If None, will be optimized
+        correlation_threshold : float
+            Maximum allowed correlation between features (default: 0.95)
+        mutation_rate : float
+            Probability of mutation (default: 0.1)
+        random_models_ratio : float
+            Ratio of random models in population (default: 0.1)
+        population_size : int
+            Size of the population (default: 50)
+        n_iterations : int
+            Number of generations (default: 100)
+        max_retries : int
+            Maximum number of algorithm retries (default: 3)
+        cv_folds : int
+            Number of cross-validation folds (default: 5)
+        cv_folds_validation : int
+            Number of CV folds for validation set (default: 3)
+        use_validation : bool
+            Whether to use validation set (default: False)
+        test_normality : bool
+            Whether to test residuals normality (default: True)
+        normality_alpha : float
+            Alpha for normality test (default: 0.05)
+        n_best_models : int
+            Number of best models to keep (default: 5)
+        check_ad : bool
+            Whether to check Applicability Domain for training set (default: False)
+        ad_threshold : float
+            Minimum required AD coverage for training set in percent (default: 100.0)
+            Models with AD_train < ad_threshold will be rejected
+        random_state : int
+            Random state for reproducibility
+        """
+        self.n_variables = n_variables
+        self.correlation_threshold = correlation_threshold
+        self.mutation_rate = mutation_rate
+        self.random_models_ratio = random_models_ratio
+        self.population_size = population_size
+        self.n_iterations = n_iterations
+        self.max_retries = max_retries
+        self.cv_folds = cv_folds
+        self.cv_folds_validation = cv_folds_validation
+        self.use_validation = use_validation
+        self.test_normality = test_normality
+        self.normality_alpha = normality_alpha
+        self.n_best_models = n_best_models
+        self.check_ad = check_ad
+        self.ad_threshold = ad_threshold
+        self.progress_callback = progress_callback
+        self.random_state = random_state
+
+        self.best_features_ = None
+        self.best_score_ = -np.inf
+        self.fitness_history_ = []
+        self.feature_names_ = None
+        self.best_models_ = []  # List to store top N models
+
+        np.random.seed(random_state)
+        random.seed(random_state)
+
+    def _check_correlation(self, X, feature_mask):
+        """Check if selected features meet correlation threshold"""
+        selected_indices = np.where(feature_mask)[0]
+        if len(selected_indices) < 2:
+            return True
+
+        X_selected = X[:, selected_indices]
+        corr_matrix = np.corrcoef(X_selected.T)
+
+        # Check upper triangle of correlation matrix
+        for i in range(len(selected_indices)):
+            for j in range(i + 1, len(selected_indices)):
+                if abs(corr_matrix[i, j]) > self.correlation_threshold:
+                    return False
+        return True
+
+    def _calculate_ad_coverage(self, X, y, feature_mask):
+        """
+        Calculate Applicability Domain coverage for training set using Williams Plot method.
+
+        The AD is defined by:
+        - Leverage threshold: h* = 3(p+1)/n where p is number of variables, n is number of samples
+        - Residual threshold: |standardized residual| < 3
+
+        A sample is within AD if: leverage < h* AND |std_residual| < 3
+
+        Parameters:
+        -----------
+        X : array
+            Feature matrix (training data)
+        y : array
+            Target values (training data)
+        feature_mask : array
+            Boolean mask for selected features
+
+        Returns:
+        --------
+        float
+            AD coverage percentage (0-100). Returns 0 if calculation fails.
+        """
+        selected_indices = np.where(feature_mask)[0]
+        if len(selected_indices) == 0:
+            return 0.0
+
+        X_selected = X[:, selected_indices]
+        n_samples = X_selected.shape[0]
+        n_features = X_selected.shape[1]
+
+        # Need at least n_features + 2 samples for meaningful calculation
+        if n_samples <= n_features + 1:
+            return 0.0
+
+        try:
+            # Fit model
+            model = LinearRegression()
+            model.fit(X_selected, y)
+            y_pred = model.predict(X_selected)
+
+            # Calculate residuals
+            residuals = y - y_pred
+
+            # Standardize residuals
+            residual_std = np.std(residuals)
+            if residual_std == 0:
+                return 100.0  # Perfect fit, all within AD
+
+            std_residuals = (residuals - np.mean(residuals)) / residual_std
+
+            # Calculate hat matrix for leverage
+            # H = X(X'X)^(-1)X'
+            # Add small regularization for numerical stability
+            XtX = X_selected.T @ X_selected
+            # Add small values to diagonal for stability
+            reg_factor = 1e-8 * np.trace(XtX) / n_features if n_features > 0 else 1e-8
+            XtX_reg = XtX + reg_factor * np.eye(n_features)
+
+            try:
+                XtX_inv = np.linalg.inv(XtX_reg)
+            except np.linalg.LinAlgError:
+                # If matrix is still singular, use pseudo-inverse
+                XtX_inv = np.linalg.pinv(XtX_reg)
+
+            # Calculate leverage (diagonal of hat matrix)
+            leverage = np.sum((X_selected @ XtX_inv) * X_selected, axis=1)
+
+            # Calculate h* threshold
+            # h* = 3(p+1)/n where p is number of predictors
+            h_star = 3 * (n_features + 1) / n_samples
+
+            # Count samples within AD
+            # Within AD if: leverage < h* AND |std_residual| < 3
+            within_ad = (leverage < h_star) & (np.abs(std_residuals) < 3)
+            ad_coverage = 100.0 * np.sum(within_ad) / n_samples
+
+            return float(ad_coverage)
+
+        except Exception as e:
+            # If calculation fails, return 0 (model will be rejected if check_ad is True)
+            return 0.0
+
+    def _calculate_detailed_metrics(self, feature_mask, X_train, y_train):
+        """
+        Calculate detailed metrics for a feature subset: R2, Q2loo, RMSE, AD coverage, coefficients
+
+        Returns:
+        --------
+        dict with keys: 'r2', 'q2loo', 'rmse', 'ad_coverage', 'intercept', 'coefficients', 'valid'
+        """
+        selected_indices = np.where(feature_mask)[0]
+
+        if len(selected_indices) == 0:
+            return {'r2': 0.0, 'q2loo': 0.0, 'rmse': 0.0, 'ad_coverage': 0.0,
+                    'intercept': 0.0, 'coefficients': [], 'valid': False}
+
+        X_selected = X_train[:, selected_indices]
+
+        try:
+            model = LinearRegression()
+
+            # Calculate R2 using cross-validation
+            cv_scores = cross_val_score(
+                model, X_selected, y_train,
+                cv=self.cv_folds,
+                scoring='r2',
+                n_jobs=-1
+            )
+            r2 = np.mean(cv_scores)
+
+            # Calculate Q2loo (Leave-One-Out Cross-Validation)
+            # For small datasets or when requested
+            if len(y_train) <= 100:
+                loo = LeaveOneOut()
+                loo_predictions = []
+                loo_actuals = []
+
+                for train_idx, test_idx in loo.split(X_selected):
+                    X_train_fold = X_selected[train_idx]
+                    y_train_fold = y_train[train_idx]
+                    X_test_fold = X_selected[test_idx]
+                    y_test_fold = y_train[test_idx]
+
+                    model_loo = LinearRegression()
+                    model_loo.fit(X_train_fold, y_train_fold)
+                    y_pred = model_loo.predict(X_test_fold)
+
+                    loo_predictions.extend(y_pred)
+                    loo_actuals.extend(y_test_fold)
+
+                # Calculate Q2loo = 1 - PRESS/TSS
+                loo_predictions = np.array(loo_predictions)
+                loo_actuals = np.array(loo_actuals)
+                press = np.sum((loo_actuals - loo_predictions) ** 2)
+                tss = np.sum((loo_actuals - np.mean(loo_actuals)) ** 2)
+                q2loo = 1 - (press / tss) if tss > 0 else 0.0
+            else:
+                # For large datasets, use 5-fold CV as approximation
+                q2loo_scores = cross_val_score(
+                    model, X_selected, y_train,
+                    cv=min(5, len(y_train)),
+                    scoring='r2',
+                    n_jobs=-1
+                )
+                q2loo = np.mean(q2loo_scores)
+
+            # Calculate RMSE using cross-validation
+            rmse_scores = -cross_val_score(
+                model, X_selected, y_train,
+                cv=self.cv_folds,
+                scoring='neg_root_mean_squared_error',
+                n_jobs=-1
+            )
+            rmse = np.mean(rmse_scores)
+
+            # Calculate AD coverage
+            ad_coverage = self._calculate_ad_coverage(X_train, y_train, feature_mask)
+
+            # Fit final model on all data to get coefficients
+            model.fit(X_selected, y_train)
+            intercept = float(model.intercept_)
+            coefficients = [float(c) for c in model.coef_]
+
+            return {
+                'r2': float(r2),
+                'q2loo': float(q2loo),
+                'rmse': float(rmse),
+                'ad_coverage': float(ad_coverage),
+                'intercept': intercept,
+                'coefficients': coefficients,
+                'valid': True
+            }
+
+        except Exception as e:
+            return {'r2': 0.0, 'q2loo': 0.0, 'rmse': 0.0, 'ad_coverage': 0.0,
+                    'intercept': 0.0, 'coefficients': [], 'valid': False}
+
+    def _fitness_function(self, feature_mask, X_train, y_train, X_val=None, y_val=None):
+        """
+        Calculate fitness of a feature subset
+
+        Returns higher score for better models
+        """
+        selected_indices = np.where(feature_mask)[0]
+
+        # Minimum 1 variable required
+        if len(selected_indices) == 0:
+            return -np.inf
+
+        # Check target number of variables constraint
+        if self.n_variables is not None:
+            if len(selected_indices) != self.n_variables:
+                # Penalize if not matching target number
+                penalty = abs(len(selected_indices) - self.n_variables) * 0.1
+                return -penalty
+
+        # Check correlation constraint
+        if not self._check_correlation(X_train, feature_mask):
+            return -np.inf
+
+        # Check Applicability Domain constraint if enabled
+        if self.check_ad:
+            ad_coverage = self._calculate_ad_coverage(X_train, y_train, feature_mask)
+            if ad_coverage < self.ad_threshold:
+                # Reject model if training set AD coverage is below threshold
+                return -np.inf
+
+        X_selected = X_train[:, selected_indices]
+
+        try:
+            model = LinearRegression()
+
+            # Cross-validation on training set
+            cv_scores = cross_val_score(
+                model, X_selected, y_train,
+                cv=self.cv_folds,
+                scoring='r2',
+                n_jobs=-1
+            )
+            train_score = np.mean(cv_scores)
+
+            # If using validation set
+            if self.use_validation and X_val is not None and y_val is not None:
+                X_val_selected = X_val[:, selected_indices]
+
+                # Cross-validation on validation set
+                val_scores = cross_val_score(
+                    model, X_val_selected, y_val,
+                    cv=self.cv_folds_validation,
+                    scoring='r2',
+                    n_jobs=-1
+                )
+                val_score = np.mean(val_scores)
+
+                # Return worse score as final score
+                final_score = min(train_score, val_score)
+            else:
+                final_score = train_score
+
+            # Test residuals normality if requested
+            if self.test_normality:
+                model.fit(X_selected, y_train)
+                y_pred = model.predict(X_selected)
+                residuals = y_train - y_pred
+
+                # D'Agostino and Pearson's test
+                _, p_value = stats.normaltest(residuals)
+
+                # Penalize if residuals are not normal
+                if p_value < self.normality_alpha:
+                    final_score -= 0.05  # Small penalty
+
+            return final_score
+
+        except Exception as e:
+            return -np.inf
+
+    def _create_individual(self, n_features):
+        """Create a random individual (chromosome)"""
+        if self.n_variables is not None:
+            # Create individual with exact number of variables
+            individual = np.zeros(n_features, dtype=bool)
+            selected = np.random.choice(n_features, self.n_variables, replace=False)
+            individual[selected] = True
+        else:
+            # Random number of variables
+            individual = np.random.rand(n_features) > 0.5
+            # Ensure at least one feature is selected
+            if not individual.any():
+                individual[np.random.randint(n_features)] = True
+        return individual
+
+    def _initialize_population(self, n_features):
+        """Initialize population with mix of random and targeted individuals"""
+        population = []
+
+        # Number of random individuals
+        n_random = int(self.population_size * self.random_models_ratio)
+
+        # Create targeted individuals
+        for _ in range(self.population_size - n_random):
+            population.append(self._create_individual(n_features))
+
+        # Create completely random individuals
+        for _ in range(n_random):
+            if self.n_variables is not None:
+                # Even random individuals must have correct n_variables
+                individual = self._create_individual(n_features)
+            else:
+                individual = np.random.rand(n_features) > 0.7
+                if not individual.any():
+                    individual[np.random.randint(n_features)] = True
+            population.append(individual)
+
+        return population
+
+    def _tournament_selection(self, population, fitness_scores, tournament_size=3):
+        """Select individual using tournament selection"""
+        tournament_indices = np.random.choice(len(population), tournament_size, replace=False)
+        tournament_fitness = [fitness_scores[i] for i in tournament_indices]
+        winner_idx = tournament_indices[np.argmax(tournament_fitness)]
+        return population[winner_idx].copy()
+
+    def _crossover(self, parent1, parent2):
+        """Perform uniform crossover"""
+        mask = np.random.rand(len(parent1)) > 0.5
+        child1 = np.where(mask, parent1, parent2)
+        child2 = np.where(mask, parent2, parent1)
+
+        # Ensure at least one feature is selected
+        if not child1.any():
+            child1[np.random.randint(len(child1))] = True
+        if not child2.any():
+            child2[np.random.randint(len(child2))] = True
+
+        # Ensure target number of variables if specified
+        if self.n_variables is not None:
+            child1 = self._adjust_to_n_variables(child1)
+            child2 = self._adjust_to_n_variables(child2)
+
+        return child1, child2
+
+    def _adjust_to_n_variables(self, individual):
+        """Adjust individual to have exactly n_variables features selected"""
+        n_selected = np.sum(individual)
+        if n_selected != self.n_variables:
+            if n_selected > self.n_variables:
+                # Remove random features
+                selected = np.where(individual)[0]
+                to_remove = np.random.choice(
+                    selected,
+                    n_selected - self.n_variables,
+                    replace=False
+                )
+                individual[to_remove] = False
+            else:
+                # Add random features
+                not_selected = np.where(~individual)[0]
+                to_add = np.random.choice(
+                    not_selected,
+                    self.n_variables - n_selected,
+                    replace=False
+                )
+                individual[to_add] = True
+        return individual
+
+    def _mutate(self, individual):
+        """Mutate individual by flipping bits"""
+        for i in range(len(individual)):
+            if np.random.rand() < self.mutation_rate:
+                individual[i] = not individual[i]
+
+        # Ensure at least one feature is selected
+        if not individual.any():
+            individual[np.random.randint(len(individual))] = True
+
+        # Ensure target number of variables if specified
+        if self.n_variables is not None:
+            n_selected = np.sum(individual)
+            if n_selected != self.n_variables:
+                if n_selected > self.n_variables:
+                    # Remove random features
+                    selected = np.where(individual)[0]
+                    to_remove = np.random.choice(
+                        selected,
+                        n_selected - self.n_variables,
+                        replace=False
+                    )
+                    individual[to_remove] = False
+                else:
+                    # Add random features
+                    not_selected = np.where(~individual)[0]
+                    to_add = np.random.choice(
+                        not_selected,
+                        self.n_variables - n_selected,
+                        replace=False
+                    )
+                    individual[to_add] = True
+
+        return individual
+
+    def fit(self, X, y, X_val=None, y_val=None):
+        """
+        Run genetic algorithm to find optimal feature subset
+
+        Parameters:
+        -----------
+        X : array-like or DataFrame
+            Training features
+        y : array-like or Series
+            Training target
+        X_val : array-like or DataFrame, optional
+            Validation features
+        y_val : array-like or Series, optional
+            Validation target
+
+        Returns:
+        --------
+        self
+        """
+        # Convert to numpy arrays
+        if isinstance(X, pd.DataFrame):
+            self.feature_names_ = X.columns.tolist()
+            X = X.values
+        else:
+            self.feature_names_ = [f"Feature_{i}" for i in range(X.shape[1])]
+
+        if isinstance(y, (pd.Series, pd.DataFrame)):
+            y = y.values.ravel()
+
+        if X_val is not None and isinstance(X_val, pd.DataFrame):
+            X_val = X_val.values
+        if y_val is not None and isinstance(y_val, (pd.Series, pd.DataFrame)):
+            y_val = y_val.values.ravel()
+
+        n_features = X.shape[1]
+
+        # Dictionary to store all unique models with their scores
+        all_models = {}  # key: tuple of feature indices, value: fitness score
+
+        # Run algorithm with retries
+        for retry in range(self.max_retries):
+            print(f"GA Run {retry + 1}/{self.max_retries}")
+
+            # Initialize population
+            population = self._initialize_population(n_features)
+
+            # Evolution loop
+            generation_best_scores = []
+
+            for generation in range(self.n_iterations):
+                # Calculate fitness for all individuals
+                fitness_scores = [
+                    self._fitness_function(ind, X, y, X_val, y_val)
+                    for ind in population
+                ]
+
+                # Store all unique models with valid fitness
+                for ind, score in zip(population, fitness_scores):
+                    if score > -np.inf:
+                        # Create hashable key from feature indices
+                        feature_key = tuple(np.where(ind)[0])
+
+                        # Only store models with correct n_variables (if specified)
+                        if self.n_variables is not None and len(feature_key) != self.n_variables:
+                            continue
+
+                        if feature_key not in all_models or score > all_models[feature_key]:
+                            all_models[feature_key] = score
+
+                # Track best individual
+                max_fitness = max(fitness_scores)
+                generation_best_scores.append(max_fitness)
+
+                if max_fitness > self.best_score_:
+                    self.best_score_ = max_fitness
+                    best_idx = fitness_scores.index(max_fitness)
+                    self.best_features_ = population[best_idx].copy()
+
+                # Calculate detailed metrics for best individual in current generation
+                best_idx_current = fitness_scores.index(max_fitness)
+                best_individual_current = population[best_idx_current]
+                detailed_metrics = self._calculate_detailed_metrics(best_individual_current, X, y)
+
+                # Report progress via callback
+                if self.progress_callback:
+                    self.progress_callback({
+                        'retry': int(retry + 1),
+                        'max_retries': int(self.max_retries),
+                        'generation': int(generation + 1),
+                        'total_generations': int(self.n_iterations),
+                        'best_score': float(max_fitness),
+                        'overall_best_score': float(self.best_score_),
+                        'n_features': int(np.sum(self.best_features_)),
+                        'unique_models': int(len(all_models)),
+                        'r2': float(detailed_metrics['r2']),
+                        'q2loo': float(detailed_metrics['q2loo']),
+                        'rmse': float(detailed_metrics['rmse'])
+                    })
+                elif generation % 10 == 0:
+                    print(f"  Generation {generation}/{self.n_iterations}, "
+                          f"Best Score: {max_fitness:.4f}")
+
+                # Create next generation
+                new_population = []
+
+                # Elitism - keep best individual
+                best_idx = fitness_scores.index(max_fitness)
+                new_population.append(population[best_idx].copy())
+
+                # Generate rest of population
+                while len(new_population) < self.population_size:
+                    # Selection
+                    parent1 = self._tournament_selection(population, fitness_scores)
+                    parent2 = self._tournament_selection(population, fitness_scores)
+
+                    # Crossover
+                    child1, child2 = self._crossover(parent1, parent2)
+
+                    # Mutation
+                    child1 = self._mutate(child1)
+                    child2 = self._mutate(child2)
+
+                    new_population.extend([child1, child2])
+
+                # Trim to population size
+                population = new_population[:self.population_size]
+
+            self.fitness_history_.extend(generation_best_scores)
+
+            print(f"  Final Best Score: {self.best_score_:.4f}")
+
+        # Select top N models and calculate detailed metrics for each
+        sorted_models = sorted(all_models.items(), key=lambda x: x[1], reverse=True)
+        self.best_models_ = []
+
+        print(f"\nCalculating detailed metrics for top {self.n_best_models} models...")
+        for i, (feature_indices, score) in enumerate(sorted_models[:self.n_best_models]):
+            # Create feature mask for this model
+            feature_mask = np.zeros(X.shape[1], dtype=bool)
+            feature_mask[list(feature_indices)] = True
+
+            # Calculate detailed metrics for this model
+            detailed_metrics = self._calculate_detailed_metrics(feature_mask, X, y)
+
+            feature_names = [self.feature_names_[idx] for idx in feature_indices]
+
+            # Build equation string
+            intercept = detailed_metrics['intercept']
+            coefficients = detailed_metrics['coefficients']
+            equation_parts = [f"{intercept:.6f}"]
+            for fname, coef in zip(feature_names, coefficients):
+                if coef >= 0:
+                    equation_parts.append(f"+ {coef:.6f}*{fname}")
+                else:
+                    equation_parts.append(f"- {abs(coef):.6f}*{fname}")
+            equation = " ".join(equation_parts)
+
+            self.best_models_.append({
+                'rank': i + 1,
+                'score': score,  # CV R² from fitness function
+                'r2': detailed_metrics['r2'],  # CV R²
+                'q2loo': detailed_metrics['q2loo'],  # LOO CV
+                'rmse': detailed_metrics['rmse'],  # CV RMSE
+                'ad_coverage': detailed_metrics['ad_coverage'],  # AD coverage for training set
+                'intercept': intercept,
+                'coefficients': coefficients,
+                'equation': equation,
+                'n_features': len(feature_indices),
+                'feature_indices': list(feature_indices),
+                'feature_names': feature_names
+            })
+
+        print(f"\nTop {len(self.best_models_)} models identified:")
+        for model in self.best_models_:
+            print(f"  Rank {model['rank']}: CV R²={model['score']:.4f}, "
+                  f"Q²loo={model['q2loo']:.4f}, RMSE={model['rmse']:.4f}, "
+                  f"AD={model['ad_coverage']:.1f}%, "
+                  f"N_features={model['n_features']}, Features={model['feature_names']}")
+
+        return self
+
+    def get_selected_features(self):
+        """Get list of selected feature names for best model"""
+        if self.best_features_ is None:
+            raise ValueError("Model not fitted yet!")
+
+        selected_indices = np.where(self.best_features_)[0]
+        return [self.feature_names_[i] for i in selected_indices]
+
+    def get_best_models(self):
+        """Get list of top N models with their details"""
+        if not self.best_models_:
+            raise ValueError("Model not fitted yet!")
+
+        return self.best_models_
+
+    def plot_fitness_history(self, temp_path='temp/'):
+        """Plot fitness evolution over generations"""
+        os.makedirs(temp_path, exist_ok=True)
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(self.fitness_history_, linewidth=2, color='#440154')
+        plt.xlabel('Generation', fontsize=12)
+        plt.ylabel('Best Fitness (R²)', fontsize=12)
+        plt.title('Genetic Algorithm Fitness Evolution', fontsize=14, fontweight='bold')
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+
+        plot_path = os.path.join(temp_path, 'ga_fitness_history.png')
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        plt.close()
+
+        return plot_path
+
+
+def detect_and_remove_y_outliers(df, target_var, method='iqr', threshold=3.0):
+    """
+    Detect and remove outliers from target variable Y
+
+    Tests for normality and removes outliers using specified method.
+
+    Parameters:
+    -----------
+    df : DataFrame
+        Input dataframe with all data
+    target_var : str
+        Name of target variable
+    method : str
+        'iqr' for Interquartile Range or 'zscore' for Z-score method
+    threshold : float
+        Multiplier for IQR (default 1.5) or Z-score threshold (default 3.0)
+
+    Returns:
+    --------
+    dict with keys:
+        - keep_indices: indices to keep
+        - removed_samples: list of dicts with info about removed samples
+        - normality_before: dict with normality test results before removal
+        - normality_after: dict with normality test results after removal
+    """
+    from scipy.stats import shapiro
+
+    y = df[target_var].copy()
+
+    # Test normality before outlier removal
+    if len(y) >= 3:
+        stat_before, p_value_before = shapiro(y)
+        normality_before = {
+            'test': 'Shapiro-Wilk',
+            'statistic': float(stat_before),
+            'p_value': float(p_value_before),
+            'is_normal': p_value_before > 0.05
+        }
+    else:
+        normality_before = {'test': 'Shapiro-Wilk', 'statistic': None, 'p_value': None, 'is_normal': None}
+
+    # Detect outliers
+    if method == 'iqr':
+        Q1 = y.quantile(0.25)
+        Q3 = y.quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - threshold * IQR
+        upper_bound = Q3 + threshold * IQR
+        outlier_mask = (y < lower_bound) | (y > upper_bound)
+    elif method == 'zscore':
+        z_scores = np.abs(stats.zscore(y))
+        outlier_mask = z_scores > threshold
+    else:
+        raise ValueError(f"Unknown outlier detection method: {method}")
+
+    # Get outlier indices
+    outlier_indices = y[outlier_mask].index.tolist()
+    keep_indices = y[~outlier_mask].index.tolist()
+
+    # Create removed samples info with full row data
+    removed_samples = []
+    for idx in outlier_indices:
+        sample_data = df.loc[idx].to_dict()
+        sample_data['Sample_Index'] = int(idx)
+        sample_data['Y_Value'] = float(y.loc[idx])
+        removed_samples.append(sample_data)
+
+    # Test normality after outlier removal
+    y_cleaned = y[~outlier_mask]
+    if len(y_cleaned) >= 3:
+        stat_after, p_value_after = shapiro(y_cleaned)
+        normality_after = {
+            'test': 'Shapiro-Wilk',
+            'statistic': float(stat_after),
+            'p_value': float(p_value_after),
+            'is_normal': p_value_after > 0.05
+        }
+    else:
+        normality_after = {'test': 'Shapiro-Wilk', 'statistic': None, 'p_value': None, 'is_normal': None}
+
+    return {
+        'keep_indices': keep_indices,
+        'removed_samples': removed_samples,
+        'normality_before': normality_before,
+        'normality_after': normality_after,
+        'method': method,
+        'threshold': threshold
+    }
+
+
+def preprocess_for_ga(df, target_var, y_transformation='none',
+                     autoscale=True, remove_zero_variance=True,
+                     remove_low_variance=False, variance_threshold=0.01):
+    """
+    Preprocess data before GA variable selection
+
+    Parameters:
+    -----------
+    df : DataFrame
+        Input dataframe
+    target_var : str
+        Target variable name
+    y_transformation : str
+        Transformation for Y: 'none', 'log', 'sqrt', 'square', 'inverse'
+    autoscale : bool
+        Whether to apply autoscaling (standardization)
+    remove_zero_variance : bool
+        Whether to remove zero variance features
+    remove_low_variance : bool
+        Whether to remove low variance features
+    variance_threshold : float
+        Threshold for low variance removal
+
+    Returns:
+    --------
+    X : DataFrame
+        Preprocessed features
+    y : Series
+        Preprocessed target
+    removed_features : list
+        List of removed feature names
+    preprocessing_info : dict
+        Information about preprocessing steps
+    """
+    preprocessing_info = {
+        'y_transformation': y_transformation,
+        'autoscale': autoscale,
+        'removed_features': []
+    }
+
+    # Separate target and features
+    y = df[target_var].copy()
+    X = df.drop(columns=[target_var]).copy()
+
+    # Apply Y transformation
+    original_y = y.copy()
+    if y_transformation == 'log':
+        if (y <= 0).any():
+            raise ValueError("Log transformation requires all positive values")
+        y = np.log(y)
+    elif y_transformation == 'sqrt':
+        if (y < 0).any():
+            raise ValueError("Square root transformation requires non-negative values")
+        y = np.sqrt(y)
+    elif y_transformation == 'square':
+        y = y ** 2
+    elif y_transformation == 'inverse':
+        if (y == 0).any():
+            raise ValueError("Inverse transformation requires non-zero values")
+        y = 1 / y
+
+    preprocessing_info['y_transformed'] = y
+    preprocessing_info['y_original'] = original_y
+
+    # Remove zero variance features
+    removed_features = []
+    if remove_zero_variance:
+        zero_var_features = X.columns[X.var() == 0].tolist()
+        X = X.drop(columns=zero_var_features)
+        removed_features.extend(zero_var_features)
+        preprocessing_info['zero_variance_removed'] = zero_var_features
+
+    # Remove low variance features
+    if remove_low_variance:
+        selector = VarianceThreshold(threshold=variance_threshold)
+        selector.fit(X)
+        low_var_mask = selector.get_support()
+        low_var_features = X.columns[~low_var_mask].tolist()
+        X = X.loc[:, low_var_mask]
+        removed_features.extend(low_var_features)
+        preprocessing_info['low_variance_removed'] = low_var_features
+        preprocessing_info['variance_threshold'] = variance_threshold
+
+    # Autoscaling
+    if autoscale:
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        X = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
+        preprocessing_info['scaler'] = scaler
+
+    preprocessing_info['removed_features'] = removed_features
+    preprocessing_info['final_features'] = X.columns.tolist()
+
+    return X, y, removed_features, preprocessing_info
+
+
+def plot_y_histogram(y, y_name='Target Variable', temp_path='temp/'):
+    """
+    Plot histogram of target variable to help choose transformation
+
+    Parameters:
+    -----------
+    y : Series or array
+        Target variable data
+    y_name : str
+        Name for plot title
+    temp_path : str
+        Path to save plot
+
+    Returns:
+    --------
+    tuple
+        (plot_path, statistics_dict)
+        plot_path: str - Path to saved plot
+        statistics_dict: dict - Dictionary with mean, median, std, skewness, kurtosis, normality test
+    """
+    from scipy.stats import shapiro, skew, kurtosis
+
+    os.makedirs(temp_path, exist_ok=True)
+
+    # Calculate statistics
+    y_array = np.array(y)
+    mean_val = float(np.mean(y_array))
+    median_val = float(np.median(y_array))
+    std_val = float(np.std(y_array))
+    skewness_val = float(skew(y_array))
+    kurtosis_val = float(kurtosis(y_array))
+
+    # Normality test (Shapiro-Wilk)
+    if len(y_array) >= 3:
+        stat, p_value = shapiro(y_array)
+        normality_pvalue = float(p_value)
+        is_normal = p_value > 0.05
+    else:
+        normality_pvalue = 0.0
+        is_normal = False
+
+    statistics = {
+        'mean': mean_val,
+        'median': median_val,
+        'std': std_val,
+        'skewness': skewness_val,
+        'kurtosis': kurtosis_val,
+        'normality_pvalue': normality_pvalue,
+        'is_normal': is_normal
+    }
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Histogram
+    ax1.hist(y, bins=30, color='#440154', alpha=0.7, edgecolor='black')
+    ax1.set_xlabel(y_name, fontsize=12)
+    ax1.set_ylabel('Frequency', fontsize=12)
+    ax1.set_title(f'Histogram of {y_name}', fontsize=14, fontweight='bold')
+    ax1.grid(True, alpha=0.3)
+
+    # Q-Q plot
+    stats.probplot(y, dist="norm", plot=ax2)
+    ax2.set_title('Q-Q Plot (Normality Check)', fontsize=14, fontweight='bold')
+    ax2.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+
+    # Generate unique filename to avoid overwriting
+    import time
+    timestamp = int(time.time() * 1000000)  # microseconds for uniqueness
+    plot_path = os.path.join(temp_path, f'y_histogram_{timestamp}.png')
+    plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return plot_path, statistics
+
+
+def plot_y_histogram_split(y_train, y_test, y_name='Target Variable', temp_path='temp/'):
+    """
+    Plot histograms for train and test sets separately
+
+    Parameters:
+    -----------
+    y_train : Series or array
+        Training target variable data
+    y_test : Series or array
+        Test target variable data
+    y_name : str
+        Name for plot title
+    temp_path : str
+        Path to save plot
+
+    Returns:
+    --------
+    str
+        Path to saved plot
+    """
+    os.makedirs(temp_path, exist_ok=True)
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+    # Train histogram
+    axes[0, 0].hist(y_train, bins=30, color='#440154', alpha=0.7, edgecolor='black')
+    axes[0, 0].set_xlabel(y_name, fontsize=12)
+    axes[0, 0].set_ylabel('Frequency', fontsize=12)
+    axes[0, 0].set_title(f'Training Set - Histogram (n={len(y_train)})', fontsize=12, fontweight='bold')
+    axes[0, 0].grid(True, alpha=0.3)
+
+    # Train Q-Q plot
+    stats.probplot(y_train, dist="norm", plot=axes[0, 1])
+    axes[0, 1].set_title('Training Set - Q-Q Plot', fontsize=12, fontweight='bold')
+    axes[0, 1].grid(True, alpha=0.3)
+
+    # Test histogram
+    axes[1, 0].hist(y_test, bins=30, color='#35b779', alpha=0.7, edgecolor='black')
+    axes[1, 0].set_xlabel(y_name, fontsize=12)
+    axes[1, 0].set_ylabel('Frequency', fontsize=12)
+    axes[1, 0].set_title(f'Test Set - Histogram (n={len(y_test)})', fontsize=12, fontweight='bold')
+    axes[1, 0].grid(True, alpha=0.3)
+
+    # Test Q-Q plot
+    stats.probplot(y_test, dist="norm", plot=axes[1, 1])
+    axes[1, 1].set_title('Test Set - Q-Q Plot', fontsize=12, fontweight='bold')
+    axes[1, 1].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+
+    # Generate unique filename to avoid overwriting
+    import time
+    timestamp = int(time.time() * 1000000)  # microseconds for uniqueness
+    plot_path = os.path.join(temp_path, f'y_histogram_split_{timestamp}.png')
+    plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return plot_path
+
+
+def plot_y_histogram_old(y, y_name='Target Variable', temp_path='temp/'):
+    """
+    Plot histogram of target variable to help choose transformation
+
+    Parameters:
+    -----------
+    y : array-like
+        Target variable
+    y_name : str
+        Name of target variable
+    temp_path : str
+        Path to save plot
+
+    Returns:
+    --------
+    plot_path : str
+        Path to saved plot
+    stats_dict : dict
+        Dictionary with distribution statistics
+    """
+    os.makedirs(temp_path, exist_ok=True)
+
+    # Calculate statistics
+    stats_dict = {
+        'mean': np.mean(y),
+        'median': np.median(y),
+        'std': np.std(y),
+        'skewness': stats.skew(y),
+        'kurtosis': stats.kurtosis(y),
+        'min': np.min(y),
+        'max': np.max(y)
+    }
+
+    # Test for normality
+    _, p_value = stats.normaltest(y)
+    stats_dict['normality_pvalue'] = p_value
+    stats_dict['is_normal'] = p_value > 0.05
+
+    # Create plot
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    # Histogram
+    axes[0].hist(y, bins=30, color='#440154', alpha=0.7, edgecolor='black')
+    axes[0].axvline(stats_dict['mean'], color='red', linestyle='--',
+                   linewidth=2, label=f"Mean: {stats_dict['mean']:.2f}")
+    axes[0].axvline(stats_dict['median'], color='green', linestyle='--',
+                   linewidth=2, label=f"Median: {stats_dict['median']:.2f}")
+    axes[0].set_xlabel(y_name, fontsize=12)
+    axes[0].set_ylabel('Frequency', fontsize=12)
+    axes[0].set_title('Distribution of Target Variable', fontsize=14, fontweight='bold')
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
+
+    # Q-Q plot
+    stats.probplot(y, dist="norm", plot=axes[1])
+    axes[1].set_title('Q-Q Plot', fontsize=14, fontweight='bold')
+    axes[1].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+
+    # Use timestamp to ensure unique filename for each plot
+    import time
+    timestamp = str(int(time.time() * 1000))
+    filename = f'y_distribution_{timestamp}.png'
+    plot_path = os.path.join(temp_path, filename)
+    plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return plot_path, stats_dict

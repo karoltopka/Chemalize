@@ -7,6 +7,11 @@
     
     <!-- Back button -->
     <div class="mb-4">
+        {% if from_ga %}
+        <a href="{{ url_for('mlr_ga.mlr_ga_back_to_models') }}" class="btn btn-outline-primary">
+            <i class="fas fa-dna mr-2"></i>Back to GA Model Selection
+        </a>
+        {% endif %}
         <a href="{{ url_for('analysis.analysis_dashboard') }}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left mr-2"></i>Back to Analysis Dashboard
         </a>
@@ -60,13 +65,34 @@
     </div>
     
     <!-- MLR Configuration Form (shown only if analysis was not performed) -->
-    {% if not mlr_performed %}
+    {% if not mlr_performed and not prediction_performed %}
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
             <h5 class="mb-0">MLR Configuration</h5>
         </div>
         <div class="card-body">
-            <form method="POST" action="{{ url_for('mlr.perform_mlr') }}">
+            <!-- Mode Selection -->
+            <div class="alert alert-info mb-4">
+                <h6 class="mb-2"><i class="fas fa-cogs mr-2"></i>Select Mode:</h6>
+                <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                    <label class="btn btn-outline-primary active" id="training_mode_label">
+                        <input type="radio" name="mlr_mode" id="training_mode" value="training" checked onchange="toggleMLRMode()">
+                        <i class="fas fa-graduation-cap mr-1"></i> Training Mode
+                    </label>
+                    <label class="btn btn-outline-success" id="prediction_mode_label">
+                        <input type="radio" name="mlr_mode" id="prediction_mode" value="prediction" onchange="toggleMLRMode()">
+                        <i class="fas fa-calculator mr-1"></i> Prediction Mode
+                    </label>
+                </div>
+                <div class="mt-2">
+                    <small id="mode_description" class="text-muted">
+                        <strong>Training Mode:</strong> Build a model by selecting features and target variable. The model will learn coefficients automatically.
+                    </small>
+                </div>
+            </div>
+
+            <!-- Training Mode Form -->
+            <form method="POST" action="{{ url_for('mlr.perform_mlr') }}" id="training_form">
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
@@ -326,6 +352,76 @@
                     <i class="fas fa-play mr-2"></i>Run MLR Analysis
                 </button>
             </form>
+
+            <!-- Prediction Mode Form -->
+            <form method="POST" action="{{ url_for('mlr.apply_custom_model') }}" id="prediction_form" style="display: none;">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="prediction_name">Prediction Column Name:</label>
+                            <input type="text" class="form-control" id="prediction_name" name="prediction_name"
+                                   value="Y_pred" placeholder="e.g., HLB_pred, LogP_pred">
+                            <small class="form-text text-muted">Name for the new prediction column</small>
+                        </div>
+
+                        <div class="form-group mt-3">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="pred_include_intercept" name="pred_include_intercept" checked>
+                                <label class="custom-control-label" for="pred_include_intercept">Include Intercept</label>
+                            </div>
+                        </div>
+
+                        <div class="form-group mt-3" id="intercept_input_group">
+                            <label for="intercept_value">Intercept Value:</label>
+                            <input type="number" step="any" class="form-control" id="intercept_value" name="intercept_value"
+                                   value="0" placeholder="Enter intercept value">
+                            <small class="form-text text-muted">Constant term (b₀) in the equation</small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Select Features and Enter Coefficients:</label>
+                            <div class="feature-coef-selection" style="max-height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;">
+                                {% for column in all_data_columns %}
+                                <div class="feature-coef-item mb-2 p-2 border rounded">
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input pred-feature-checkbox"
+                                              id="pred_feature_{{ loop.index }}" name="pred_selected_features" value="{{ column }}"
+                                              onchange="toggleCoefficientInput({{ loop.index }})">
+                                        <label class="custom-control-label" for="pred_feature_{{ loop.index }}">
+                                            <strong>{{ column }}</strong>
+                                        </label>
+                                    </div>
+                                    <div class="coef-input-group mt-2" id="coef_input_{{ loop.index }}" style="display: none;">
+                                        <div class="input-group input-group-sm">
+                                            <div class="input-group-prepend">
+                                                <span class="input-group-text">b =</span>
+                                            </div>
+                                            <input type="number" step="any" class="form-control"
+                                                   name="coefficient_{{ column }}" placeholder="Coefficient value">
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="form-text text-muted">
+                                Select variables and enter their coefficients. Equation: Y = b₀ + b₁×X₁ + b₂×X₂ + ...
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning mt-3">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    <strong>Note:</strong> Prediction mode applies your custom coefficients to calculate predictions.
+                    No model training is performed - you provide the equation parameters directly.
+                </div>
+
+                <button type="submit" class="btn btn-success mt-3">
+                    <i class="fas fa-calculator mr-2"></i>Apply Model & Calculate Predictions
+                </button>
+            </form>
         </div>
     </div>
     {% endif %}
@@ -337,6 +433,15 @@
             <h5 class="mb-0">MLR Results</h5>
         </div>
         <div class="card-body">
+            <!-- GA Info (if results come from Genetic Algorithm) -->
+            {% if from_ga %}
+            <div class="alert alert-info">
+                <h6><i class="fas fa-dna mr-2"></i>Model from Genetic Algorithm Variable Selection</h6>
+                <p class="mb-1"><strong>Selected Model Rank:</strong> #{{ ga_model_rank }}</p>
+                <p class="mb-0"><strong>GA Score (R²):</strong> {{ "%.4f"|format(ga_best_score) }}</p>
+            </div>
+            {% endif %}
+
             <!-- Model Overview -->
             <div class="row mb-4">
                 <div class="col-md-6">
@@ -568,20 +673,20 @@
                                         <div class="col-lg-6 mb-2">
                                             <div class="d-flex justify-content-between align-items-center p-2 border rounded">
                                                 <span>{{ feature }}</span>
-                                                <span class="badge 
-                                                    {% if vif > 10 %}badge-danger
-                                                    {% elif vif > 5 %}badge-warning
-                                                    {% else %}badge-success{% endif %}">
+                                                <strong class="
+                                                    {% if vif > 10 %}text-danger
+                                                    {% elif vif > 5 %}text-warning
+                                                    {% else %}text-success{% endif %}">
                                                     {{ "%.2f" | format(vif) }}
-                                                </span>
+                                                </strong>
                                             </div>
                                         </div>
                                         {% endfor %}
                                     </div>
                                     <div class="mt-2 small">
-                                        <span class="badge badge-success">< 5: Low</span>
-                                        <span class="badge badge-warning ml-2">5-10: Moderate</span>
-                                        <span class="badge badge-danger ml-2">> 10: High</span>
+                                        <strong class="text-success">< 5: Low</strong>
+                                        <strong class="text-warning ml-2">5-10: Moderate</strong>
+                                        <strong class="text-danger ml-2">> 10: High</strong>
                                     </div>
                                 </div>
                             </div>
@@ -615,6 +720,61 @@
                                     <p class="mb-1"><strong>AD coverage (test set):</strong> {{ "%.2f"|format(AD_test) }}%</p>
                                     <p class="mb-0 small text-muted">h* threshold: {{ "%.4f"|format(h_star) }}</p>
                                 </div>
+
+                                {% if williams_outliers and williams_outliers|length > 0 %}
+                                <div class="mt-3">
+                                    <button class="btn btn-sm btn-outline-warning" onclick="toggleOutliers()">
+                                        <i class="fas fa-exclamation-triangle mr-1"></i>Show Outliers ({{ williams_outliers|length }})
+                                    </button>
+                                    <a href="{{ url_for('mlr.download_williams_outliers') }}" class="btn btn-sm btn-outline-secondary ml-2">
+                                        <i class="fas fa-download mr-1"></i>Download CSV
+                                    </a>
+
+                                    <div id="outliers-table" style="display: none;" class="mt-3">
+                                        <h6 class="text-warning">Samples Outside Applicability Domain</h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Sample ID</th>
+                                                        <th>Dataset</th>
+                                                        <th>Leverage</th>
+                                                        <th>Std. Residual</th>
+                                                        <th>Reason</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for outlier in williams_outliers %}
+                                                    <tr>
+                                                        <td><strong>{{ outlier.index }}</strong></td>
+                                                        <td>
+                                                            <span class="{% if outlier.dataset == 'Train' %}text-primary{% else %}text-success{% endif %}">
+                                                                {{ outlier.dataset }}
+                                                            </span>
+                                                        </td>
+                                                        <td>{{ "%.4f"|format(outlier.leverage) }}</td>
+                                                        <td>{{ "%.4f"|format(outlier.std_residual) }}</td>
+                                                        <td>
+                                                            {% if outlier.leverage >= h_star and outlier.std_residual|abs >= 3 %}
+                                                                <span class="text-danger">High leverage & outlier</span>
+                                                            {% elif outlier.leverage >= h_star %}
+                                                                <span class="text-warning">High leverage</span>
+                                                            {% else %}
+                                                                <span class="text-warning">Outlier residual</span>
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <p class="small text-muted mb-0">
+                                            <i class="fas fa-info-circle"></i>
+                                            A sample is outside AD if: leverage ≥ {{ "%.4f"|format(h_star) }} OR |std. residual| ≥ 3
+                                        </p>
+                                    </div>
+                                </div>
+                                {% endif %}
                                 {% else %}
                                 <div class="alert alert-warning">
                                     Williams Plot could not be generated. Please check the console for errors.
@@ -678,6 +838,145 @@
             <div class="mt-4">
                 <a href="{{ url_for('mlr.reset_mlr_analysis') }}" class="btn btn-secondary">
                     <i class="fas fa-sync mr-2"></i>Configure New Analysis
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Prediction Mode Results Section -->
+    {% if prediction_performed %}
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-calculator mr-2"></i>Prediction Results</h5>
+        </div>
+        <div class="card-body">
+            <!-- Applied Model Info -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0">Applied Model Equation</h6>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>{{ pred_column_name }} =</strong>
+                            {% if pred_include_intercept %}
+                                {{ "%.4f" | format(pred_intercept) }}
+                            {% endif %}
+                            {% for feature, coef in pred_coefficients.items() %}
+                                {% if pred_include_intercept or not loop.first %}
+                                    {% if coef >= 0 %}+ {% else %}- {% endif %}
+                                {% elif coef < 0 %}- {% endif %}
+                                {{ "%.4f" | format(coef|abs) }} × {{ feature }}
+                            {% endfor %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0">Model Parameters</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm table-bordered mb-0">
+                                <tbody>
+                                    {% if pred_include_intercept %}
+                                    <tr>
+                                        <th>Intercept</th>
+                                        <td>{{ "%.6f" | format(pred_intercept) }}</td>
+                                    </tr>
+                                    {% endif %}
+                                    {% for feature, coef in pred_coefficients.items() %}
+                                    <tr>
+                                        <th>{{ feature }}</th>
+                                        <td>{{ "%.6f" | format(coef) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prediction Statistics -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0">Prediction Statistics</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <strong>Samples:</strong> {{ pred_n_samples }}
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Mean:</strong> {{ "%.4f" | format(pred_mean) }}
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Std Dev:</strong> {{ "%.4f" | format(pred_std) }}
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Range:</strong> {{ "%.4f" | format(pred_min) }} - {{ "%.4f" | format(pred_max) }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prediction Preview Table -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">Predictions Preview (first 20 rows)</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-bordered table-sm">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>#</th>
+                                    {% for feature in pred_coefficients.keys() %}
+                                    <th>{{ feature }}</th>
+                                    {% endfor %}
+                                    <th class="table-success"><strong>{{ pred_column_name }}</strong></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in pred_preview %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    {% for feature in pred_coefficients.keys() %}
+                                    <td>{{ "%.4f" | format(row[feature]) }}</td>
+                                    {% endfor %}
+                                    <td class="table-success"><strong>{{ "%.4f" | format(row[pred_column_name]) }}</strong></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Download Section -->
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <h6>Download Results</h6>
+                    <div class="btn-group">
+                        <a href="{{ url_for('mlr.download_custom_predictions') }}" class="btn btn-outline-success">
+                            <i class="fas fa-download mr-2"></i>Download Predictions (CSV)
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configure New Analysis button -->
+            <div class="mt-4">
+                <a href="{{ url_for('mlr.reset_mlr_analysis') }}" class="btn btn-secondary">
+                    <i class="fas fa-sync mr-2"></i>Configure New Prediction
                 </a>
             </div>
         </div>
@@ -794,5 +1093,71 @@
     }
     // LOOCV nie potrzebuje dodatkowych opcji
     }
+
+    // Toggle Williams Plot outliers display
+    function toggleOutliers() {
+        const outliersTable = document.getElementById('outliers-table');
+        const button = event.target.closest('button');
+        const outliersCount = outliersTable.querySelectorAll('tbody tr').length;
+
+        if (outliersTable.style.display === 'none') {
+            outliersTable.style.display = 'block';
+            button.innerHTML = '<i class="fas fa-eye-slash mr-1"></i>Hide Outliers';
+            button.classList.remove('btn-outline-warning');
+            button.classList.add('btn-warning');
+        } else {
+            outliersTable.style.display = 'none';
+            button.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i>Show Outliers (' + outliersCount + ')';
+            button.classList.remove('btn-warning');
+            button.classList.add('btn-outline-warning');
+        }
+    }
+
+    // Toggle between Training and Prediction modes
+    function toggleMLRMode() {
+        const trainingMode = document.getElementById('training_mode').checked;
+        const trainingForm = document.getElementById('training_form');
+        const predictionForm = document.getElementById('prediction_form');
+        const modeDescription = document.getElementById('mode_description');
+        const trainingLabel = document.getElementById('training_mode_label');
+        const predictionLabel = document.getElementById('prediction_mode_label');
+
+        if (trainingMode) {
+            trainingForm.style.display = 'block';
+            predictionForm.style.display = 'none';
+            modeDescription.innerHTML = '<strong>Training Mode:</strong> Build a model by selecting features and target variable. The model will learn coefficients automatically.';
+            trainingLabel.classList.add('active');
+            predictionLabel.classList.remove('active');
+        } else {
+            trainingForm.style.display = 'none';
+            predictionForm.style.display = 'block';
+            modeDescription.innerHTML = '<strong>Prediction Mode:</strong> Apply a pre-defined model with custom coefficients. Enter intercept and coefficients manually to calculate predictions (e.g., HLB_pred).';
+            trainingLabel.classList.remove('active');
+            predictionLabel.classList.add('active');
+        }
+    }
+
+    // Toggle coefficient input visibility
+    function toggleCoefficientInput(index) {
+        const checkbox = document.getElementById('pred_feature_' + index);
+        const coefInput = document.getElementById('coef_input_' + index);
+
+        if (checkbox.checked) {
+            coefInput.style.display = 'block';
+        } else {
+            coefInput.style.display = 'none';
+        }
+    }
+
+    // Toggle intercept input based on checkbox
+    document.addEventListener('DOMContentLoaded', function() {
+        const interceptCheckbox = document.getElementById('pred_include_intercept');
+        if (interceptCheckbox) {
+            interceptCheckbox.addEventListener('change', function() {
+                const interceptInput = document.getElementById('intercept_input_group');
+                interceptInput.style.display = this.checked ? 'block' : 'none';
+            });
+        }
+    });
 </script>
 {% endblock %}
