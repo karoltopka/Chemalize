@@ -675,3 +675,78 @@ def generate_batch_unified():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@scopehub_main_bp.route('/settings')
+@nocache
+def settings():
+    """ScopeHub settings page - configure LLM provider"""
+    from app.scopehub.utils import llm_generator
+
+    # Get current settings
+    current_backend = llm_generator.LLM_BACKEND
+
+    # Get available backends
+    backends = {
+        'lm_studio': {
+            'name': 'LM Studio',
+            'description': 'Local LLM server (OpenAI-compatible)',
+            'available': True
+        },
+        'openwebui': {
+            'name': 'OpenWebUI',
+            'description': 'Open WebUI API with Ollama support',
+            'available': True
+        },
+        'google_ai_studio': {
+            'name': 'Google AI Studio',
+            'description': 'Google Gemini API (cloud-based)',
+            'available': llm_generator.GOOGLE_AI_AVAILABLE and bool(llm_generator.GOOGLE_AI_STUDIO_API_KEY)
+        }
+    }
+
+    # Get provider-specific settings
+    settings_data = {
+        'current_backend': current_backend,
+        'backends': backends,
+        'lm_studio': {
+            'url': llm_generator.LM_STUDIO_URL,
+            'timeout': llm_generator.LM_STUDIO_TIMEOUT
+        },
+        'openwebui': {
+            'url': llm_generator.OPENWEBUI_URL,
+            'model': llm_generator.OPENWEBUI_MODEL,
+            'timeout': llm_generator.OPENWEBUI_TIMEOUT,
+            'has_api_key': bool(llm_generator.OPENWEBUI_API_KEY)
+        },
+        'google_ai_studio': {
+            'model': llm_generator.GOOGLE_AI_STUDIO_MODEL,
+            'timeout': llm_generator.GOOGLE_AI_STUDIO_TIMEOUT,
+            'has_api_key': bool(llm_generator.GOOGLE_AI_STUDIO_API_KEY),
+            'sdk_installed': llm_generator.GOOGLE_AI_AVAILABLE
+        }
+    }
+
+    return render_template('scopehub/settings.html', settings=settings_data)
+
+
+@scopehub_main_bp.route('/api/update_llm_backend', methods=['POST'])
+@nocache
+def update_llm_backend():
+    """Update LLM backend selection (session-based, requires app restart for env vars)"""
+    req_data = request.get_json()
+    backend = req_data.get('backend', 'lm_studio')
+
+    # Validate backend
+    valid_backends = ['lm_studio', 'openwebui', 'google_ai_studio']
+    if backend not in valid_backends:
+        return jsonify({'error': 'Invalid backend'}), 400
+
+    # Store in session (temporary until app restart)
+    session['llm_backend_override'] = backend
+
+    return jsonify({
+        'success': True,
+        'backend': backend,
+        'message': f'Backend switched to {backend}. Note: This is temporary. To make permanent, set LLM_BACKEND={backend} in your .env file and restart the application.'
+    })
+

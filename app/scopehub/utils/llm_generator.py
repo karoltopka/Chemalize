@@ -1,18 +1,22 @@
 """
-LLM integration for generating search queries using LM Studio or OpenWebUI
+LLM integration for generating search queries using multiple backends
 
-Supports two LLM backends:
+Supports multiple LLM backends:
 - LM Studio: Local LLM server
 - OpenWebUI: Open WebUI API
+- Google AI Studio: Google Gemini API (cloud-based)
 
 Configuration via environment variables:
-- LLM_BACKEND: 'lm_studio' or 'openwebui' (default: 'lm_studio')
+- LLM_BACKEND: 'lm_studio', 'openwebui', or 'google_ai_studio' (default: 'lm_studio')
 - LM_STUDIO_URL: LM Studio endpoint (default: http://localhost:1234/v1/chat/completions)
 - LM_STUDIO_TIMEOUT: LM Studio timeout in seconds (default: 60)
 - OPENWEBUI_URL: OpenWebUI endpoint (default: http://localhost:3000/api/chat/completions)
 - OPENWEBUI_API_KEY: API key for OpenWebUI (required for authentication)
 - OPENWEBUI_MODEL: Model name in OpenWebUI (default: 'llama3.2:3b')
 - OPENWEBUI_TIMEOUT: OpenWebUI timeout in seconds (default: 120, increase for slower models)
+- GOOGLE_AI_STUDIO_API_KEY: API key for Google AI Studio (get from https://aistudio.google.com/apikey)
+- GOOGLE_AI_STUDIO_MODEL: Model name (default: 'gemini-1.5-flash', options: 'gemini-1.5-pro', 'gemini-2.0-flash-exp')
+- GOOGLE_AI_STUDIO_TIMEOUT: Timeout in seconds (default: 60)
 
 Common OpenWebUI endpoints to try:
 - http://localhost:3000/api/chat/completions (OpenAI-compatible)
@@ -23,9 +27,18 @@ import os
 import requests
 from typing import Optional
 
+# Try to import Google Generative AI SDK (optional dependency)
+try:
+    import google.generativeai as genai
+    GOOGLE_AI_AVAILABLE = True
+except ImportError:
+    GOOGLE_AI_AVAILABLE = False
+    print("WARNING: google-generativeai package not installed. Install with: pip install google-generativeai")
+    print("Google AI Studio backend will not be available.")
+
 # LLM Backend Configuration
-# Options: 'lm_studio' or 'openwebui'
-LLM_BACKEND = os.getenv('LLM_BACKEND', 'lm_studio').lower()
+# Options: 'lm_studio', 'openwebui', or 'google_ai_studio'
+LLM_BACKEND = os.getenv('LLM_BACKEND', 'google_ai_studio').lower()
 
 # LM Studio configuration
 LM_STUDIO_URL = os.getenv('LM_STUDIO_URL', "http://localhost:1234/v1/chat/completions")
@@ -37,200 +50,73 @@ OPENWEBUI_API_KEY = os.getenv('OPENWEBUI_API_KEY', 'REMOVED_API_KEY')  # API key
 OPENWEBUI_MODEL = os.getenv('OPENWEBUI_MODEL', 'gemma3:12b')  # Model name in OpenWebUI
 OPENWEBUI_TIMEOUT = int(os.getenv('OPENWEBUI_TIMEOUT', '180'))  # seconds (default 180 for reasoning models like DeepSeek-R1)
 
+# Google AI Studio configuration
+GOOGLE_AI_STUDIO_API_KEY = os.getenv('GOOGLE_AI_STUDIO_API_KEY', 'REMOVED_API_KEY')
+GOOGLE_AI_STUDIO_MODEL = os.getenv('GOOGLE_AI_STUDIO_MODEL', 'gemini-2.0-flash')  # Older model, less strict safety filters
+GOOGLE_AI_STUDIO_TIMEOUT = int(os.getenv('GOOGLE_AI_STUDIO_TIMEOUT', '60'))  # seconds
+
+# Configure Google AI if available and API key is set
+if GOOGLE_AI_AVAILABLE and GOOGLE_AI_STUDIO_API_KEY:
+    try:
+        genai.configure(api_key=GOOGLE_AI_STUDIO_API_KEY)
+    except Exception as e:
+        print(f"WARNING: Failed to configure Google AI Studio: {e}")
+
 # Hardcoded instructions for each database (not editable by users)
 DATABASE_INSTRUCTIONS = {
-    'Pubmed': """You are an expert in constructing advanced PubMed search queries.
+    'Pubmed': """Generate a PubMed Boolean search query for the given topic.
 
-TASK
-Given a short description of a biomedical research topic, generate ONE high-quality PubMed Boolean search query.
+RULES:
+- ONLY use concepts from the user's topic - do NOT add new concepts
+- Identify 2-4 main concepts
+- For each concept: include 2-6 keyword variants (synonyms, abbreviations)
+- Add field tags: [tiab] for keywords, [tw] for broader search
+- Use * for truncation (min 4 letters): keyword*[tiab]
+- Multi-word phrases: use quotes "phrase"[tiab]
+- Group synonyms with OR in parentheses
+- Combine concepts with AND
 
-CRITICAL RULE - STAY ON TOPIC:
-- ONLY use concepts explicitly mentioned in the user's topic
-- DO NOT add concepts, conditions, or contexts that the user did not specify
-- If user says "inflammation", search ONLY for inflammation (not "inflammation AND disease" or "inflammation AND nanoparticles")
-- If user says "diabetes", search ONLY for diabetes (not "diabetes AND complications")
-- Your job is to find synonyms/variants of the user's concepts, NOT to add new concepts
+STRUCTURE:
+(keyword1*[tiab] OR keyword2[tiab] OR "phrase"[tiab]) AND (keyword3*[tiab] OR keyword4[tiab])
 
-GENERAL PRINCIPLES
-- Identify 2–4 main concepts from the user's topic.
-- For each concept, include:
-  - 0–2 appropriate MeSH terms (when they clearly exist), and
-  - 2–6 relevant keyword variants (free-text synonyms, abbreviations, spellings).
-- Combine:
-  - different concepts with AND,
-  - synonyms/variants for the same concept with OR.
-- Always group OR terms for the same concept in parentheses.
-- Use Boolean operators in ALL CAPS: AND, OR, NOT.
-- Avoid NOT unless the user explicitly wants to exclude something (it easily removes relevant articles).
+OUTPUT: Return ONLY the query, no explanations.""",
 
-MESH TERMS
-- When the topic obviously corresponds to a MeSH heading, include it, e.g.:
-  - "Diabetes Mellitus, Type 2"[MeSH Terms]
-  - "Cognitive Behavioral Therapy"[MeSH Terms]
-- You may combine MeSH with keywords for the same concept, e.g.:
-  ("Depression"[MeSH Terms] OR depress*[tiab] OR "depressive disorder*"[tiab])
-- Do NOT truncate MeSH terms.
+    'WOS': """Generate a Web of Science Boolean search query for the given topic.
 
-KEYWORDS, FIELDS AND TRUNCATION
-- Use [tiab] or [tw] for keyword synonyms:
-  - [tiab] = Title/Abstract (more focused)
-  - [tw]   = Text Word (broader free-text fields, including title/abstract and some indexing fields)
-- Attach the field tag to each keyword or phrase, e.g.:
-  - PFAS[tiab] OR "perfluoroalkyl substances"[tiab]
-- Use the asterisk * to truncate only free-text terms (not MeSH):
-  - smok*[tiab] → smoke, smokes, smoking, smoked
-  - nurs*[tiab] → nurse, nurses, nursing
-- Choose truncation roots with at least 4 letters and that do not generate many irrelevant words.
-- Remember: truncation (*) and explicit field tags turn off Automatic Term Mapping (ATM), so you must manually include important synonyms/variants in the query.
+RULES:
+- ONLY use concepts from the user's topic - do NOT add new concepts
+- Identify 2-4 main concepts
+- For each concept: include 2-6 synonyms, acronyms, variants
+- Multi-word phrases: use quotes "phrase here"
+- Wildcards: * for truncation (word*), ? for single char (behavio?r)
+- Group synonyms with OR in parentheses
+- Combine concepts with AND
+- Optional: NEAR/x for proximity (term1 NEAR/5 term2)
+- Avoid NOT unless explicitly requested
 
-PHRASE SEARCHING (QUOTATION MARKS)
-- Use double quotation marks for multi-word phrases that should stay together, especially in keywords:
-  - "young adult"[tiab]
-  - "breast cancer"[tiab]
-- Think carefully:
-  - Use phrases only when they realistically occur in the literature.
-  - Do not overuse long, very specific phrases that might be too rare.
-- Quotation marks also turn off ATM for that phrase, so add reasonable variants if needed
-  (e.g. "breast neoplasms"[MeSH Terms] OR "breast cancer"[tiab]).
+STRUCTURE:
+(concept1 OR synonym1* OR "phrase1") AND (concept2 OR synonym2*)
 
-BOOLEAN LOGIC AND PARENTHESES
-- Always group synonyms in parentheses with OR:
-  (dental anxiety[tiab] OR dental fear[tiab] OR dental phobia[tiab])
-- Then combine concept blocks with AND, e.g.:
-  (dental anxiety[tiab] OR dental fear[tiab] OR dental phobia[tiab])
-  AND
-  ("Music Therapy"[MeSH Terms] OR "music therapy"[tiab] OR music[tiab])
-- For more complex queries, maintain the structure:
-  (Concept1_MeSH/keywords with OR)
-  AND
-  (Concept2_MeSH/keywords with OR)
-  AND
-  (Concept3_MeSH/keywords with OR, if needed)
+OUTPUT: Return ONLY the query, no explanations.""",
 
-PUBMED-SPECIFIC RULES
-- Do NOT use proximity operators (NEAR/x) – PubMed does not support them.
-- Prefer [MeSH Terms] and [tiab]/[tw]; do not use [au], [ad] etc. unless the user clearly asks for author/affiliation filtering.
-- Do NOT rely on natural-language sentences; always produce a structured Boolean query.
-- Do NOT rely on Automatic Term Mapping – explicitly include the key MeSH terms and keyword variants yourself.
+    'Scopus': """Generate a Scopus Boolean search query for the given topic.
 
-OUTPUT FORMAT
-- Return ONLY the final PubMed search query as plain text.
-- Do NOT add explanations, comments, line breaks labels, bullets, or any extra text.""",
+RULES:
+- ONLY use concepts from the user's topic - do NOT add new concepts
+- Identify 2-4 main concepts
+- For each concept: include 2-6 synonyms, abbreviations, spelling variants
+- Use TITLE-ABS-KEY() field wrapper for all queries
+- Wildcards: * (truncation), ? (1 char), # (0-1 char)
+- Proximity: W/n (any order), PRE/n (specific order)
+- Phrases: "loose phrase" or {exact phrase}
+- Group synonyms with OR in parentheses
+- Combine concepts with AND
+- Avoid NOT unless explicitly requested
 
-    'WOS': """You are an expert in constructing Boolean search queries for Web of Science, Scopus and similar scholarly databases.
+STRUCTURE:
+TITLE-ABS-KEY( (concept1 OR synonym1* OR "phrase1") AND (concept2 OR synonym2*) )
 
-TASK
-Given a short description of a research topic, generate ONE high-quality Boolean search query.
-
-CRITICAL RULE - STAY ON TOPIC:
-- ONLY use concepts explicitly mentioned in the user's topic
-- DO NOT add concepts, conditions, or contexts that the user did not specify
-- If user says "inflammation", search ONLY for inflammation (not "inflammation AND disease" or "inflammation AND nanoparticles")
-- If user says "diabetes", search ONLY for diabetes (not "diabetes AND complications")
-- Your job is to find synonyms/variants of the user's concepts, NOT to add new concepts
-
-SEARCH RULES
-- Identify 2–4 main concepts.
-- For each concept, include a small set of relevant synonyms, acronyms, and related terms.
-- Connect different concepts with AND.
-- Connect synonyms/variants for the same concept with OR.
-- Always put OR terms for the same concept in parentheses, e.g. (PFAS OR PFOA OR "perfluoroalkyl substances").
-- Use double quotation marks for multi-word phrases that should appear together, e.g. "engineered nanomaterial*", "critical micelle concentration".
-- Use wildcards:
-  - * to truncate or cover multiple endings (nanoparticle*; cytotox*),
-  - * or ? to handle spelling variants when useful (behavio*r; fertili?ation).
-- You may use NEAR/x to require terms to appear close to each other, e.g. nanoparticle* NEAR/5 toxicity. Use only when it clearly improves precision.
-- Use Boolean operators AND, OR, NOT, NEAR in ALL CAPS.
-- Avoid NOT unless the user explicitly asks to exclude something (it easily removes relevant records).
-- Aim for 2–4 concept blocks combined with AND; within each block, use 2–6 well-chosen synonyms with OR.
-- Do NOT repeat exactly the same term or phrase in multiple places.
-- Keep the query focused and not excessively long.
-
-OUTPUT FORMAT
-- Return ONLY the final Boolean query as plain text.
-- Do NOT add explanations, comments, or extra formatting.""",
-
-    'Scopus': """You are an expert in constructing advanced Boolean search queries for Scopus.
-
-TASK
-Given a short description of a research topic, generate ONE high-quality Scopus search query.
-
-CRITICAL RULE - STAY ON TOPIC:
-- ONLY use concepts explicitly mentioned in the user's topic
-- DO NOT add concepts, conditions, or contexts that the user did not specify
-- If user says "inflammation", search ONLY for inflammation (not "inflammation AND disease" or "inflammation AND nanoparticles")
-- If user says "diabetes", search ONLY for diabetes (not "diabetes AND complications")
-- Your job is to find synonyms/variants of the user's concepts, NOT to add new concepts
-
-GENERAL PRINCIPLES
-- Identify 2–4 main concepts from the user's topic.
-- For each concept, include a small set of relevant keyword variants:
-  - synonyms and closely related terms,
-  - abbreviations,
-  - alternate spellings (e.g. US/UK spelling).
-- Scopus does NOT use subject headings; search is based on keywords only.
-- Connect:
-  - different concepts with AND,
-  - synonyms/variants for the same concept with OR.
-- Always put OR-terms for the same concept in parentheses.
-- Use Boolean operators in ALL CAPS: AND, OR, NOT.
-
-FIELDS
-- Use TITLE-ABS-KEY() as the default field for conceptual searches.
-- Inside TITLE-ABS-KEY(), place your Boolean logic, e.g.:
-  TITLE-ABS-KEY( (nanoparticle* OR "engineered nanomaterial*") AND (toxicity OR toxic*) )
-- You may add additional field-limited clauses (e.g. AFFIL(), SRCTITLE()) ONLY if the user explicitly asks for institution/source restrictions.
-
-TRUNCATION AND WILDCARDS
-Use Scopus syntax operators:
-- Asterisk *  = truncation to find alternate endings:
-  - therap* → therapy, therapies, therapeutic, etc.
-- Question mark ?  = mandated wildcard for exactly one character:
-  - wom?n → woman, women.
-- Hash #  = optional wildcard for 0 or 1 character:
-  - p#ediatric → pediatric, paediatric.
-Choose truncation roots that are specific enough to avoid a lot of noise.
-
-PROXIMITY OPERATORS
-Use Scopus proximity syntax to control how close words must appear:
-- W/n   = within n words in any order:
-  - health W/3 wellbeing
-- PRE/n = within n words in a specified order:
-  - health PRE/3 wellbeing
-- You can also combine two OR-groups with proximity:
-  - (breast OR skin) W/3 (cancer* OR tumo?r* OR neoplasm*)
-Use proximity only when it clearly improves precision (e.g. linking intervention and outcome).
-
-PHRASE SEARCHING
-Scopus supports two types of phrase search:
-- Loose/approximate phrase: "quality of life"
-  - allows minor variations of the phrase.
-- Exact phrase: {quality of life}
-  - requires the exact phrase as written.
-For multi-word terms that are stable concepts (e.g. "quality of life", "critical micelle concentration"), use "..." or {...} instead of separate words.
-
-BOOLEAN LOGIC AND NESTING
-- Always group synonyms in parentheses with OR:
-  (PFAS OR "perfluoroalkyl substances" OR PFOA)
-- Then combine concept blocks with AND:
-  TITLE-ABS-KEY(
-    (PFAS OR "perfluoroalkyl substances" OR PFOA)
-    AND
-    (water OR "drinking water" OR groundwater)
-  )
-- Use NOT sparingly and only when the user clearly wants to exclude a well-defined concept:
-  - NOT art therapy
-- For complex logic, nest parentheses clearly and keep the structure readable.
-
-STRUCTURE TO AIM FOR
-- Aim for 2–4 main concept blocks combined with AND.
-- Within each block, use 2–6 well-chosen synonyms/variants with OR.
-- Optionally use proximity (W/n, PRE/n) within a block where closeness matters.
-- Avoid repeating exactly the same term in multiple places.
-
-OUTPUT FORMAT
-- Return ONLY the final Scopus query as plain text.
-- Do NOT add explanations, comments, labels, or extra formatting."""
+OUTPUT: Return ONLY the query, no explanations."""
 }
 
 
@@ -371,9 +257,129 @@ def call_openwebui(prompt: str, temperature: float = 0.3, max_tokens: int = 200)
         return None
 
 
+def call_google_ai_studio(prompt: str, temperature: float = 0.3, max_tokens: int = 200) -> str:
+    """
+    Call Google AI Studio (Gemini) API to generate text
+
+    Args:
+        prompt: The prompt to send to the LLM
+        temperature: Temperature for generation (0.0-1.0, lower = more focused)
+        max_tokens: Maximum tokens to generate
+
+    Returns:
+        Generated text from LLM
+    """
+    if not GOOGLE_AI_AVAILABLE:
+        print("ERROR: Google Generative AI SDK not installed.")
+        print("Install with: pip install google-generativeai")
+        return None
+
+    if not GOOGLE_AI_STUDIO_API_KEY:
+        print("ERROR: GOOGLE_AI_STUDIO_API_KEY not set.")
+        print("Get your API key from: https://aistudio.google.com/apikey")
+        print("Set it with: export GOOGLE_AI_STUDIO_API_KEY='your_key_here'")
+        return None
+
+    try:
+        print(f"DEBUG Google AI Studio: Model={GOOGLE_AI_STUDIO_MODEL}")
+        print(f"DEBUG Google AI Studio: Temperature={temperature}")
+        print(f"DEBUG Google AI Studio: Max tokens={max_tokens}")
+        print(f"DEBUG Google AI Studio: Prompt length={len(prompt)} chars")
+
+        import time
+        start_time = time.time()
+
+        # Create the model
+        model = genai.GenerativeModel(GOOGLE_AI_STUDIO_MODEL)
+
+        # Configure generation settings
+        generation_config = genai.types.GenerationConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+        )
+
+        # Configure safety settings to be less restrictive
+        # Use BLOCK_ONLY_HIGH instead of BLOCK_NONE - BLOCK_NONE may not work for all categories
+        safety_settings = [
+            {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_ONLY_HIGH",
+            },
+            {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_ONLY_HIGH",
+            },
+            {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_ONLY_HIGH",
+            },
+            {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_ONLY_HIGH",
+            },
+        ]
+
+        # Generate content
+        # Try without safety_settings first (like AI Studio default)
+        response = model.generate_content(
+            prompt,
+            generation_config=generation_config,
+            # safety_settings=safety_settings,  # Disabled - let it use defaults like AI Studio
+            request_options={'timeout': GOOGLE_AI_STUDIO_TIMEOUT}
+        )
+
+        elapsed_time = time.time() - start_time
+        print(f"DEBUG Google AI Studio: Request took {elapsed_time:.2f}s")
+
+        # Check if response was blocked by safety filters
+        if response.prompt_feedback.block_reason:
+            print(f"Google AI Studio: Prompt blocked by safety filters")
+            print(f"Block reason: {response.prompt_feedback.block_reason}")
+            print(f"Safety ratings: {response.prompt_feedback.safety_ratings}")
+            return None
+
+        # Extract text from response
+        if response and response.text:
+            generated_text = response.text.strip()
+            print(f"DEBUG Google AI Studio: Success! Generated text length: {len(generated_text)} chars")
+            print(f"DEBUG Google AI Studio: Generated text preview: {generated_text[:200]}...")
+            return generated_text
+
+        # Check if response has parts but finish_reason indicates issue
+        if response.candidates:
+            candidate = response.candidates[0]
+            print(f"Google AI Studio: Response blocked or incomplete")
+            print(f"Finish reason: {candidate.finish_reason}")
+            if candidate.finish_reason == 2:  # SAFETY
+                print(f"Safety ratings: {candidate.safety_ratings}")
+            elif candidate.finish_reason == 3:  # RECITATION
+                print(f"Content blocked due to recitation concerns")
+            return None
+
+        print(f"Google AI Studio API error: Empty response")
+        if hasattr(response, 'prompt_feedback'):
+            print(f"Prompt feedback: {response.prompt_feedback}")
+        return None
+
+    except Exception as e:
+        error_message = str(e)
+        print(f"Error calling Google AI Studio: {error_message}")
+
+        # Provide helpful error messages
+        if "API_KEY_INVALID" in error_message or "invalid api key" in error_message.lower():
+            print("Your API key is invalid. Get a new one from: https://aistudio.google.com/apikey")
+        elif "quota" in error_message.lower():
+            print("API quota exceeded. Check your usage at: https://aistudio.google.com/")
+        elif "timeout" in error_message.lower():
+            print(f"Request timed out after {GOOGLE_AI_STUDIO_TIMEOUT}s")
+            print("Try increasing timeout: export GOOGLE_AI_STUDIO_TIMEOUT=120")
+
+        return None
+
+
 def call_llm(prompt: str, temperature: float = 0.3, max_tokens: int = 200) -> str:
     """
-    Call configured LLM backend (LM Studio or OpenWebUI)
+    Call configured LLM backend (LM Studio, OpenWebUI, or Google AI Studio)
 
     Args:
         prompt: The prompt to send to the LLM
@@ -385,6 +391,8 @@ def call_llm(prompt: str, temperature: float = 0.3, max_tokens: int = 200) -> st
     """
     if LLM_BACKEND == 'openwebui':
         return call_openwebui(prompt, temperature, max_tokens)
+    elif LLM_BACKEND == 'google_ai_studio':
+        return call_google_ai_studio(prompt, temperature, max_tokens)
     else:
         return call_lm_studio(prompt, temperature, max_tokens)
 
