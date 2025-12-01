@@ -52,7 +52,7 @@ OPENWEBUI_TIMEOUT = int(os.getenv('OPENWEBUI_TIMEOUT', '180'))  # seconds (defau
 
 # Google AI Studio configuration
 GOOGLE_AI_STUDIO_API_KEY = os.getenv('GOOGLE_AI_STUDIO_API_KEY', 'REMOVED_API_KEY')
-GOOGLE_AI_STUDIO_MODEL = os.getenv('GOOGLE_AI_STUDIO_MODEL', 'gemini-2.0-flash')  # Older model, less strict safety filters
+GOOGLE_AI_STUDIO_MODEL = os.getenv('GOOGLE_AI_STUDIO_MODEL', 'gemini-2.5-flash')  # Older model, less strict safety filters
 GOOGLE_AI_STUDIO_TIMEOUT = int(os.getenv('GOOGLE_AI_STUDIO_TIMEOUT', '60'))  # seconds
 
 # Configure Google AI if available and API key is set
@@ -70,53 +70,50 @@ RULES:
 - ONLY use concepts from the user's topic - do NOT add new concepts
 - Identify 2-4 main concepts
 - For each concept: include 2-6 keyword variants (synonyms, abbreviations)
-- Add field tags: [tiab] for keywords, [tw] for broader search
-- Use * for truncation (min 4 letters): keyword*[tiab]
-- Multi-word phrases: use quotes "phrase"[tiab]
+
+FIELD TAGS (use appropriately):
+- [MeSH Terms] - for standard medical terms (e.g., "Oxidative Stress"[MeSH Terms])
+- [tiab] - for specific terms in title/abstract (e.g., maternal[tiab], pregnancy[tiab])
+- [tw] - for general words, variants, broader search (e.g., mother*[tw], gestation*[tw])
+
+GUIDELINES:
+- Use [MeSH Terms] for 1-2 main medical concepts if applicable
+- Use [tiab] for specific, important keywords
+- Use [tw] for synonyms, variants, less specific terms
+- Use * for truncation (min 4 letters): keyword*[tw]
+- Multi-word phrases: use quotes "phrase"[tiab] or "phrase"[MeSH Terms]
 - Group synonyms with OR in parentheses
 - Combine concepts with AND
 
-STRUCTURE:
-(keyword1*[tiab] OR keyword2[tiab] OR "phrase"[tiab]) AND (keyword3*[tiab] OR keyword4[tiab])
+EXAMPLE:
+("Oxidative Stress"[MeSH Terms] OR "oxidative stress"[tiab] OR oxidant*[tw]) AND (maternal[tiab] OR mother*[tw] OR pregnan*[tw])
 
 OUTPUT: Return ONLY the query, no explanations.""",
 
-    'WOS': """Generate a Web of Science Boolean search query for the given topic.
+    'WOS': """Convert this search query to Web of Science format.
 
 RULES:
-- ONLY use concepts from the user's topic - do NOT add new concepts
-- Identify 2-4 main concepts
-- For each concept: include 2-6 synonyms, acronyms, variants
-- Multi-word phrases: use quotes "phrase here"
-- Wildcards: * for truncation (word*), ? for single char (behavio?r)
-- Group synonyms with OR in parentheses
-- Combine concepts with AND
-- Optional: NEAR/x for proximity (term1 NEAR/5 term2)
-- Avoid NOT unless explicitly requested
+- Remove all field tags like [tiab], [tw], [MeSH Terms]
+- Keep all Boolean operators (AND, OR)
+- Keep all parentheses grouping
+- Keep all wildcards (*)
+- Keep all quotes for phrases
+- Can optionally use NEAR/x for proximity if it improves the query
 
-STRUCTURE:
-(concept1 OR synonym1* OR "phrase1") AND (concept2 OR synonym2*)
+OUTPUT: Return ONLY the adapted query, no explanations.""",
 
-OUTPUT: Return ONLY the query, no explanations.""",
-
-    'Scopus': """Generate a Scopus Boolean search query for the given topic.
+    'Scopus': """Convert this search query to Scopus format.
 
 RULES:
-- ONLY use concepts from the user's topic - do NOT add new concepts
-- Identify 2-4 main concepts
-- For each concept: include 2-6 synonyms, abbreviations, spelling variants
-- Use TITLE-ABS-KEY() field wrapper for all queries
-- Wildcards: * (truncation), ? (1 char), # (0-1 char)
-- Proximity: W/n (any order), PRE/n (specific order)
-- Phrases: "loose phrase" or {exact phrase}
-- Group synonyms with OR in parentheses
-- Combine concepts with AND
-- Avoid NOT unless explicitly requested
+- Remove all field tags like [tiab], [tw], [MeSH Terms]
+- Keep all Boolean operators (AND, OR)
+- Keep all parentheses grouping
+- Keep all wildcards (*)
+- Keep all quotes for phrases
+- Can optionally use W/n or PRE/n for proximity if it improves the query
+- Do NOT wrap in TITLE-ABS-KEY() - just convert the query syntax
 
-STRUCTURE:
-TITLE-ABS-KEY( (concept1 OR synonym1* OR "phrase1") AND (concept2 OR synonym2*) )
-
-OUTPUT: Return ONLY the query, no explanations."""
+OUTPUT: Return ONLY the adapted query, no explanations."""
 }
 
 
@@ -257,7 +254,7 @@ def call_openwebui(prompt: str, temperature: float = 0.3, max_tokens: int = 200)
         return None
 
 
-def call_google_ai_studio(prompt: str, temperature: float = 0.3, max_tokens: int = 200) -> str:
+def call_google_ai_studio(prompt: str, temperature: float = 0.3, max_tokens: int = 2000) -> str:
     """
     Call Google AI Studio (Gemini) API to generate text
 
@@ -298,33 +295,32 @@ def call_google_ai_studio(prompt: str, temperature: float = 0.3, max_tokens: int
             max_output_tokens=max_tokens,
         )
 
-        # Configure safety settings to be less restrictive
-        # Use BLOCK_ONLY_HIGH instead of BLOCK_NONE - BLOCK_NONE may not work for all categories
+        # Configure safety settings - BLOCK_NONE to allow all content
+        # Gemini models only support 4 categories (PaLM categories cause errors)
         safety_settings = [
             {
                 "category": "HARM_CATEGORY_HARASSMENT",
-                "threshold": "BLOCK_ONLY_HIGH",
+                "threshold": "BLOCK_NONE",
             },
             {
                 "category": "HARM_CATEGORY_HATE_SPEECH",
-                "threshold": "BLOCK_ONLY_HIGH",
+                "threshold": "BLOCK_NONE",
             },
             {
                 "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                "threshold": "BLOCK_ONLY_HIGH",
+                "threshold": "BLOCK_NONE",
             },
             {
                 "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                "threshold": "BLOCK_ONLY_HIGH",
+                "threshold": "BLOCK_NONE",
             },
         ]
 
-        # Generate content
-        # Try without safety_settings first (like AI Studio default)
+        # Generate content with BLOCK_NONE safety settings
         response = model.generate_content(
             prompt,
             generation_config=generation_config,
-            # safety_settings=safety_settings,  # Disabled - let it use defaults like AI Studio
+            #safety_settings=safety_settings,
             request_options={'timeout': GOOGLE_AI_STUDIO_TIMEOUT}
         )
 
@@ -482,7 +478,7 @@ Topic/Keywords: {name}
 Generate the search query:"""
 
     # Call LLM backend with increased max_tokens for reasoning models
-    generated_query = call_llm(prompt, temperature=0.3, max_tokens=500)
+    generated_query = call_llm(prompt, temperature=0.3, max_tokens=5000)
 
     # Return error if LLM fails
     if not generated_query:
@@ -639,9 +635,29 @@ Please provide an improved query:"""
     return original_query
 
 
+def remove_field_tags(query: str) -> str:
+    """
+    Remove PubMed field tags from query using regex (faster and more reliable than LLM)
+
+    Args:
+        query: PubMed query with field tags like [tiab], [tw], [MeSH Terms]
+
+    Returns:
+        Query with field tags removed
+    """
+    import re
+
+    # Remove field tags: [tiab], [tw], [MeSH Terms], [MeSH], etc.
+    # Pattern matches: [any text inside square brackets]
+    cleaned = re.sub(r'\[(?:tiab|tw|MeSH Terms|MeSH|all|au|ti|ab)\]', '', query)
+
+    return cleaned.strip()
+
+
 def generate_all_queries(name: str, context: dict = None) -> dict:
     """
     Generate search queries for all 3 databases at once.
+    First generates PubMed, then adapts it for WOS and Scopus using regex (not LLM).
 
     Args:
         name: The research topic or keyword name
@@ -651,9 +667,37 @@ def generate_all_queries(name: str, context: dict = None) -> dict:
         Dict with keys: Pubmed_Formula, WOS_Formula, Scopus_Formula,
                        Pubmed_Raw, WOS_Raw, Scopus_Raw
     """
+    # Step 1: Generate PubMed query first
     pubmed_result = generate_search_query(name, 'Pubmed', context)
-    wos_result = generate_search_query(name, 'WOS', context)
-    scopus_result = generate_search_query(name, 'Scopus', context)
+
+    print(f"DEBUG generate_all_queries: PubMed query='{pubmed_result['query'][:100]}...' error={pubmed_result['error_message']}")
+
+    # Step 2: If PubMed succeeded, use it as base for WOS and Scopus
+    if pubmed_result['query'] and not pubmed_result['error_message']:
+        print(f"DEBUG generate_all_queries: Using REGEX to convert PubMed to WOS/Scopus")
+        # Adapt PubMed query for WOS and Scopus by removing field tags with regex
+        # This ensures WOS and Scopus are IDENTICAL (just remove tags, keep everything else)
+        wos_query = remove_field_tags(pubmed_result['query'])
+        scopus_query = remove_field_tags(pubmed_result['query'])
+        print(f"DEBUG generate_all_queries: WOS query (regex)='{wos_query[:100]}...'")
+        print(f"DEBUG generate_all_queries: Scopus query (regex)='{scopus_query[:100]}...'")
+
+        wos_result = {
+            'query': wos_query,
+            'raw': wos_query,
+            'error_message': None
+        }
+
+        scopus_result = {
+            'query': scopus_query,
+            'raw': scopus_query,
+            'error_message': None
+        }
+    else:
+        # If PubMed failed, generate WOS and Scopus from scratch
+        print(f"DEBUG generate_all_queries: PubMed FAILED, using LLM fallback for WOS/Scopus")
+        wos_result = generate_search_query(name, 'WOS', context)
+        scopus_result = generate_search_query(name, 'Scopus', context)
 
     return {
         'Pubmed_Formula': pubmed_result['query'],

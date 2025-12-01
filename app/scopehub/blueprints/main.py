@@ -568,76 +568,52 @@ def generate_batch_unified():
                 should_generate = force_regenerate or needs_pubmed or needs_wos or needs_scopus
 
                 if should_generate:
-                    # If force_regenerate, generate ALL formulas
-                    # Otherwise, generate only missing formulas
-                    corrected_names = {'wos': None, 'scopus': None, 'pubmed': None}  # Store by priority
-                    errors = []  # Collect errors to show user
+                    # Generate all 3 queries at once (PubMed via LLM, WOS/Scopus via regex)
+                    result = generate_all_queries(
+                        name,
+                        {'section': section, 'subsection': subsection}
+                    )
 
-                    if force_regenerate or needs_pubmed:
-                        result = generate_search_query(
-                            name, 'Pubmed',
-                            {'section': section, 'subsection': subsection}
-                        )
+                    corrected_names = {'wos': None, 'scopus': None, 'pubmed': None}
+                    errors = []
 
-                        if result.get('error_message'):
-                            # LLM failed - store error
-                            errors.append(f"PubMed: {result['error_message']}")
-                            data[index]['Pubmed_Formula'] = ''
-                            data[index]['Pubmed_Raw'] = result.get('raw', '')
-                        else:
-                            # Success
-                            data[index]['Pubmed_Formula'] = result['query']
-                            data[index]['Pubmed_Raw'] = result['raw']
+                    # Store PubMed results
+                    data[index]['Pubmed_Formula'] = result.get('Pubmed_Formula', '')
+                    data[index]['Pubmed_Raw'] = result.get('Pubmed_Raw', '')
 
-                            # Extract corrected name from formula
-                            from app.scopehub.utils.llm_generator import extract_corrected_name
-                            corrected = extract_corrected_name(result['query'], 'Pubmed')
-                            if corrected:
-                                corrected_names['pubmed'] = corrected
+                    # Store WOS results
+                    data[index]['WOS_Formula'] = result.get('WOS_Formula', '')
+                    data[index]['WOS_Raw'] = result.get('WOS_Raw', '')
 
-                    if force_regenerate or needs_wos:
-                        result = generate_search_query(
-                            name, 'WOS',
-                            {'section': section, 'subsection': subsection}
-                        )
+                    # Store Scopus results
+                    data[index]['Scopus_Formula'] = result.get('Scopus_Formula', '')
+                    data[index]['Scopus_Raw'] = result.get('Scopus_Raw', '')
 
-                        if result.get('error_message'):
-                            # LLM failed - store error
-                            errors.append(f"WOS: {result['error_message']}")
-                            data[index]['WOS_Formula'] = ''
-                            data[index]['WOS_Raw'] = result.get('raw', '')
-                        else:
-                            # Success
-                            data[index]['WOS_Formula'] = result['query']
-                            data[index]['WOS_Raw'] = result['raw']
+                    # Extract corrected names from formulas
+                    from app.scopehub.utils.llm_generator import extract_corrected_name
 
-                            # Extract corrected name from formula
-                            from app.scopehub.utils.llm_generator import extract_corrected_name
-                            corrected = extract_corrected_name(result['query'], 'WOS')
-                            if corrected:
-                                corrected_names['wos'] = corrected
+                    if result.get('Pubmed_Formula'):
+                        corrected = extract_corrected_name(result['Pubmed_Formula'], 'Pubmed')
+                        if corrected:
+                            corrected_names['pubmed'] = corrected
 
-                    if force_regenerate or needs_scopus:
-                        result = generate_search_query(
-                            name, 'Scopus',
-                            {'section': section, 'subsection': subsection}
-                        )
+                    if result.get('WOS_Formula'):
+                        corrected = extract_corrected_name(result['WOS_Formula'], 'WOS')
+                        if corrected:
+                            corrected_names['wos'] = corrected
 
-                        if result.get('error_message'):
-                            # LLM failed - store error
-                            errors.append(f"Scopus: {result['error_message']}")
-                            data[index]['Scopus_Formula'] = ''
-                            data[index]['Scopus_Raw'] = result.get('raw', '')
-                        else:
-                            # Success
-                            data[index]['Scopus_Formula'] = result['query']
-                            data[index]['Scopus_Raw'] = result['raw']
+                    if result.get('Scopus_Formula'):
+                        corrected = extract_corrected_name(result['Scopus_Formula'], 'Scopus')
+                        if corrected:
+                            corrected_names['scopus'] = corrected
 
-                            # Extract corrected name from formula
-                            from app.scopehub.utils.llm_generator import extract_corrected_name
-                            corrected = extract_corrected_name(result['query'], 'Scopus')
-                            if corrected:
-                                corrected_names['scopus'] = corrected
+                    # Check for errors (empty formulas indicate failure)
+                    if not result.get('Pubmed_Formula'):
+                        errors.append("PubMed: Failed to generate query")
+                    if not result.get('WOS_Formula'):
+                        errors.append("WOS: Failed to generate query")
+                    if not result.get('Scopus_Formula'):
+                        errors.append("Scopus: Failed to generate query")
 
                     # Store errors in Comments field if any
                     if errors:
