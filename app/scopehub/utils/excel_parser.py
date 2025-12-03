@@ -607,8 +607,8 @@ def unified_to_sheets(unified: List[Dict[str, Any]]) -> Dict[str, pd.DataFrame]:
             # Add Combined String row for this subsection
             # Smart combining based on database syntax
 
-            # PubMed: Simple OR joining (no special prefix)
-            pubmed_combined = ' OR '.join([f"({f})" for f in pubmed_formulas]) if pubmed_formulas else ''
+            # PubMed: Simple AND joining (no special prefix)
+            pubmed_combined = ' AND '.join([f"({f})" for f in pubmed_formulas]) if pubmed_formulas else ''
 
             # WOS: Extract TS= prefix if all formulas use it
             if wos_formulas:
@@ -647,10 +647,10 @@ def unified_to_sheets(unified: List[Dict[str, Any]]) -> Dict[str, pd.DataFrame]:
                         contents.append(without_prefix)
 
                     # Combine with single prefix
-                    wos_combined = f"{wos_prefix}({' OR '.join([f'({c})' for c in contents])})"
+                    wos_combined = f"{wos_prefix}({' AND '.join([f'({c})' for c in contents])})"
                 else:
-                    # No common prefix - simple OR joining
-                    wos_combined = ' OR '.join([f"({f})" for f in wos_formulas])
+                    # No common prefix - simple AND joining
+                    wos_combined = ' AND '.join([f"({f})" for f in wos_formulas])
             else:
                 wos_combined = ''
 
@@ -686,10 +686,10 @@ def unified_to_sheets(unified: List[Dict[str, Any]]) -> Dict[str, pd.DataFrame]:
                         contents.append(without_prefix)
 
                     # Combine with single prefix
-                    scopus_combined = f"TITLE-ABS-KEY({' OR '.join([f'({c})' for c in contents])})"
+                    scopus_combined = f"TITLE-ABS-KEY({' AND '.join([f'({c})' for c in contents])})"
                 else:
-                    # No common prefix - simple OR joining
-                    scopus_combined = ' OR '.join([f"({f})" for f in scopus_formulas])
+                    # No common prefix - simple AND joining
+                    scopus_combined = ' AND '.join([f"({f})" for f in scopus_formulas])
             else:
                 scopus_combined = ''
 

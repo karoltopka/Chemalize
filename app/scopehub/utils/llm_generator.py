@@ -71,22 +71,21 @@ RULES:
 - Identify 2-4 main concepts
 - For each concept: include 2-6 keyword variants (synonyms, abbreviations)
 
-FIELD TAGS (use appropriately):
-- [MeSH Terms] - for standard medical terms (e.g., "Oxidative Stress"[MeSH Terms])
-- [tiab] - for specific terms in title/abstract (e.g., maternal[tiab], pregnancy[tiab])
-- [tw] - for general words, variants, broader search (e.g., mother*[tw], gestation*[tw])
+FIELD TAGS (use both appropriately):
+- [tiab] - for specific, important keywords in title/abstract (e.g., maternal[tiab], pregnancy[tiab], "oxidative stress"[tiab])
+- [tw] - for general words, variants, synonyms, broader search (e.g., mother*[tw], gestation*[tw], oxidant*[tw])
 
 GUIDELINES:
-- Use [MeSH Terms] for 1-2 main medical concepts if applicable
-- Use [tiab] for specific, important keywords
-- Use [tw] for synonyms, variants, less specific terms
+- Use [tiab] for main keywords and specific multi-word phrases
+- Use [tw] for synonyms, variants, and truncated terms
 - Use * for truncation (min 4 letters): keyword*[tw]
-- Multi-word phrases: use quotes "phrase"[tiab] or "phrase"[MeSH Terms]
+- Multi-word phrases: use quotes "phrase"[tiab]
 - Group synonyms with OR in parentheses
 - Combine concepts with AND
+- Mix [tiab] and [tw] within each concept group
 
 EXAMPLE:
-("Oxidative Stress"[MeSH Terms] OR "oxidative stress"[tiab] OR oxidant*[tw]) AND (maternal[tiab] OR mother*[tw] OR pregnan*[tw])
+("oxidative stress"[tiab] OR oxidant*[tw] OR "free radical"[tiab]) AND (maternal[tiab] OR mother*[tw] OR pregnan*[tw])
 
 OUTPUT: Return ONLY the query, no explanations.""",
 
@@ -709,14 +708,14 @@ def generate_all_queries(name: str, context: dict = None) -> dict:
     }
 
 
-def combine_queries(queries: list, database: str, operator: str = "OR") -> str:
+def combine_queries(queries: list, database: str, operator: str = "AND") -> str:
     """
     Combine multiple queries with specified operator
 
     Args:
         queries: List of search queries
         database: Target database
-        operator: Boolean operator (OR, AND)
+        operator: Boolean operator (AND, OR)
 
     Returns:
         Combined query string
