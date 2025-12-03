@@ -397,7 +397,7 @@ def unified_to_sheets(unified: List[Dict[str, Any]]) -> Dict[str, pd.DataFrame]:
     === SECTION A ===
     A | A1 | Name1 | formula1 | | ...
     A | A1 | Name2 | formula2 | | ...
-    A | A1 |       |          | (f1) OR (f2) |
+    A | A1 |       |          | (f1) AND (f2) |
     A | A2 | Name3 | formula3 | | ...
     A | A2 |       |          | (f3) |
       |    |       |          | |  (separator)
@@ -405,7 +405,7 @@ def unified_to_sheets(unified: List[Dict[str, Any]]) -> Dict[str, pd.DataFrame]:
     === SECTION B === (only one subsection - no B1)
     B |    | Name4 | formula4 | | ...
     B |    | Name5 | formula5 | | ...
-    B |    |       |          | (f4) OR (f5) |
+    B |    |       |          | (f4) AND (f5) |
       |    |       |          | |  (separator)
     """
     # Group entries by section and subsection
