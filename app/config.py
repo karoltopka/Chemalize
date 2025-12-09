@@ -22,6 +22,7 @@ UNIFIED_DIR = os.path.join(DATA_DIR, 'unified')
 # Static files directory
 STATIC_DIR = os.path.join(BASE_DIR, 'app', 'static')
 STATIC_IMG_DIR = os.path.join(STATIC_DIR, 'img')
+WATERMARK_DIR = os.path.join(STATIC_IMG_DIR, 'watermarks')
 
 # Session directory
 SESSION_DIR = os.path.join(BASE_DIR, 'flask_session')

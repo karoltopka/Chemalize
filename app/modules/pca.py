@@ -10,6 +10,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 import seaborn as sns
 import io
+from app.utils.watermark import add_watermark_matplotlib_after_plot
 
 # Set the Seaborn style for better looking plots
 sns.set(style="whitegrid")
@@ -305,6 +306,7 @@ def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True
             plt.ylabel(f'Principal Component {pc_y_axis_sel}')
             plt.title(f'PCA Scatter (REFIT) — {len(selected_features)} selected features')
             plt.grid(True, linestyle='--', alpha=0.5)
+            add_watermark_matplotlib_after_plot(plt.gcf())
             sel_sc_path = os.path.join(temp_path, f'pca_selected_scatter_pc{pc_x_axis_sel}_pc{pc_y_axis_sel}.png')
             plt.savefig(sel_sc_path, dpi=300, bbox_inches='tight')
             plt.close()
@@ -326,6 +328,7 @@ def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True
             plt.grid(True, linestyle='--', alpha=0.5)
             plt.axhline(0, color='k', linestyle='-', alpha=0.3)
             plt.axvline(0, color='k', linestyle='-', alpha=0.3)
+            add_watermark_matplotlib_after_plot(plt.gcf())
             sel_bp_path = os.path.join(temp_path, f'pca_selected_biplot_pc{pc_x_axis_sel}_pc{pc_y_axis_sel}.png')
             plt.savefig(sel_bp_path, dpi=300, bbox_inches='tight')
             plt.close()
@@ -362,7 +365,8 @@ def create_variance_plot(pca_model, temp_path):
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.tight_layout()
     
-    # Save the plot
+    # Add watermark and save the plot
+    add_watermark_matplotlib_after_plot(plt.gcf())
     plot_path = os.path.join(temp_path, 'pca_variance.png')
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close()
@@ -410,7 +414,8 @@ def create_enhanced_scatter_plot(pc_df, color_by, pc_x_axis, pc_y_axis, temp_pat
     plt.title(f'PCA Scatter Plot (PC{pc_x_axis} vs PC{pc_y_axis})')
     plt.grid(True, linestyle='--', alpha=0.5)
     
-    # Save the plot
+    # Add watermark and save the plot
+    add_watermark_matplotlib_after_plot(plt.gcf())
     plot_path = os.path.join(temp_path, f'pca_scatter_pc{pc_x_axis}_pc{pc_y_axis}.png')
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close()
@@ -445,7 +450,8 @@ def create_enhanced_loading_plot(loadings_df, pc_loadings_select, temp_path, top
     plt.ylabel('Features')
     plt.tight_layout()
     
-    # Save the plot
+    # Add watermark and save the plot
+    add_watermark_matplotlib_after_plot(plt.gcf())
     pc_names = "_".join([f"pc{i}" for i in pc_loadings_select])
     plot_path = os.path.join(temp_path, f'pca_loadings_{pc_names}.png')
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
@@ -491,7 +497,8 @@ def create_enhanced_biplot(pc_scores, loadings, feature_names, pc_x_axis, pc_y_a
     plt.axvline(x=0, color='k', linestyle='-', alpha=0.3)
     plt.tight_layout()
     
-    # Save the plot
+    # Add watermark and save the plot
+    add_watermark_matplotlib_after_plot(plt.gcf())
     plot_path = os.path.join(temp_path, f'pca_biplot_pc{pc_x_axis}_pc{pc_y_axis}.png')
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close()
@@ -513,7 +520,8 @@ def create_feature_importance_plot(feature_importance, temp_path):
     plt.grid(True, linestyle='--', alpha=0.5, axis='x')
     plt.tight_layout()
     
-    # Save the plot
+    # Add watermark and save the plot
+    add_watermark_matplotlib_after_plot(plt.gcf())
     plot_path = os.path.join(temp_path, 'pca_feature_importance.png')
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close()

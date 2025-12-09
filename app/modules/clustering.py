@@ -13,6 +13,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 import seaborn as sns
 import io
+from app.utils.watermark import add_watermark_matplotlib_after_plot
 
 # Set the Seaborn style for better looking plots
 sns.set(style="whitegrid")
@@ -152,6 +153,7 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
         plt.tight_layout()
         
         # Save the plot
+        add_watermark_matplotlib_after_plot(plt.gcf())
         elbow_plot_path = os.path.join(temp_path, 'clustering_elbow.png')
         plt.savefig(elbow_plot_path, dpi=300, bbox_inches='tight')
         plt.close()
@@ -191,6 +193,7 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
         plt.tight_layout()
         
         # Save the plot
+        add_watermark_matplotlib_after_plot(plt.gcf())
         eps_plot_path = os.path.join(temp_path, 'clustering_eps.png')
         plt.savefig(eps_plot_path, dpi=300, bbox_inches='tight')
         plt.close()
@@ -271,6 +274,7 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
         plt.tight_layout()
         
         # Save the plot
+        add_watermark_matplotlib_after_plot(plt.gcf())
         dendrogram_path = os.path.join(temp_path, 'clustering_dendrogram.png')
         plt.savefig(dendrogram_path, dpi=300, bbox_inches='tight')
         plt.close()
@@ -431,6 +435,7 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
         plt.tight_layout()
         
         # Save the plot
+        add_watermark_matplotlib_after_plot(plt.gcf())
         cluster_plot_path = os.path.join(temp_path, 'clustering_pca.png')
         plt.savefig(cluster_plot_path, dpi=300, bbox_inches='tight')
         plt.close()
@@ -454,6 +459,7 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
         plt.tight_layout()
         
         # Save the plot
+        add_watermark_matplotlib_after_plot(plt.gcf())
         profile_plot_path = os.path.join(temp_path, 'clustering_profiles.png')
         plt.savefig(profile_plot_path, dpi=300, bbox_inches='tight')
         plt.close()
@@ -499,6 +505,7 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
     plt.tight_layout()
     
     # Save the plot
+    add_watermark_matplotlib_after_plot(plt.gcf())
     size_plot_path = os.path.join(temp_path, 'clustering_sizes.png')
     plt.savefig(size_plot_path, dpi=300, bbox_inches='tight')
     plt.close()

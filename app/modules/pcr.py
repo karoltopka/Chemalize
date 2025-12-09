@@ -14,6 +14,7 @@ from reportlab.lib import colors
 import seaborn as sns
 import math
 import io
+from app.utils.watermark import add_watermark_matplotlib_after_plot
 
 # Set the Seaborn style for better looking plots
 sns.set(style="whitegrid")
@@ -160,6 +161,7 @@ def perform_pcr(df, target_var, n_components=2, test_size=0.2, scale_data=True,
         plt.tight_layout()
         
         # Save the plot
+        add_watermark_matplotlib_after_plot(plt.gcf())
         optimization_plot_path = os.path.join(temp_path, 'pcr_optimization.png')
         plt.savefig(optimization_plot_path, dpi=300, bbox_inches='tight')
         plt.close()
@@ -223,6 +225,7 @@ def perform_pcr(df, target_var, n_components=2, test_size=0.2, scale_data=True,
         plt.tight_layout()
         
         # Save the plot
+        add_watermark_matplotlib_after_plot(plt.gcf())
         variance_plot_path = os.path.join(temp_path, 'pcr_variance.png')
         plt.savefig(variance_plot_path, dpi=300, bbox_inches='tight')
         plt.close()
@@ -259,6 +262,7 @@ def perform_pcr(df, target_var, n_components=2, test_size=0.2, scale_data=True,
         plt.tight_layout()
         
         # Save the plot
+        add_watermark_matplotlib_after_plot(plt.gcf())
         pred_actual_plot_path = os.path.join(temp_path, 'pcr_pred_actual.png')
         plt.savefig(pred_actual_plot_path, dpi=300, bbox_inches='tight')
         plt.close()
@@ -281,6 +285,7 @@ def perform_pcr(df, target_var, n_components=2, test_size=0.2, scale_data=True,
         plt.tight_layout()
         
         # Save the plot
+        add_watermark_matplotlib_after_plot(plt.gcf())
         residuals_plot_path = os.path.join(temp_path, 'pcr_residuals.png')
         plt.savefig(residuals_plot_path, dpi=300, bbox_inches='tight')
         plt.close()

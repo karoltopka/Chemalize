@@ -14,6 +14,7 @@ from statsmodels.stats.stattools import durbin_watson
 from sklearn.linear_model import LinearRegression
 import os
 import io
+from app.utils.watermark import add_watermark_matplotlib_after_plot
 
 def hat_matrix(X):
     """Calculate hat matrix for X"""
@@ -685,6 +686,7 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     plt.yticks(fontsize=10)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
+    add_watermark_matplotlib_after_plot(plt.gcf())
     pred_actual_plot_path = os.path.join(temp_path, 'mlr_pred_actual_plot.png')
     plt.savefig(pred_actual_plot_path, dpi=150, bbox_inches='tight')
     plt.close()
@@ -702,6 +704,7 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     plt.yticks(fontsize=10)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
+    add_watermark_matplotlib_after_plot(plt.gcf())
     residuals_plot_path = os.path.join(temp_path, 'mlr_residuals_plot.png')
     plt.savefig(residuals_plot_path, dpi=150, bbox_inches='tight')
     plt.close()
@@ -717,6 +720,7 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     plt.yticks(fontsize=10)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
+    add_watermark_matplotlib_after_plot(plt.gcf())
     residuals_hist_path = os.path.join(temp_path, 'mlr_residuals_hist.png')
     plt.savefig(residuals_hist_path, dpi=150, bbox_inches='tight')
     plt.close()
@@ -731,6 +735,7 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     plt.yticks(fontsize=10)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
+    add_watermark_matplotlib_after_plot(plt.gcf())
     qq_plot_path = os.path.join(temp_path, 'mlr_qq_plot.png')
     plt.savefig(qq_plot_path, dpi=150, bbox_inches='tight')
     plt.close()
@@ -775,7 +780,8 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         wp_result = williams_plot(result_df, simple_model)
         # Utwórz wykres
         wp_plot = plot_wp(wp_result)
-        # Zapisz wykres do pliku
+        # Dodaj watermark i zapisz wykres do pliku
+        add_watermark_matplotlib_after_plot(wp_plot)
         williams_plot_path = os.path.join(temp_path, 'mlr_williams_plot.png')
         wp_plot.savefig(williams_plot_path, dpi=150, bbox_inches='tight')
         plt.close(wp_plot)
