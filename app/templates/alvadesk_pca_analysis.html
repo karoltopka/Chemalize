@@ -1934,7 +1934,7 @@
                             text: data.color_by || 'Value',
                             side: 'right'
                         },
-                        len: 0.9,
+                        len: 0.75,
                         thickness: 20,
                         tickfont: { size: 10 }
                     };
@@ -2009,7 +2009,7 @@
                         text: data.color_by || 'Value',
                         side: 'right'
                     },
-                    len: 0.9,
+                    len: 0.75,
                     thickness: 20,
                     tickfont: { size: 10 }
                 };
@@ -3138,11 +3138,11 @@
 
         // Check if PCA was performed
         const pcaPerformed = {{ 'true' if pca_performed else 'false' }};
-    console.log('PCA performed:', pcaPerformed);
+        console.log('PCA performed:', pcaPerformed);
 
-    if (pcaPerformed) {
-        const nComponents = {{ pca_n_components if pca_n_components else 0 }};
-    console.log('Number of components:', nComponents);
+        if (pcaPerformed) {
+            const nComponents = {{ pca_n_components if pca_n_components else 0 }};
+            console.log('Number of components:', nComponents);
         }
 
     updateSelectedCount();
