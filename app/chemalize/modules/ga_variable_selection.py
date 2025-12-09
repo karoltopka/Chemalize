@@ -595,7 +595,7 @@ class GeneticAlgorithmSelector:
                         'total_generations': int(self.n_iterations),
                         'best_score': float(max_fitness),
                         'overall_best_score': float(self.best_score_),
-                        'n_features': int(np.sum(self.best_features_)),
+                        'n_features': int(np.sum(self.best_features_)) if self.best_features_ is not None else 0,
                         'unique_models': int(len(all_models)),
                         'r2': float(detailed_metrics['r2']),
                         'q2loo': float(detailed_metrics['q2loo']),
