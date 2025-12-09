@@ -13,6 +13,7 @@ import random
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
+from app.utils.watermark import add_watermark_matplotlib_after_plot
 
 
 class GeneticAlgorithmSelector:
@@ -711,6 +712,7 @@ class GeneticAlgorithmSelector:
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
 
+        add_watermark_matplotlib_after_plot(plt.gcf())
         plot_path = os.path.join(temp_path, 'ga_fitness_history.png')
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
         plt.close()
@@ -974,6 +976,7 @@ def plot_y_histogram(y, y_name='Target Variable', temp_path='temp/'):
     # Generate unique filename to avoid overwriting
     import time
     timestamp = int(time.time() * 1000000)  # microseconds for uniqueness
+    add_watermark_matplotlib_after_plot(plt.gcf())
     plot_path = os.path.join(temp_path, f'y_histogram_{timestamp}.png')
     plt.savefig(plot_path, dpi=150, bbox_inches='tight')
     plt.close()
@@ -1034,6 +1037,7 @@ def plot_y_histogram_split(y_train, y_test, y_name='Target Variable', temp_path=
     # Generate unique filename to avoid overwriting
     import time
     timestamp = int(time.time() * 1000000)  # microseconds for uniqueness
+    add_watermark_matplotlib_after_plot(plt.gcf())
     plot_path = os.path.join(temp_path, f'y_histogram_split_{timestamp}.png')
     plt.savefig(plot_path, dpi=150, bbox_inches='tight')
     plt.close()
@@ -1105,6 +1109,7 @@ def plot_y_histogram_old(y, y_name='Target Variable', temp_path='temp/'):
     import time
     timestamp = str(int(time.time() * 1000))
     filename = f'y_distribution_{timestamp}.png'
+    add_watermark_matplotlib_after_plot(plt.gcf())
     plot_path = os.path.join(temp_path, filename)
     plt.savefig(plot_path, dpi=150, bbox_inches='tight')
     plt.close()

@@ -1,4 +1,4 @@
-{% extends "layout.html" %} 
+{% extends "layout.html" %}
 
 {% block head %}
 <!-- Add Plotly.js to the head -->
@@ -9,11 +9,11 @@
         width: 100%;
         position: relative;
     }
-    
+
     #pca-plotly {
         width: 100%;
     }
-    
+
     /* Filter controls styling */
     .filter-checkboxes {
         padding: 10px;
@@ -21,33 +21,32 @@
         border-radius: 8px;
         border: 1px solid rgba(226, 232, 240, 0.8);
     }
-    
+
     .filter-checkboxes .form-check {
         padding: 4px 0;
     }
-    
+
     .filter-checkboxes .form-check-label {
         cursor: pointer;
         user-select: none;
     }
-    
+
     .gap-2 {
         gap: 0.5rem;
     }
-    
-    
+
+
     .d-flex {
         display: flex;
     }
-    
+
     .align-items-center {
         align-items: center;
     }
-    
+
     .ml-2 {
         margin-left: 0.5rem;
     }
-    
 </style>
 {% endblock %}
 
@@ -72,10 +71,11 @@
             <div class="modern-card animate-in">
                 <h4><i class="fas fa-project-diagram"></i> Pair-plot Visualization</h4>
                 <p class="text-muted mb-3">Explore relationships between all numeric variables</p>
-                
+
                 <div class="visualization-container">
                     <div class="image-preview" onclick="openImageModal()">
-                        <img src="/static/img/pairplot1.png" class="img-fluid visualization-image" alt="Pair plot visualization"/>
+                        <img src="/static/img/pairplot1.png" class="img-fluid visualization-image"
+                            alt="Pair plot visualization" />
                         <div class="image-overlay">
                             <i class="fas fa-expand-arrows-alt"></i>
                             <span>Click to enlarge</span>
@@ -84,13 +84,13 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Scatter Plot -->
         <div class="col-lg-6">
             <div class="modern-card animate-in">
                 <h4><i class="fas fa-chart-scatter"></i> Interactive Scatter Plot</h4>
                 <p class="text-muted mb-3">Create custom scatter plots with any two variables</p>
-                
+
                 <form id="xy-visualization-form" class="visualization-form">
                     <div class="form-row">
                         <div class="form-group">
@@ -99,22 +99,22 @@
                             </label>
                             <select name="x_col" class="form-control">
                                 {% for each in cols %}
-                                    <option value="{{each}}" {% if each == default_x %} selected {% endif %}>{{each}}</option>
+                                <option value="{{each}}" {% if each==default_x %} selected {% endif %}>{{each}}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        
+
                         <div class="form-group">
                             <label class="form-label">
                                 <i class="fas fa-arrows-alt-v"></i> Y-Axis Variable
                             </label>
                             <select name="y_col" class="form-control">
                                 {% for each in cols %}
-                                    <option value="{{each}}" {% if each == default_y %} selected {% endif %}>{{each}}</option>
+                                <option value="{{each}}" {% if each==default_y %} selected {% endif %}>{{each}}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        
+
                         <div class="form-group">
                             <button type="submit" class="modern-btn btn-primary-modern w-100">
                                 <i class="fas fa-chart-scatter"></i> Generate Plot
@@ -122,33 +122,33 @@
                         </div>
                     </div>
                 </form>
-                
+
                 <div id="xy-plot-container" class="plot-container">
                     {% if posted == 1 and data %}
-                        <div class="plot-card">
-                            <div class="plot-header">
-                                <h6><i class="fas fa-chart-scatter"></i> {{ x_col_name }} vs {{ y_col_name }}</h6>
-                            </div>
-                            <div class="plot-body">
-                                <canvas id="myChart1" width="100%" height="400"></canvas>
-                            </div>
+                    <div class="plot-card">
+                        <div class="plot-header">
+                            <h6><i class="fas fa-chart-scatter"></i> {{ x_col_name }} vs {{ y_col_name }}</h6>
                         </div>
-                        
-                        <script type="text/javascript">
-                            // Initial render
-                            renderScatterPlot({{ data|safe }}, '{{ x_col_name }}', '{{ y_col_name }}');
-                        </script>
+                        <div class="plot-body">
+                            <canvas id="myChart1" width="100%" height="400"></canvas>
+                        </div>
+                    </div>
+
+                    <script type="text/javascript">
+                        // Initial render
+                        renderScatterPlot({{ data| safe }}, '{{ x_col_name }}', '{{ y_col_name }}');
+                    </script>
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
-    
+
     <!-- Histogram Visualization Section -->
     <div class="modern-card animate-in">
         <h4><i class="fas fa-chart-bar"></i> Distribution Analysis</h4>
         <p class="text-muted mb-4">Analyze the distribution of individual variables with interactive histograms</p>
-        
+
         <form id="histogram-visualization-form" class="visualization-form">
             <div class="form-row histogram-form">
                 <div class="form-group flex-grow-1">
@@ -157,11 +157,11 @@
                     </label>
                     <select name="x_col" class="form-control">
                         {% for each in cols %}
-                            <option value="{{each}}" {% if each == x_col %} selected {% endif %}>{{each}}</option>
+                        <option value="{{each}}" {% if each==x_col %} selected {% endif %}>{{each}}</option>
                         {% endfor %}
                     </select>
                 </div>
-                
+
                 <div class="form-group">
                     <label class="form-label">&nbsp;</label>
                     <button type="submit" class="modern-btn btn-success-modern w-100">
@@ -170,31 +170,31 @@
                 </div>
             </div>
         </form>
-        
+
         <div id="histogram-container" class="plot-container">
             {% if posted == 1 and histogram_data %}
-                <div class="plot-card">
-                    <div class="plot-header">
-                        <h6><i class="fas fa-chart-bar"></i> Distribution of {{ x_col }}</h6>
-                    </div>
-                    <div class="plot-body">
-                        <div id="histogram-plot" style="width: 100%; height: 400px;"></div>
-                    </div>
+            <div class="plot-card">
+                <div class="plot-header">
+                    <h6><i class="fas fa-chart-bar"></i> Distribution of {{ x_col }}</h6>
                 </div>
-                
-                <script>
-                    // Initial render
-                    renderHistogram(JSON.parse('{{ histogram_data|safe }}'));
-                </script>
+                <div class="plot-body">
+                    <div id="histogram-plot" style="width: 100%; height: 400px;"></div>
+                </div>
+            </div>
+
+            <script>
+                // Initial render
+                renderHistogram(JSON.parse('{{ histogram_data|safe }}'));
+            </script>
             {% elif posted == 1 and plot_path %}
-                <div class="plot-card">
-                    <div class="plot-header">
-                        <h6><i class="fas fa-chart-bar"></i> Distribution of {{ x_col }}</h6>
-                    </div>
-                    <div class="plot-body">
-                        <img src="{{ plot_path }}" class="img-fluid" alt="Histogram Visualization">
-                    </div>
+            <div class="plot-card">
+                <div class="plot-header">
+                    <h6><i class="fas fa-chart-bar"></i> Distribution of {{ x_col }}</h6>
                 </div>
+                <div class="plot-body">
+                    <img src="{{ plot_path }}" class="img-fluid" alt="Histogram Visualization">
+                </div>
+            </div>
             {% endif %}
         </div>
     </div>
@@ -204,22 +204,23 @@
     <div class="modern-card animate-in">
         <h4><i class="fas fa-project-diagram"></i> PCA Interactive Plot</h4>
         <p class="text-muted mb-4">Visualize Principal Component Analysis results from your session</p>
-        
+
         <!-- Upload Color File Section -->
         <div class="mb-4">
             <h5><i class="fas fa-palette"></i> Advanced Coloring & Filtering (Optional)</h5>
             <p class="text-muted mb-3">Upload a file with additional data to color and filter your PCA points</p>
-            
+
             <form id="color-file-upload-form" enctype="multipart/form-data" class="mb-3">
                 <div class="form-row">
                     <div class="form-group flex-grow-1">
                         <label class="form-label">
                             <i class="fas fa-file-upload"></i> Upload External Data File (CSV, XLSX, XLS)
                         </label>
-                        <input type="file" name="color_file" id="color_file" class="form-control" 
-                               accept=".csv,.xlsx,.xls" />
+                        <input type="file" name="color_file" id="color_file" class="form-control"
+                            accept=".csv,.xlsx,.xls" />
                         <small class="form-text text-muted">
-                            File must contain a key column to match with your PCA data and columns for coloring/filtering
+                            File must contain a key column to match with your PCA data and columns for
+                            coloring/filtering
                         </small>
                     </div>
                     <div class="form-group">
@@ -230,10 +231,10 @@
                     </div>
                 </div>
             </form>
-            
+
             <!-- Color File Status -->
             <div id="color-file-status"></div>
-            
+
             <!-- Key Column Selection (shown when multiple common columns found) -->
             <div id="key-column-selection" style="display: none;" class="mt-3">
                 <div class="modern-alert alert-warning">
@@ -250,7 +251,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Color & Filter Column Selection (shown after key column is confirmed) -->
             <div id="external-column-selection" style="display: none;" class="mt-3">
                 <div class="row">
@@ -266,7 +267,7 @@
                             <small class="form-text text-muted" id="color-column-info"></small>
                         </div>
                     </div>
-                    
+
                     <div class="col-md-6">
                         <div class="form-group">
                             <label class="form-label">
@@ -280,15 +281,15 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="modern-alert alert-info mt-3">
                     <i class="fas fa-info-circle"></i>
-                    <strong>Tip:</strong> You can select different columns for coloring and filtering. 
+                    <strong>Tip:</strong> You can select different columns for coloring and filtering.
                     For example, color by "species" and filter by "region".
                 </div>
             </div>
         </div>
-        
+
         <form id="pca-visualization-form" class="visualization-form">
             <div class="form-row">
                 <div class="form-group">
@@ -297,22 +298,22 @@
                     </label>
                     <select name="pc_x" class="form-control">
                         {% for i in range(1, pca_n_components + 1) %}
-                            <option value="{{ i }}" {% if i == 1 %}selected{% endif %}>PC{{ i }}</option>
+                        <option value="{{ i }}" {% if i==1 %}selected{% endif %}>PC{{ i }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                
+
                 <div class="form-group">
                     <label class="form-label">
                         <i class="fas fa-arrows-alt-v"></i> Y-Axis PC
                     </label>
                     <select name="pc_y" class="form-control">
                         {% for i in range(1, pca_n_components + 1) %}
-                            <option value="{{ i }}" {% if i == 2 %}selected{% endif %}>PC{{ i }}</option>
+                        <option value="{{ i }}" {% if i==2 %}selected{% endif %}>PC{{ i }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                
+
                 <div class="form-group">
                     <label class="form-label">
                         <i class="fas fa-palette"></i> Color By (From PCA Data)
@@ -320,14 +321,14 @@
                     <select name="pca_color_by" id="pca_color_by_select" class="form-control">
                         <option value="">None</option>
                         {% for col in pca_color_options %}
-                            <option value="{{ col }}">{{ col }}</option>
+                        <option value="{{ col }}">{{ col }}</option>
                         {% endfor %}
                     </select>
                     <small class="form-text text-muted">
                         Or use uploaded file for coloring
                     </small>
                 </div>
-                
+
                 <div class="form-group">
                     <label class="form-label">
                         <i class="fas fa-tag"></i> Hover Label (Optional)
@@ -335,17 +336,17 @@
                     <select name="pca_hover_column" class="form-control">
                         <option value="">Coordinates only</option>
                         {% for col in pca_color_options %}
-                            <option value="{{ col }}">{{ col }}</option>
+                        <option value="{{ col }}">{{ col }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                
+
                 <!-- Hidden inputs for external coloring -->
                 <input type="hidden" name="use_external_coloring" id="use_external_coloring" value="0">
                 <input type="hidden" name="external_key_column" id="external_key_column" value="">
                 <input type="hidden" name="external_color_column" id="external_color_column" value="">
                 <input type="hidden" name="external_filter_column" id="external_filter_column" value="">
-                
+
                 <div class="form-group">
                     <label class="form-label">&nbsp;</label>
                     <button type="submit" class="modern-btn btn-primary-modern w-100">
@@ -354,7 +355,7 @@
                 </div>
             </div>
         </form>
-        
+
         <!-- Filter Controls (shown after plot is generated) -->
         <div id="pca-filter-controls" style="display: none;" class="mt-3 mb-3">
             <div>
@@ -368,7 +369,7 @@
                 </button>
             </div>
         </div>
-        
+
         <div id="pca-plot-container" class="plot-container"></div>
     </div>
     {% else %}
@@ -376,7 +377,7 @@
         <h4><i class="fas fa-project-diagram"></i> PCA Interactive Plot</h4>
         <div class="modern-alert alert-info">
             <i class="fas fa-info-circle"></i>
-            PCA analysis has not been performed yet. Please run PCA analysis first from the 
+            PCA analysis has not been performed yet. Please run PCA analysis first from the
             <a href="{{ url_for('pca.pca_analysis') }}">PCA Analysis</a> page.
         </div>
     </div>
@@ -392,11 +393,11 @@
                     <i class="fas fa-project-diagram"></i> Pair-plot Visualization
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
-                    
+
                 </button>
             </div>
             <div class="modal-body text-center">
-                <img src="/static/img/pairplot1.png" class="img-fluid modal-image" alt="Enlarged pair plot"/>
+                <img src="/static/img/pairplot1.png" class="img-fluid modal-image" alt="Enlarged pair plot" />
             </div>
             <div class="modal-footer">
                 <div class="modal-info">
@@ -410,715 +411,743 @@
 
 <!-- AJAX + WIZUALIZACJE -->
 <script>
-// Ensure Chart.js is available
-if (typeof Chart === 'undefined') {
-    console.error('Chart.js is not loaded! Loading it now...');
-    const chartScript = document.createElement('script');
-    chartScript.src = 'https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js';
-    document.head.appendChild(chartScript);
-}
-
-// Ensure Plotly is available
-if (typeof Plotly === 'undefined') {
-    console.error('Plotly.js is not loaded! Loading it now...');
-    const plotlyScript = document.createElement('script');
-    plotlyScript.src = 'https://cdn.jsdelivr.net/npm/plotly.js@2.24.2/dist/plotly.min.js';
-    plotlyScript.onload = function() {
-        console.log('Plotly loaded successfully!');
-    };
-    document.head.appendChild(plotlyScript);
-}
-
-// Globalna zmienna do przechowywania informacji o pliku z kolorami
-let colorFileData = {
-    uploaded: false,
-    key_column: null,
-    color_column: null,
-    filter_column: null,
-    available_columns: [],
-    column_info: {},
-    auto_detected: false,
-    // Store actual data for filtering
-    data: null,
-    merged_data: null
-};
-
-// Global variables for PCA filtering
-let originalPCAData = null;
-let currentFilterColumn = null;
-let currentFilterValues = null;
-let pcaResizeHandler = null;
-
-// Global chart rendering functions
-function renderScatterPlot(data, xLabel, yLabel) {
+    // Ensure Chart.js is available
     if (typeof Chart === 'undefined') {
-        console.error('Chart.js not available for scatter plot');
-        return;
+        console.error('Chart.js is not loaded! Loading it now...');
+        const chartScript = document.createElement('script');
+        chartScript.src = 'https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js';
+        document.head.appendChild(chartScript);
     }
 
-    const ctx = document.getElementById("myChart1").getContext('2d');
-    new Chart.Scatter(ctx, {
-        type: 'scatter',
-        data: {
-            datasets: [{
-                label: `${xLabel} vs ${yLabel}`,
-                data: data,
-                showLine: false,
-                borderColor: "#2563eb",
-                backgroundColor: "#2563eb",
-                pointBackgroundColor: "#2563eb",
-                pointBorderColor: "#764ba2",
-                pointRadius: 5,
-                pointHoverRadius: 8,
-                pointBorderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            legend: {
-                display: true,
-                labels: {
-                    fontColor: '#1f2937',
-                    fontSize: 12,
-                    fontStyle: 'bold'
-                }
-            },
-            scales: {
-                yAxes: [{
-                    scaleLabel: {
-                        display: true,
-                        labelString: yLabel,
-                        fontColor: '#1f2937',
-                        fontSize: 14,
-                        fontStyle: 'bold'
-                    },
-                    gridLines: {
-                        color: 'rgba(0,0,0,0.1)'
-                    }
-                }],
-                xAxes: [{
-                    scaleLabel: {
-                        display: true,
-                        labelString: xLabel,
-                        fontColor: '#1f2937',
-                        fontSize: 14,
-                        fontStyle: 'bold'
-                    },
-                    gridLines: {
-                        color: 'rgba(0,0,0,0.1)'
-                    }
+    // Ensure Plotly is available
+    if (typeof Plotly === 'undefined') {
+        console.error('Plotly.js is not loaded! Loading it now...');
+        const plotlyScript = document.createElement('script');
+        plotlyScript.src = 'https://cdn.jsdelivr.net/npm/plotly.js@2.24.2/dist/plotly.min.js';
+        plotlyScript.onload = function () {
+            console.log('Plotly loaded successfully!');
+        };
+        document.head.appendChild(plotlyScript);
+    }
+
+    // Globalna zmienna do przechowywania informacji o pliku z kolorami
+    let colorFileData = {
+        uploaded: false,
+        key_column: null,
+        color_column: null,
+        filter_column: null,
+        available_columns: [],
+        column_info: {},
+        auto_detected: false,
+        // Store actual data for filtering
+        data: null,
+        merged_data: null
+    };
+
+    // Global variables for PCA filtering
+    let originalPCAData = null;
+    let currentFilterColumn = null;
+    let currentFilterValues = null;
+    let pcaResizeHandler = null;
+
+    // Global chart rendering functions
+    function renderScatterPlot(data, xLabel, yLabel) {
+        if (typeof Chart === 'undefined') {
+            console.error('Chart.js not available for scatter plot');
+            return;
+        }
+
+        const ctx = document.getElementById("myChart1").getContext('2d');
+        new Chart.Scatter(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: `${xLabel} vs ${yLabel}`,
+                    data: data,
+                    showLine: false,
+                    borderColor: "#2563eb",
+                    backgroundColor: "#2563eb",
+                    pointBackgroundColor: "#2563eb",
+                    pointBorderColor: "#764ba2",
+                    pointRadius: 5,
+                    pointHoverRadius: 8,
+                    pointBorderWidth: 2
                 }]
             },
-            tooltips: {
-                backgroundColor: 'rgba(0,0,0,0.8)',
-                titleFontColor: 'white',
-                bodyFontColor: 'white',
-                cornerRadius: 6
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                legend: {
+                    display: true,
+                    labels: {
+                        fontColor: '#1f2937',
+                        fontSize: 12,
+                        fontStyle: 'bold'
+                    }
+                },
+                scales: {
+                    yAxes: [{
+                        scaleLabel: {
+                            display: true,
+                            labelString: yLabel,
+                            fontColor: '#1f2937',
+                            fontSize: 14,
+                            fontStyle: 'bold'
+                        },
+                        gridLines: {
+                            color: 'rgba(0,0,0,0.1)'
+                        }
+                    }],
+                    xAxes: [{
+                        scaleLabel: {
+                            display: true,
+                            labelString: xLabel,
+                            fontColor: '#1f2937',
+                            fontSize: 14,
+                            fontStyle: 'bold'
+                        },
+                        gridLines: {
+                            color: 'rgba(0,0,0,0.1)'
+                        }
+                    }]
+                },
+                tooltips: {
+                    backgroundColor: 'rgba(0,0,0,0.8)',
+                    titleFontColor: 'white',
+                    bodyFontColor: 'white',
+                    cornerRadius: 6
+                }
             }
-        }
-    });
-}
-
-function renderHistogram(histogramData) {
-    if (typeof Plotly === 'undefined') {
-        console.error('Plotly.js not available for histogram');
-        const plotElement = document.getElementById('histogram-plot');
-        if (plotElement) {
-            plotElement.innerHTML = '<div class="modern-alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Plotly.js library is not loaded. Please refresh the page.</div>';
-        }
-        return;
-    }
-
-    if (histogramData.is_numeric) {
-        const data = [{
-            x: histogramData.values,
-            type: 'histogram',
-            marker: {
-                color: 'rgba(37, 99, 235, 0.7)',
-                line: {
-                    color: 'rgba(118, 75, 162, 1)',
-                    width: 2
-                }
-            },
-            hovertemplate: 'Value: %{x}<br>Count: %{y}<extra></extra>'
-        }];
-        
-        const layout = {
-            title: {
-                text: 'Distribution of ' + histogramData.column_name,
-                font: {
-                    size: 18,
-                    color: '#1f2937',
-                    family: 'Inter, sans-serif'
-                }
-            },
-            xaxis: {
-                title: histogramData.column_name,
-                gridcolor: 'rgba(230, 230, 230, 0.8)',
-                titlefont: {
-                    color: '#1f2937',
-                    size: 14
-                }
-            },
-            yaxis: {
-                title: 'Frequency',
-                gridcolor: 'rgba(230, 230, 230, 0.8)',
-                titlefont: {
-                    color: '#1f2937',
-                    size: 14
-                }
-            },
-            paper_bgcolor: 'rgba(0, 0, 0, 0)',
-            plot_bgcolor: 'rgba(0, 0, 0, 0)',
-            margin: {
-                l: 50,
-                r: 30,
-                b: 50,
-                t: 80,
-                pad: 4
-            },
-            bargap: 0.05
-        };
-        
-        Plotly.newPlot('histogram-plot', data, layout, {
-            responsive: true,
-            displayModeBar: true,
-            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-            displaylogo: false
-        });
-    } else {
-        const data = [{
-            x: histogramData.categories,
-            y: histogramData.counts,
-            type: 'bar',
-            marker: {
-                color: 'rgba(37, 99, 235, 0.7)',
-                line: {
-                    color: 'rgba(118, 75, 162, 1)',
-                    width: 2
-                }
-            },
-            hovertemplate: '%{x}<br>Count: %{y}<extra></extra>'
-        }];
-        
-        const layout = {
-            title: {
-                text: 'Distribution of ' + histogramData.column_name,
-                font: {
-                    size: 18,
-                    color: '#1f2937',
-                    family: 'Inter, sans-serif'
-                }
-            },
-            xaxis: {
-                title: histogramData.column_name,
-                gridcolor: 'rgba(230, 230, 230, 0.8)',
-                titlefont: {
-                    color: '#1f2937',
-                    size: 14
-                }
-            },
-            yaxis: {
-                title: 'Count',
-                gridcolor: 'rgba(230, 230, 230, 0.8)',
-                titlefont: {
-                    color: '#1f2937',
-                    size: 14
-                }
-            },
-            paper_bgcolor: 'rgba(0, 0, 0, 0)',
-            plot_bgcolor: 'rgba(0, 0, 0, 0)',
-            margin: {
-                l: 50,
-                r: 30,
-                b: 50,
-                t: 80,
-                pad: 4
-            }
-        };
-        
-        Plotly.newPlot('histogram-plot', data, layout, {
-            responsive: true,
-            displayModeBar: true,
-            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-            displaylogo: false
         });
     }
-}
 
-/* ===========================
-   PCA Filtering Functions
-   =========================== */
-function getExternalColumnData(columnName) {
-    // Get data from uploaded external file for filtering
-    if (!colorFileData.merged_data || !colorFileData.merged_data[columnName]) {
-        return null;
-    }
-    return colorFileData.merged_data[columnName];
-}
+    function renderHistogram(histogramData) {
+        if (typeof Plotly === 'undefined') {
+            console.error('Plotly.js not available for histogram');
+            const plotElement = document.getElementById('histogram-plot');
+            if (plotElement) {
+                plotElement.innerHTML = '<div class="modern-alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Plotly.js library is not loaded. Please refresh the page.</div>';
+            }
+            return;
+        }
 
-function filterPCAData(pcaData, filterColumn, filterValues) {
-    console.log('=== filterPCAData CALLED ===');
-    console.log('filterColumn:', filterColumn);
-    console.log('filterValues:', filterValues);
-    console.log('filterValues type:', typeof filterValues, 'isArray:', Array.isArray(filterValues));
-    
-    if (!filterColumn || !filterValues) {
-        console.log('No filter column or values, returning original data');
-        return pcaData;
-    }
-    
-    console.log('filterPCAData called with:', filterColumn, filterValues);
-    
-    const filteredData = JSON.parse(JSON.stringify(pcaData));
-    
-    // Get filter data from various sources (priority order)
-    let filterDataArray = null;
-    let isExternalColumn = false;
-    
-    console.log('Checking data sources...');
-    console.log('pcaData.external_data:', pcaData.external_data ? Object.keys(pcaData.external_data) : 'none');
-    
-    // 1. Priorytet: pcaData.external_data (dane z backendu)
-    if (pcaData.external_data && pcaData.external_data[filterColumn]) {
-        console.log('Using pcaData.external_data');
-        filterDataArray = pcaData.external_data[filterColumn];
-        isExternalColumn = true;
-    }
-    // 2. getExternalColumnData (dane z frontendu)
-    else {
-        const externalData = getExternalColumnData(filterColumn);
-        if (externalData) {
-            console.log('Using getExternalColumnData');
-            filterDataArray = externalData;
-            isExternalColumn = true;
-        }
-        // 3. hover_text
-        else if (pcaData.hover_column === filterColumn && pcaData.plot_data && pcaData.plot_data[0]) {
-            console.log('Using hover_text');
-            filterDataArray = pcaData.plot_data[0].hover_text || [];
-        }
-        // 4. color_data
-        else if (pcaData.color_by === filterColumn && pcaData.color_data) {
-            console.log('Using color_data');
-            filterDataArray = pcaData.color_data;
-        }
-    }
-    
-    if (!filterDataArray || filterDataArray.length === 0) {
-        console.error('No filter data available for column:', filterColumn);
-        showFlashMessage('Filter data not available. Please regenerate the plot.', 'danger');
-        return pcaData;
-    }
-    
-    console.log('Filter data array length:', filterDataArray.length);
-    console.log('Sample values:', filterDataArray.slice(0, 10));
-    console.log('Unique values (first 20):', [...new Set(filterDataArray.slice(0, 100))].slice(0, 20));
-    console.log('Filter values to match:', filterValues);
-    
-    // Determine if we're filtering numeric or categorical data
-    const isNumericFilter = Array.isArray(filterValues) && filterValues.length === 2 && 
-                           typeof filterValues[0] === 'number';
-    
-    console.log('Is numeric filter:', isNumericFilter);
-    
-    if (!isNumericFilter) {
-        console.log('Categorical filter - will match these values:', filterValues);
-        console.log('Sample of data to filter against:', filterDataArray.slice(0, 10));
-    }
-    
-    // Create index mask for filtering
-    const keepIndices = [];
-    filterDataArray.forEach((val, idx) => {
-        let keep = false;
-        
-        if (isNumericFilter) {
-            // Numeric range filter
-            const numVal = parseFloat(val);
-            if (!isNaN(numVal) && numVal >= filterValues[0] && numVal <= filterValues[1]) {
-                keep = true;
-            }
+        if (histogramData.is_numeric) {
+            const data = [{
+                x: histogramData.values,
+                type: 'histogram',
+                marker: {
+                    color: 'rgba(37, 99, 235, 0.7)',
+                    line: {
+                        color: 'rgba(118, 75, 162, 1)',
+                        width: 2
+                    }
+                },
+                hovertemplate: 'Value: %{x}<br>Count: %{y}<extra></extra>'
+            }];
+
+            const layout = {
+                title: {
+                    text: 'Distribution of ' + histogramData.column_name,
+                    font: {
+                        size: 18,
+                        color: '#1f2937',
+                        family: 'Inter, sans-serif'
+                    }
+                },
+                xaxis: {
+                    title: histogramData.column_name,
+                    gridcolor: 'rgba(230, 230, 230, 0.8)',
+                    titlefont: {
+                        color: '#1f2937',
+                        size: 14
+                    }
+                },
+                yaxis: {
+                    title: 'Frequency',
+                    gridcolor: 'rgba(230, 230, 230, 0.8)',
+                    titlefont: {
+                        color: '#1f2937',
+                        size: 14
+                    }
+                },
+                paper_bgcolor: 'rgba(0, 0, 0, 0)',
+                plot_bgcolor: 'rgba(0, 0, 0, 0)',
+                margin: {
+                    l: 50,
+                    r: 30,
+                    b: 50,
+                    t: 80,
+                    pad: 4
+                },
+                bargap: 0.05,
+                images: [{
+                    source: '/static/img/watermarks/watermark.png',
+                    xref: 'paper',
+                    yref: 'paper',
+                    x: 0.5,
+                    y: 0.5,
+                    sizex: 1.0,
+                    sizey: 1.0,
+                    sizing: 'contain',
+                    xanchor: 'center',
+                    yanchor: 'middle',
+                    opacity: 0.15,
+                    layer: 'below'
+                }]
+            };
+
+            Plotly.newPlot('histogram-plot', data, layout, {
+                responsive: true,
+                displayModeBar: true,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                displaylogo: false
+            });
         } else {
-            // Categorical filter
-            const strVal = String(val);
-            if (filterValues.includes(strVal)) {
-                keep = true;
-            }
-            // Debug: pokaż pierwsze kilka porównań
-            if (idx < 5) {
-                console.log(`Comparing: "${strVal}" in [${filterValues.slice(0, 3).join(', ')}...] = ${keep}`);
-            }
-        }
-        
-        if (keep) keepIndices.push(idx);
-    });
-    
-    console.log('Keep indices:', keepIndices.length, '/', filterDataArray.length);
-    
-    if (keepIndices.length === 0) {
-        console.warn('No points match the filter criteria');
-        showFlashMessage('No points match the filter criteria', 'warning');
-        return pcaData;
-    }
-    
-    // Apply filter to plot_data
-    if (filteredData.plot_data && filteredData.plot_data.length > 0) {
-        console.log('Filtering plot_data, original datasets:', filteredData.plot_data.length);
-        
-        // For categorical data with dataset.data format, rebuild from color_data
-        if (pcaData.color_categories && pcaData.color_by && filteredData.plot_data[0].data && !filteredData.plot_data[0].x) {
-            console.log('Categorical data detected - rebuilding filtered datasets using color_data');
-            
-            // Get the color data (should match filter data length)
-            let colorDataArray = null;
-            if (pcaData.color_data && pcaData.color_data.length > 0) {
-                colorDataArray = pcaData.color_data;
-            } else if (pcaData.external_data && pcaData.external_data[pcaData.color_by]) {
-                colorDataArray = pcaData.external_data[pcaData.color_by];
-            }
-            
-            if (colorDataArray && colorDataArray.length === filterDataArray.length) {
-                console.log('Found color data array with', colorDataArray.length, 'values');
-                
-                // Check if we have raw PC arrays (needed for proper filtering)
-                const hasRawPCArrays = pcaData.pc_x_raw && pcaData.pc_y_raw;
-                console.log('Has raw PC arrays:', hasRawPCArrays);
-                
-                if (!hasRawPCArrays) {
-                    console.error('CRITICAL: Cannot filter categorical data without raw PC arrays!');
-                    console.error('Backend needs to send pc_x_raw and pc_y_raw in response');
-                    showFlashMessage('Filtering requires raw PC data. Please regenerate the plot.', 'danger');
-                    return pcaData; // Return unfiltered data
-                }
-                
-                const pcXArray = pcaData.pc_x_raw;
-                const pcYArray = pcaData.pc_y_raw;
-                
-                // Get hover text if available - prioritize external_data for correct indexing
-                let hoverTextArray = null;
-                console.log('Looking for hover text. pcaData.hover_column:', pcaData.hover_column);
-                console.log('pcaData.external_data exists:', !!pcaData.external_data);
-                
-                // Try 1: External data (for columns from uploaded file)
-                if (pcaData.hover_column && pcaData.external_data) {
-                    console.log('Checking if hover column exists in external_data...');
-                    if (pcaData.external_data[pcaData.hover_column]) {
-                        hoverTextArray = pcaData.external_data[pcaData.hover_column];
-                        console.log('✓ Using hover text from external_data:', hoverTextArray.length, 'values');
-                        console.log('Sample hover values:', hoverTextArray.slice(0, 5));
-                    } else {
-                        console.warn('✗ Hover column not found in external_data:', pcaData.hover_column);
+            const data = [{
+                x: histogramData.categories,
+                y: histogramData.counts,
+                type: 'bar',
+                marker: {
+                    color: 'rgba(37, 99, 235, 0.7)',
+                    line: {
+                        color: 'rgba(118, 75, 162, 1)',
+                        width: 2
                     }
-                }
-                
-                // Try 2: Reconstruct from datasets hover_text (for columns from PCA like SF_ID)
-                if (!hoverTextArray && pcaData.hover_column) {
-                    console.log('Trying to reconstruct hover text from datasets...');
-                    
-                    // Check if we have color_data to know ordering
-                    if (colorDataArray && colorDataArray.length === pcXArray.length) {
-                        console.log('Reconstructing hover text using color categories...');
-                        
-                        // Build a map: globalIndex -> hoverValue
-                        const globalHoverMap = new Array(pcXArray.length);
-                        
-                        let currentOffset = 0;
-                        pcaData.plot_data.forEach((dataset, dsIdx) => {
-                            const categoryLabel = dataset.label;
-                            const datasetHoverText = dataset.hover_text || [];
-                            
-                            console.log(`Dataset ${dsIdx} (${categoryLabel}): ${dataset.data.length} points, ${datasetHoverText.length} hover texts`);
-                            
-                            if (datasetHoverText.length === dataset.data.length) {
-                                // Map each point in this dataset to its global position
-                                let localIdx = 0;
-                                for (let globalIdx = 0; globalIdx < colorDataArray.length; globalIdx++) {
-                                    if (String(colorDataArray[globalIdx]) === String(categoryLabel)) {
-                                        globalHoverMap[globalIdx] = datasetHoverText[localIdx];
-                                        localIdx++;
-                                    }
-                                }
-                                console.log(`  Mapped ${localIdx} hover texts for category ${categoryLabel}`);
-                            } else {
-                                console.warn(`  Hover text length mismatch for ${categoryLabel}: ${datasetHoverText.length} vs ${dataset.data.length}`);
-                            }
-                        });
-                        
-                        // Convert to array
-                        hoverTextArray = globalHoverMap;
-                        console.log('✓ Reconstructed hover text array with', hoverTextArray.filter(v => v !== undefined).length, 'values');
-                        console.log('Sample reconstructed hover values:', hoverTextArray.slice(0, 10));
+                },
+                hovertemplate: '%{x}<br>Count: %{y}<extra></extra>'
+            }];
+
+            const layout = {
+                title: {
+                    text: 'Distribution of ' + histogramData.column_name,
+                    font: {
+                        size: 18,
+                        color: '#1f2937',
+                        family: 'Inter, sans-serif'
                     }
-                }
-                
-                if (!hoverTextArray) {
-                    console.warn('✗ Cannot get hover text - no suitable source found');
-                }
-                
-                // Rebuild datasets for each category using GLOBAL indices
-                const newDatasets = [];
-                
-                pcaData.plot_data.forEach((originalDataset, idx) => {
-                    const categoryLabel = originalDataset.label;
-                    console.log(`Processing category: ${categoryLabel}`);
-                    
-                    // Find all points that: (1) match this category AND (2) pass the filter
-                    const categoryPoints = [];
-                    const categoryHoverText = [];
-                    
-                    console.log(`Color data length: ${colorDataArray.length}`);
-                    console.log(`Keep indices count: ${keepIndices.length}`);
-                    console.log(`PC arrays length: ${pcXArray.length}`);
-                    
-                    // For each kept index, check if it matches this category
-                    keepIndices.forEach(globalIdx => {
-                        if (globalIdx < colorDataArray.length && globalIdx < pcXArray.length) {
-                            const colorValue = colorDataArray[globalIdx];
-                            if (String(colorValue) === String(categoryLabel)) {
-                                // Create point from global PC arrays (correct indexing!)
-                                categoryPoints.push({
-                                    x: pcXArray[globalIdx],
-                                    y: pcYArray[globalIdx]
-                                });
-                                
-                                // Also add hover text for this point
-                                if (hoverTextArray && globalIdx < hoverTextArray.length) {
-                                    categoryHoverText.push(hoverTextArray[globalIdx]);
-                                }
-                            }
-                        }
-                    });
-                    
-                    console.log(`  Category "${categoryLabel}": ${categoryPoints.length} points after filtering`);
-                    
-                    if (categoryPoints.length > 0) {
-                        const newDataset = {
-                            ...originalDataset,
-                            data: categoryPoints
-                        };
-                        
-                        if (categoryHoverText.length > 0) {
-                            newDataset.hover_text = categoryHoverText;
-                            console.log(`    Added ${categoryHoverText.length} hover text entries`);
-                        }
-                        
-                        newDatasets.push(newDataset);
+                },
+                xaxis: {
+                    title: histogramData.column_name,
+                    gridcolor: 'rgba(230, 230, 230, 0.8)',
+                    titlefont: {
+                        color: '#1f2937',
+                        size: 14
                     }
-                });
-                
-                filteredData.plot_data = newDatasets;
-                console.log(`Rebuilt ${newDatasets.length} categories with filtered data`);
-            } else {
-                console.warn('Cannot rebuild categorical data - color data not available or length mismatch');
-                console.warn(`colorDataArray: ${colorDataArray ? colorDataArray.length : 'null'}, filterDataArray: ${filterDataArray.length}`);
-            }
-        } else {
-            // Non-categorical or already has x/y format - use standard filtering
-            filteredData.plot_data = filteredData.plot_data.map((dataset, datasetIdx) => {
-                const filtered = {...dataset};
-                
-                console.log(`Dataset ${datasetIdx}: has x=${!!dataset.x}, y=${!!dataset.y}, data=${!!dataset.data}`);
-                
-                if (dataset.x && dataset.y) {
-                    filtered.x = keepIndices.map(i => dataset.x[i]);
-                    filtered.y = keepIndices.map(i => dataset.y[i]);
-                    
-                    console.log(`  Filtered x/y from ${dataset.x.length} to ${filtered.x.length} points`);
-                    
-                    if (dataset.hover_text) {
-                        filtered.hover_text = keepIndices.map(i => dataset.hover_text[i]);
+                },
+                yaxis: {
+                    title: 'Count',
+                    gridcolor: 'rgba(230, 230, 230, 0.8)',
+                    titlefont: {
+                        color: '#1f2937',
+                        size: 14
                     }
-                    if (dataset.text) {
-                        filtered.text = keepIndices.map(i => dataset.text[i]);
-                    }
-                    if (dataset.data) {
-                        filtered.data = keepIndices.map(i => dataset.data[i]);
-                    }
-                }
-                
-                return filtered;
+                },
+                paper_bgcolor: 'rgba(0, 0, 0, 0)',
+                plot_bgcolor: 'rgba(0, 0, 0, 0)',
+                margin: {
+                    l: 50,
+                    r: 30,
+                    b: 50,
+                    t: 80,
+                    pad: 4
+                },
+                images: [{
+                    source: '/static/img/watermarks/watermark.png',
+                    xref: 'paper',
+                    yref: 'paper',
+                    x: 0.5,
+                    y: 0.5,
+                    sizex: 1.0,
+                    sizey: 1.0,
+                    sizing: 'contain',
+                    xanchor: 'center',
+                    yanchor: 'middle',
+                    opacity: 0.15,
+                    layer: 'below'
+                }]
+            };
+
+            Plotly.newPlot('histogram-plot', data, layout, {
+                responsive: true,
+                displayModeBar: true,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                displaylogo: false
             });
         }
-        
-        console.log('After filtering, datasets:', filteredData.plot_data.length);
     }
-    
-    // Apply filter to color_data if present
-    if (filteredData.color_data) {
-        filteredData.color_data = keepIndices.map(i => filteredData.color_data[i]);
-    }
-    
-    // Apply filter to external_data if present
-    if (filteredData.external_data) {
-        Object.keys(filteredData.external_data).forEach(key => {
-            filteredData.external_data[key] = keepIndices.map(i => filteredData.external_data[key][i]);
-        });
-    }
-    
-    // For categorical traces, filter entire traces
-    if (pcaData.color_categories && filteredData.plot_data) {
-        filteredData.plot_data = filteredData.plot_data.filter(dataset => {
-            // Check both formats: dataset.x or dataset.data
-            if (dataset.x && dataset.x.length > 0) {
-                return true;
-            }
-            if (dataset.data && dataset.data.length > 0) {
-                return true;
-            }
-            return false;
-        });
-        console.log('After filtering empty traces:', filteredData.plot_data.length, 'traces remaining');
-    }
-    
-    // Add filter info to the data
-    // Calculate total points from original filter data array (not from plot_data which may be multi-trace)
-    const totalPoints = filterDataArray.length;
-    
-    filteredData.filter_info = {
-        column: filterColumn,
-        values: filterValues,
-        total_points: totalPoints,
-        filtered_points: keepIndices.length,
-        is_external: isExternalColumn
-    };
-    
-    // Preserve important metadata
-    if (pcaData.hover_column && !filteredData.hover_column) {
-        filteredData.hover_column = pcaData.hover_column;
-        console.log('Preserved hover_column:', pcaData.hover_column);
-    }
-    
-    console.log('Filtered data created successfully');
-    console.log('Filter summary:', {
-        column: filterColumn,
-        total: totalPoints,
-        filtered: keepIndices.length,
-        percentage: ((keepIndices.length / totalPoints) * 100).toFixed(1) + '%'
-    });
-    
-    return filteredData;
-}
 
-function setupPCAFilterControls(pcaData) {
-    // Get filter column from colorFileData if external filter is selected
-    const filterColumn = colorFileData.filter_column || null;
-    const filterControls = document.getElementById('pca-filter-controls');
-    const filterColumnBadge = document.getElementById('filter-column-badge');
-    
-    console.log('setupPCAFilterControls called with filterColumn:', filterColumn);
-    console.log('colorFileData:', colorFileData);
-    console.log('pcaData.external_data:', pcaData.external_data);
-    
-    if (!filterColumn) {
-        filterControls.style.display = 'none';
-        return;
+    /* ===========================
+       PCA Filtering Functions
+       =========================== */
+    function getExternalColumnData(columnName) {
+        // Get data from uploaded external file for filtering
+        if (!colorFileData.merged_data || !colorFileData.merged_data[columnName]) {
+            return null;
+        }
+        return colorFileData.merged_data[columnName];
     }
-    
-    // Remember current filter column for later use
-    currentFilterColumn = filterColumn;
-    
-    // Get unique values from the filter column
-    let filterValues = [];
-    let isNumeric = false;
-    let dataSource = 'external';
-    
-    // Najpierw sprawdź external_data w pcaData
-    if (pcaData.external_data && pcaData.external_data[filterColumn]) {
-        console.log('Found filter data in pcaData.external_data');
-        filterValues = pcaData.external_data[filterColumn];
-        const numericValues = filterValues.filter(v => v !== null && !isNaN(parseFloat(v)));
-        isNumeric = numericValues.length > filterValues.length * 0.8;
+
+    function filterPCAData(pcaData, filterColumn, filterValues) {
+        console.log('=== filterPCAData CALLED ===');
+        console.log('filterColumn:', filterColumn);
+        console.log('filterValues:', filterValues);
+        console.log('filterValues type:', typeof filterValues, 'isArray:', Array.isArray(filterValues));
+
+        if (!filterColumn || !filterValues) {
+            console.log('No filter column or values, returning original data');
+            return pcaData;
+        }
+
+        console.log('filterPCAData called with:', filterColumn, filterValues);
+
+        const filteredData = JSON.parse(JSON.stringify(pcaData));
+
+        // Get filter data from various sources (priority order)
+        let filterDataArray = null;
+        let isExternalColumn = false;
+
+        console.log('Checking data sources...');
+        console.log('pcaData.external_data:', pcaData.external_data ? Object.keys(pcaData.external_data) : 'none');
+
+        // 1. Priorytet: pcaData.external_data (dane z backendu)
+        if (pcaData.external_data && pcaData.external_data[filterColumn]) {
+            console.log('Using pcaData.external_data');
+            filterDataArray = pcaData.external_data[filterColumn];
+            isExternalColumn = true;
+        }
+        // 2. getExternalColumnData (dane z frontendu)
+        else {
+            const externalData = getExternalColumnData(filterColumn);
+            if (externalData) {
+                console.log('Using getExternalColumnData');
+                filterDataArray = externalData;
+                isExternalColumn = true;
+            }
+            // 3. hover_text
+            else if (pcaData.hover_column === filterColumn && pcaData.plot_data && pcaData.plot_data[0]) {
+                console.log('Using hover_text');
+                filterDataArray = pcaData.plot_data[0].hover_text || [];
+            }
+            // 4. color_data
+            else if (pcaData.color_by === filterColumn && pcaData.color_data) {
+                console.log('Using color_data');
+                filterDataArray = pcaData.color_data;
+            }
+        }
+
+        if (!filterDataArray || filterDataArray.length === 0) {
+            console.error('No filter data available for column:', filterColumn);
+            showFlashMessage('Filter data not available. Please regenerate the plot.', 'danger');
+            return pcaData;
+        }
+
+        console.log('Filter data array length:', filterDataArray.length);
+        console.log('Sample values:', filterDataArray.slice(0, 10));
+        console.log('Unique values (first 20):', [...new Set(filterDataArray.slice(0, 100))].slice(0, 20));
+        console.log('Filter values to match:', filterValues);
+
+        // Determine if we're filtering numeric or categorical data
+        const isNumericFilter = Array.isArray(filterValues) && filterValues.length === 2 &&
+            typeof filterValues[0] === 'number';
+
+        console.log('Is numeric filter:', isNumericFilter);
+
+        if (!isNumericFilter) {
+            console.log('Categorical filter - will match these values:', filterValues);
+            console.log('Sample of data to filter against:', filterDataArray.slice(0, 10));
+        }
+
+        // Create index mask for filtering
+        const keepIndices = [];
+        filterDataArray.forEach((val, idx) => {
+            let keep = false;
+
+            if (isNumericFilter) {
+                // Numeric range filter
+                const numVal = parseFloat(val);
+                if (!isNaN(numVal) && numVal >= filterValues[0] && numVal <= filterValues[1]) {
+                    keep = true;
+                }
+            } else {
+                // Categorical filter
+                const strVal = String(val);
+                if (filterValues.includes(strVal)) {
+                    keep = true;
+                }
+                // Debug: pokaż pierwsze kilka porównań
+                if (idx < 5) {
+                    console.log(`Comparing: "${strVal}" in [${filterValues.slice(0, 3).join(', ')}...] = ${keep}`);
+                }
+            }
+
+            if (keep) keepIndices.push(idx);
+        });
+
+        console.log('Keep indices:', keepIndices.length, '/', filterDataArray.length);
+
+        if (keepIndices.length === 0) {
+            console.warn('No points match the filter criteria');
+            showFlashMessage('No points match the filter criteria', 'warning');
+            return pcaData;
+        }
+
+        // Apply filter to plot_data
+        if (filteredData.plot_data && filteredData.plot_data.length > 0) {
+            console.log('Filtering plot_data, original datasets:', filteredData.plot_data.length);
+
+            // For categorical data with dataset.data format, rebuild from color_data
+            if (pcaData.color_categories && pcaData.color_by && filteredData.plot_data[0].data && !filteredData.plot_data[0].x) {
+                console.log('Categorical data detected - rebuilding filtered datasets using color_data');
+
+                // Get the color data (should match filter data length)
+                let colorDataArray = null;
+                if (pcaData.color_data && pcaData.color_data.length > 0) {
+                    colorDataArray = pcaData.color_data;
+                } else if (pcaData.external_data && pcaData.external_data[pcaData.color_by]) {
+                    colorDataArray = pcaData.external_data[pcaData.color_by];
+                }
+
+                if (colorDataArray && colorDataArray.length === filterDataArray.length) {
+                    console.log('Found color data array with', colorDataArray.length, 'values');
+
+                    // Check if we have raw PC arrays (needed for proper filtering)
+                    const hasRawPCArrays = pcaData.pc_x_raw && pcaData.pc_y_raw;
+                    console.log('Has raw PC arrays:', hasRawPCArrays);
+
+                    if (!hasRawPCArrays) {
+                        console.error('CRITICAL: Cannot filter categorical data without raw PC arrays!');
+                        console.error('Backend needs to send pc_x_raw and pc_y_raw in response');
+                        showFlashMessage('Filtering requires raw PC data. Please regenerate the plot.', 'danger');
+                        return pcaData; // Return unfiltered data
+                    }
+
+                    const pcXArray = pcaData.pc_x_raw;
+                    const pcYArray = pcaData.pc_y_raw;
+
+                    // Get hover text if available - prioritize external_data for correct indexing
+                    let hoverTextArray = null;
+                    console.log('Looking for hover text. pcaData.hover_column:', pcaData.hover_column);
+                    console.log('pcaData.external_data exists:', !!pcaData.external_data);
+
+                    // Try 1: External data (for columns from uploaded file)
+                    if (pcaData.hover_column && pcaData.external_data) {
+                        console.log('Checking if hover column exists in external_data...');
+                        if (pcaData.external_data[pcaData.hover_column]) {
+                            hoverTextArray = pcaData.external_data[pcaData.hover_column];
+                            console.log('✓ Using hover text from external_data:', hoverTextArray.length, 'values');
+                            console.log('Sample hover values:', hoverTextArray.slice(0, 5));
+                        } else {
+                            console.warn('✗ Hover column not found in external_data:', pcaData.hover_column);
+                        }
+                    }
+
+                    // Try 2: Reconstruct from datasets hover_text (for columns from PCA like SF_ID)
+                    if (!hoverTextArray && pcaData.hover_column) {
+                        console.log('Trying to reconstruct hover text from datasets...');
+
+                        // Check if we have color_data to know ordering
+                        if (colorDataArray && colorDataArray.length === pcXArray.length) {
+                            console.log('Reconstructing hover text using color categories...');
+
+                            // Build a map: globalIndex -> hoverValue
+                            const globalHoverMap = new Array(pcXArray.length);
+
+                            let currentOffset = 0;
+                            pcaData.plot_data.forEach((dataset, dsIdx) => {
+                                const categoryLabel = dataset.label;
+                                const datasetHoverText = dataset.hover_text || [];
+
+                                console.log(`Dataset ${dsIdx} (${categoryLabel}): ${dataset.data.length} points, ${datasetHoverText.length} hover texts`);
+
+                                if (datasetHoverText.length === dataset.data.length) {
+                                    // Map each point in this dataset to its global position
+                                    let localIdx = 0;
+                                    for (let globalIdx = 0; globalIdx < colorDataArray.length; globalIdx++) {
+                                        if (String(colorDataArray[globalIdx]) === String(categoryLabel)) {
+                                            globalHoverMap[globalIdx] = datasetHoverText[localIdx];
+                                            localIdx++;
+                                        }
+                                    }
+                                    console.log(`  Mapped ${localIdx} hover texts for category ${categoryLabel}`);
+                                } else {
+                                    console.warn(`  Hover text length mismatch for ${categoryLabel}: ${datasetHoverText.length} vs ${dataset.data.length}`);
+                                }
+                            });
+
+                            // Convert to array
+                            hoverTextArray = globalHoverMap;
+                            console.log('✓ Reconstructed hover text array with', hoverTextArray.filter(v => v !== undefined).length, 'values');
+                            console.log('Sample reconstructed hover values:', hoverTextArray.slice(0, 10));
+                        }
+                    }
+
+                    if (!hoverTextArray) {
+                        console.warn('✗ Cannot get hover text - no suitable source found');
+                    }
+
+                    // Rebuild datasets for each category using GLOBAL indices
+                    const newDatasets = [];
+
+                    pcaData.plot_data.forEach((originalDataset, idx) => {
+                        const categoryLabel = originalDataset.label;
+                        console.log(`Processing category: ${categoryLabel}`);
+
+                        // Find all points that: (1) match this category AND (2) pass the filter
+                        const categoryPoints = [];
+                        const categoryHoverText = [];
+
+                        console.log(`Color data length: ${colorDataArray.length}`);
+                        console.log(`Keep indices count: ${keepIndices.length}`);
+                        console.log(`PC arrays length: ${pcXArray.length}`);
+
+                        // For each kept index, check if it matches this category
+                        keepIndices.forEach(globalIdx => {
+                            if (globalIdx < colorDataArray.length && globalIdx < pcXArray.length) {
+                                const colorValue = colorDataArray[globalIdx];
+                                if (String(colorValue) === String(categoryLabel)) {
+                                    // Create point from global PC arrays (correct indexing!)
+                                    categoryPoints.push({
+                                        x: pcXArray[globalIdx],
+                                        y: pcYArray[globalIdx]
+                                    });
+
+                                    // Also add hover text for this point
+                                    if (hoverTextArray && globalIdx < hoverTextArray.length) {
+                                        categoryHoverText.push(hoverTextArray[globalIdx]);
+                                    }
+                                }
+                            }
+                        });
+
+                        console.log(`  Category "${categoryLabel}": ${categoryPoints.length} points after filtering`);
+
+                        if (categoryPoints.length > 0) {
+                            const newDataset = {
+                                ...originalDataset,
+                                data: categoryPoints
+                            };
+
+                            if (categoryHoverText.length > 0) {
+                                newDataset.hover_text = categoryHoverText;
+                                console.log(`    Added ${categoryHoverText.length} hover text entries`);
+                            }
+
+                            newDatasets.push(newDataset);
+                        }
+                    });
+
+                    filteredData.plot_data = newDatasets;
+                    console.log(`Rebuilt ${newDatasets.length} categories with filtered data`);
+                } else {
+                    console.warn('Cannot rebuild categorical data - color data not available or length mismatch');
+                    console.warn(`colorDataArray: ${colorDataArray ? colorDataArray.length : 'null'}, filterDataArray: ${filterDataArray.length}`);
+                }
+            } else {
+                // Non-categorical or already has x/y format - use standard filtering
+                filteredData.plot_data = filteredData.plot_data.map((dataset, datasetIdx) => {
+                    const filtered = { ...dataset };
+
+                    console.log(`Dataset ${datasetIdx}: has x=${!!dataset.x}, y=${!!dataset.y}, data=${!!dataset.data}`);
+
+                    if (dataset.x && dataset.y) {
+                        filtered.x = keepIndices.map(i => dataset.x[i]);
+                        filtered.y = keepIndices.map(i => dataset.y[i]);
+
+                        console.log(`  Filtered x/y from ${dataset.x.length} to ${filtered.x.length} points`);
+
+                        if (dataset.hover_text) {
+                            filtered.hover_text = keepIndices.map(i => dataset.hover_text[i]);
+                        }
+                        if (dataset.text) {
+                            filtered.text = keepIndices.map(i => dataset.text[i]);
+                        }
+                        if (dataset.data) {
+                            filtered.data = keepIndices.map(i => dataset.data[i]);
+                        }
+                    }
+
+                    return filtered;
+                });
+            }
+
+            console.log('After filtering, datasets:', filteredData.plot_data.length);
+        }
+
+        // Apply filter to color_data if present
+        if (filteredData.color_data) {
+            filteredData.color_data = keepIndices.map(i => filteredData.color_data[i]);
+        }
+
+        // Apply filter to external_data if present
+        if (filteredData.external_data) {
+            Object.keys(filteredData.external_data).forEach(key => {
+                filteredData.external_data[key] = keepIndices.map(i => filteredData.external_data[key][i]);
+            });
+        }
+
+        // For categorical traces, filter entire traces
+        if (pcaData.color_categories && filteredData.plot_data) {
+            filteredData.plot_data = filteredData.plot_data.filter(dataset => {
+                // Check both formats: dataset.x or dataset.data
+                if (dataset.x && dataset.x.length > 0) {
+                    return true;
+                }
+                if (dataset.data && dataset.data.length > 0) {
+                    return true;
+                }
+                return false;
+            });
+            console.log('After filtering empty traces:', filteredData.plot_data.length, 'traces remaining');
+        }
+
+        // Add filter info to the data
+        // Calculate total points from original filter data array (not from plot_data which may be multi-trace)
+        const totalPoints = filterDataArray.length;
+
+        filteredData.filter_info = {
+            column: filterColumn,
+            values: filterValues,
+            total_points: totalPoints,
+            filtered_points: keepIndices.length,
+            is_external: isExternalColumn
+        };
+
+        // Preserve important metadata
+        if (pcaData.hover_column && !filteredData.hover_column) {
+            filteredData.hover_column = pcaData.hover_column;
+            console.log('Preserved hover_column:', pcaData.hover_column);
+        }
+
+        console.log('Filtered data created successfully');
+        console.log('Filter summary:', {
+            column: filterColumn,
+            total: totalPoints,
+            filtered: keepIndices.length,
+            percentage: ((keepIndices.length / totalPoints) * 100).toFixed(1) + '%'
+        });
+
+        return filteredData;
     }
-    // Potem sprawdź getExternalColumnData
-    else {
-        const externalData = getExternalColumnData(filterColumn);
-        if (externalData) {
-            console.log('Found filter data in colorFileData.merged_data');
-            filterValues = externalData;
+
+    function setupPCAFilterControls(pcaData) {
+        // Get filter column from colorFileData if external filter is selected
+        const filterColumn = colorFileData.filter_column || null;
+        const filterControls = document.getElementById('pca-filter-controls');
+        const filterColumnBadge = document.getElementById('filter-column-badge');
+
+        console.log('setupPCAFilterControls called with filterColumn:', filterColumn);
+        console.log('colorFileData:', colorFileData);
+        console.log('pcaData.external_data:', pcaData.external_data);
+
+        if (!filterColumn) {
+            filterControls.style.display = 'none';
+            return;
+        }
+
+        // Remember current filter column for later use
+        currentFilterColumn = filterColumn;
+
+        // Get unique values from the filter column
+        let filterValues = [];
+        let isNumeric = false;
+        let dataSource = 'external';
+
+        // Najpierw sprawdź external_data w pcaData
+        if (pcaData.external_data && pcaData.external_data[filterColumn]) {
+            console.log('Found filter data in pcaData.external_data');
+            filterValues = pcaData.external_data[filterColumn];
             const numericValues = filterValues.filter(v => v !== null && !isNaN(parseFloat(v)));
             isNumeric = numericValues.length > filterValues.length * 0.8;
         }
-        // Sprawdź hover_text
-        else if (pcaData.hover_column === filterColumn && pcaData.plot_data && pcaData.plot_data[0]) {
-            console.log('Found filter data in hover_text');
-            filterValues = pcaData.plot_data[0].hover_text || [];
-            dataSource = 'hover';
-            const numericValues = filterValues.filter(v => !isNaN(parseFloat(v)));
-            isNumeric = numericValues.length > filterValues.length * 0.8;
+        // Potem sprawdź getExternalColumnData
+        else {
+            const externalData = getExternalColumnData(filterColumn);
+            if (externalData) {
+                console.log('Found filter data in colorFileData.merged_data');
+                filterValues = externalData;
+                const numericValues = filterValues.filter(v => v !== null && !isNaN(parseFloat(v)));
+                isNumeric = numericValues.length > filterValues.length * 0.8;
+            }
+            // Sprawdź hover_text
+            else if (pcaData.hover_column === filterColumn && pcaData.plot_data && pcaData.plot_data[0]) {
+                console.log('Found filter data in hover_text');
+                filterValues = pcaData.plot_data[0].hover_text || [];
+                dataSource = 'hover';
+                const numericValues = filterValues.filter(v => !isNaN(parseFloat(v)));
+                isNumeric = numericValues.length > filterValues.length * 0.8;
+            }
+            // Sprawdź color_data
+            else if (pcaData.color_by === filterColumn && pcaData.color_data) {
+                console.log('Found filter data in color_data');
+                filterValues = pcaData.color_data.filter(v => v !== null && v !== undefined);
+                dataSource = 'color';
+                isNumeric = true;
+            }
+            else if (pcaData.color_categories && pcaData.color_by === filterColumn) {
+                console.log('Found filter data in color_categories');
+                filterValues = pcaData.color_categories;
+                dataSource = 'color';
+                isNumeric = false;
+            }
         }
-        // Sprawdź color_data
-        else if (pcaData.color_by === filterColumn && pcaData.color_data) {
-            console.log('Found filter data in color_data');
-            filterValues = pcaData.color_data.filter(v => v !== null && v !== undefined);
-            dataSource = 'color';
-            isNumeric = true;
-        }
-        else if (pcaData.color_categories && pcaData.color_by === filterColumn) {
-            console.log('Found filter data in color_categories');
-            filterValues = pcaData.color_categories;
-            dataSource = 'color';
-            isNumeric = false;
-        }
-    }
-    
-    console.log('Filter values found:', filterValues.length, 'isNumeric:', isNumeric);
-    
-    const filterOptionsDiv = document.getElementById('pca-filter-options');
-    
-    if (filterValues.length === 0) {
-        console.warn('No filter data available for column:', filterColumn);
-        filterOptionsDiv.innerHTML = `
+
+        console.log('Filter values found:', filterValues.length, 'isNumeric:', isNumeric);
+
+        const filterOptionsDiv = document.getElementById('pca-filter-options');
+
+        if (filterValues.length === 0) {
+            console.warn('No filter data available for column:', filterColumn);
+            filterOptionsDiv.innerHTML = `
             <div class="modern-alert alert-warning">
                 <i class="fas fa-exclamation-triangle"></i>
                 <strong>No data available for filtering</strong>
                 <p class="mb-0">Column "${filterColumn}" data not found. Please regenerate the PCA plot.</p>
             </div>
         `;
-        filterControls.style.display = 'block';
-        document.getElementById('apply-pca-filter').style.display = 'none';
-        document.getElementById('clear-pca-filter').style.display = 'none';
-        return;
-    }
-    
-    // Update badge
-    let badgeText = `<span class="badge badge-info">${filterColumn}</span>`;
-    if (currentFilterValues) {
-        if (isNumeric) {
-            badgeText += ` <span class="badge badge-secondary">${currentFilterValues[0].toFixed(2)} - ${currentFilterValues[1].toFixed(2)}</span>`;
-        } else {
-            badgeText += ` <span class="badge badge-secondary">${currentFilterValues.length} selected</span>`;
+            filterControls.style.display = 'block';
+            document.getElementById('apply-pca-filter').style.display = 'none';
+            document.getElementById('clear-pca-filter').style.display = 'none';
+            return;
         }
-    }
-    filterColumnBadge.innerHTML = badgeText;
-    
-    // Show action buttons
-    document.getElementById('apply-pca-filter').style.display = 'inline-block';
-    document.getElementById('clear-pca-filter').style.display = 'inline-block';
-    
-    if (isNumeric) {
-        // Create range slider for numeric data
-        const numericValues = filterValues.map(v => parseFloat(v)).filter(v => !isNaN(v));
-        
-        if (numericValues.length === 0) {
-            console.error('No valid numeric values found');
-            filterOptionsDiv.innerHTML = `
+
+        // Update badge
+        let badgeText = `<span class="badge badge-info">${filterColumn}</span>`;
+        if (currentFilterValues) {
+            if (isNumeric) {
+                badgeText += ` <span class="badge badge-secondary">${currentFilterValues[0].toFixed(2)} - ${currentFilterValues[1].toFixed(2)}</span>`;
+            } else {
+                badgeText += ` <span class="badge badge-secondary">${currentFilterValues.length} selected</span>`;
+            }
+        }
+        filterColumnBadge.innerHTML = badgeText;
+
+        // Show action buttons
+        document.getElementById('apply-pca-filter').style.display = 'inline-block';
+        document.getElementById('clear-pca-filter').style.display = 'inline-block';
+
+        if (isNumeric) {
+            // Create range slider for numeric data
+            const numericValues = filterValues.map(v => parseFloat(v)).filter(v => !isNaN(v));
+
+            if (numericValues.length === 0) {
+                console.error('No valid numeric values found');
+                filterOptionsDiv.innerHTML = `
                 <div class="modern-alert alert-danger">
                     <i class="fas fa-exclamation-triangle"></i>
                     <strong>Invalid numeric data</strong>
                 </div>
             `;
-            return;
-        }
-        
-        const minVal = Math.min(...numericValues);
-        const maxVal = Math.max(...numericValues);
-        
-        // Use current filter values if they exist, otherwise use min/max
-        const currentMin = currentFilterValues ? currentFilterValues[0] : minVal;
-        const currentMax = currentFilterValues ? currentFilterValues[1] : maxVal;
-        
-        filterOptionsDiv.innerHTML = `
+                return;
+            }
+
+            const minVal = Math.min(...numericValues);
+            const maxVal = Math.max(...numericValues);
+
+            // Use current filter values if they exist, otherwise use min/max
+            const currentMin = currentFilterValues ? currentFilterValues[0] : minVal;
+            const currentMax = currentFilterValues ? currentFilterValues[1] : maxVal;
+
+            filterOptionsDiv.innerHTML = `
             <div class="form-group">
                 <label class="form-label">
                     <strong>${filterColumn}</strong> Range
@@ -1138,41 +1167,41 @@ function setupPCAFilterControls(pcaData) {
                 <small class="text-muted">Original range: ${minVal.toFixed(2)} - ${maxVal.toFixed(2)}</small>
             </div>
         `;
-        
-        // Sync number inputs with range sliders
-        document.getElementById('filter-range-min').addEventListener('input', function() {
-            document.getElementById('filter-min').value = this.value;
-        });
-        document.getElementById('filter-range-max').addEventListener('input', function() {
-            document.getElementById('filter-max').value = this.value;
-        });
-        document.getElementById('filter-min').addEventListener('input', function() {
-            document.getElementById('filter-range-min').value = this.value;
-        });
-        document.getElementById('filter-max').addEventListener('input', function() {
-            document.getElementById('filter-range-max').value = this.value;
-        });
-        
-        // Initialize currentFilterValues only if not already set
-        if (!currentFilterValues) {
-            currentFilterValues = [minVal, maxVal];
-        }
-    } else {
-        // Create checkboxes for categorical data
-        const uniqueValues = [...new Set(filterValues.map(v => String(v)).filter(v => v !== 'null' && v !== 'undefined'))].sort();
-        
-        if (uniqueValues.length === 0) {
-            console.error('No valid categorical values found');
-            filterOptionsDiv.innerHTML = `
+
+            // Sync number inputs with range sliders
+            document.getElementById('filter-range-min').addEventListener('input', function () {
+                document.getElementById('filter-min').value = this.value;
+            });
+            document.getElementById('filter-range-max').addEventListener('input', function () {
+                document.getElementById('filter-max').value = this.value;
+            });
+            document.getElementById('filter-min').addEventListener('input', function () {
+                document.getElementById('filter-range-min').value = this.value;
+            });
+            document.getElementById('filter-max').addEventListener('input', function () {
+                document.getElementById('filter-range-max').value = this.value;
+            });
+
+            // Initialize currentFilterValues only if not already set
+            if (!currentFilterValues) {
+                currentFilterValues = [minVal, maxVal];
+            }
+        } else {
+            // Create checkboxes for categorical data
+            const uniqueValues = [...new Set(filterValues.map(v => String(v)).filter(v => v !== 'null' && v !== 'undefined'))].sort();
+
+            if (uniqueValues.length === 0) {
+                console.error('No valid categorical values found');
+                filterOptionsDiv.innerHTML = `
                 <div class="modern-alert alert-danger">
                     <i class="fas fa-exclamation-triangle"></i>
                     <strong>No valid categories found</strong>
                 </div>
             `;
-            return;
-        }
-        
-        filterOptionsDiv.innerHTML = `
+                return;
+            }
+
+            filterOptionsDiv.innerHTML = `
             <div class="form-group">
                 <label class="form-label">
                     <strong>${filterColumn}</strong> Categories
@@ -1187,9 +1216,9 @@ function setupPCAFilterControls(pcaData) {
                     </div>
                     <hr style="margin: 8px 0;">
                     ${uniqueValues.map((val, idx) => {
-                        // Check if this value should be checked (either all values on first render, or only selected values after filter)
-                        const shouldBeChecked = !currentFilterValues || currentFilterValues.includes(val);
-                        return `
+                // Check if this value should be checked (either all values on first render, or only selected values after filter)
+                const shouldBeChecked = !currentFilterValues || currentFilterValues.includes(val);
+                return `
                         <div class="form-check">
                             <input type="checkbox" class="form-check-input filter-category-checkbox" 
                                    id="filter-cat-${idx}" value="${val}" ${shouldBeChecked ? 'checked' : ''}>
@@ -1198,82 +1227,82 @@ function setupPCAFilterControls(pcaData) {
                             </label>
                         </div>
                         `;
-                    }).join('')}
+            }).join('')}
                 </div>
                 <small class="text-muted">${uniqueValues.length} unique categories</small>
             </div>
         `;
-        
-        // Setup select all functionality
-        document.getElementById('filter-select-all').addEventListener('change', function() {
-            const checkboxes = document.querySelectorAll('.filter-category-checkbox');
-            checkboxes.forEach(cb => cb.checked = this.checked);
-        });
-        
-        // Update select all when individual checkboxes change
-        document.querySelectorAll('.filter-category-checkbox').forEach(cb => {
-            cb.addEventListener('change', function() {
-                const allCheckboxes = document.querySelectorAll('.filter-category-checkbox');
-                const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
-                document.getElementById('filter-select-all').checked = allChecked;
-            });
-        });
-        
-        // Initialize currentFilterValues only if not already set
-        if (!currentFilterValues) {
-            currentFilterValues = uniqueValues;
-        }
-    }
-    
-    filterControls.style.display = 'block';
-    console.log('Filter controls setup complete');
-}
 
-/* ===========================
-   renderPCAPlot
-   =========================== */
-function renderPCAPlot(pcaData, applyFilter = false) {
-    console.log('=== renderPCAPlot CALLED ===');
-    console.log('applyFilter:', applyFilter);
-    console.log('currentFilterColumn:', currentFilterColumn);
-    console.log('currentFilterValues:', currentFilterValues);
-    
-    if (typeof Plotly === 'undefined') {
-        console.error('Plotly.js not available for PCA plot');
-        const pcaContainer = document.getElementById('pca-plot-container');
-        if (pcaContainer) {
-            pcaContainer.innerHTML = '<div class="modern-alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Plotly.js library is not loaded. Please refresh the page.</div>';
+            // Setup select all functionality
+            document.getElementById('filter-select-all').addEventListener('change', function () {
+                const checkboxes = document.querySelectorAll('.filter-category-checkbox');
+                checkboxes.forEach(cb => cb.checked = this.checked);
+            });
+
+            // Update select all when individual checkboxes change
+            document.querySelectorAll('.filter-category-checkbox').forEach(cb => {
+                cb.addEventListener('change', function () {
+                    const allCheckboxes = document.querySelectorAll('.filter-category-checkbox');
+                    const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+                    document.getElementById('filter-select-all').checked = allChecked;
+                });
+            });
+
+            // Initialize currentFilterValues only if not already set
+            if (!currentFilterValues) {
+                currentFilterValues = uniqueValues;
+            }
         }
-        return;
+
+        filterControls.style.display = 'block';
+        console.log('Filter controls setup complete');
     }
-    
-    console.log('renderPCAPlot called with applyFilter:', applyFilter);
-    console.log('pcaData.external_data:', pcaData.external_data ? Object.keys(pcaData.external_data).length + ' columns' : 'none');
-    console.log('pcaData.plot_data length:', pcaData.plot_data ? pcaData.plot_data.length : 'none');
-    
-    // Store original data on first render
-    if (!applyFilter) {
-        originalPCAData = JSON.parse(JSON.stringify(pcaData));
-        console.log('Stored originalPCAData with external_data:', originalPCAData.external_data ? Object.keys(originalPCAData.external_data).length + ' columns' : 'none');
-    }
-    
-    // Apply filtering if requested
-    if (applyFilter && currentFilterColumn && currentFilterValues) {
-        console.log('Applying filter...');
-        console.log('  Filter column:', currentFilterColumn);
-        console.log('  Filter values:', currentFilterValues);
-        pcaData = filterPCAData(pcaData, currentFilterColumn, currentFilterValues);
-        console.log('After filtering - plot_data length:', pcaData.plot_data ? pcaData.plot_data.length : 'null');
-    } else {
-        console.log('NOT applying filter:', {
-            applyFilter,
-            hasFilterColumn: !!currentFilterColumn,
-            hasFilterValues: !!currentFilterValues
-        });
-    }
-    
-    const container = document.getElementById('pca-plot-container');
-    container.innerHTML = `
+
+    /* ===========================
+       renderPCAPlot
+       =========================== */
+    function renderPCAPlot(pcaData, applyFilter = false) {
+        console.log('=== renderPCAPlot CALLED ===');
+        console.log('applyFilter:', applyFilter);
+        console.log('currentFilterColumn:', currentFilterColumn);
+        console.log('currentFilterValues:', currentFilterValues);
+
+        if (typeof Plotly === 'undefined') {
+            console.error('Plotly.js not available for PCA plot');
+            const pcaContainer = document.getElementById('pca-plot-container');
+            if (pcaContainer) {
+                pcaContainer.innerHTML = '<div class="modern-alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Plotly.js library is not loaded. Please refresh the page.</div>';
+            }
+            return;
+        }
+
+        console.log('renderPCAPlot called with applyFilter:', applyFilter);
+        console.log('pcaData.external_data:', pcaData.external_data ? Object.keys(pcaData.external_data).length + ' columns' : 'none');
+        console.log('pcaData.plot_data length:', pcaData.plot_data ? pcaData.plot_data.length : 'none');
+
+        // Store original data on first render
+        if (!applyFilter) {
+            originalPCAData = JSON.parse(JSON.stringify(pcaData));
+            console.log('Stored originalPCAData with external_data:', originalPCAData.external_data ? Object.keys(originalPCAData.external_data).length + ' columns' : 'none');
+        }
+
+        // Apply filtering if requested
+        if (applyFilter && currentFilterColumn && currentFilterValues) {
+            console.log('Applying filter...');
+            console.log('  Filter column:', currentFilterColumn);
+            console.log('  Filter values:', currentFilterValues);
+            pcaData = filterPCAData(pcaData, currentFilterColumn, currentFilterValues);
+            console.log('After filtering - plot_data length:', pcaData.plot_data ? pcaData.plot_data.length : 'null');
+        } else {
+            console.log('NOT applying filter:', {
+                applyFilter,
+                hasFilterColumn: !!currentFilterColumn,
+                hasFilterValues: !!currentFilterValues
+            });
+        }
+
+        const container = document.getElementById('pca-plot-container');
+        container.innerHTML = `
         <div class="plot-card">
             <div class="plot-header">
                 <h6><i class="fas fa-project-diagram"></i> PC${pcaData.pc_x} vs PC${pcaData.pc_y}</h6>
@@ -1287,92 +1316,134 @@ function renderPCAPlot(pcaData, applyFilter = false) {
             </div>
         </div>
     `;
-    
-    // Dynamicznie ustaw wysokość (kwadrat)
-    function setSquareHeight() {
-        const wrapper = document.getElementById('pca-plotly-wrapper');
-        const pcaPlotly = document.getElementById('pca-plotly');
-        if (wrapper && pcaPlotly) {
-            const width = wrapper.offsetWidth;
-            pcaPlotly.style.height = width + 'px';
-        }
-    }
-    setSquareHeight();
-    
-    let traces = [];
-    
-    console.log('Building traces...');
-    console.log('pcaData.color_categories:', pcaData.color_categories);
-    console.log('pcaData.color_data:', pcaData.color_data ? 'exists (' + pcaData.color_data.length + ' values)' : 'null');
-    console.log('pcaData.plot_data:', pcaData.plot_data ? pcaData.plot_data.length + ' datasets' : 'null');
-    
-    if (pcaData.plot_data && pcaData.plot_data.length > 0) {
-        console.log('First dataset structure:', Object.keys(pcaData.plot_data[0]));
-        if (pcaData.plot_data[0].x) {
-            console.log('First dataset x length:', pcaData.plot_data[0].x.length);
-        }
-        if (pcaData.plot_data[0].data) {
-            console.log('First dataset data length:', pcaData.plot_data[0].data.length);
-        }
-    }
-    
-    // HELPER: hovertemplate
-    function buildHoverTemplate({ pcx, pcy, colorBy, hoverColumn }) {
-        const head = [];
-        if (hoverColumn) head.push(`<b>${hoverColumn}:</b> %{text}`);
-        if (colorBy) head.push(`<b>${colorBy}:</b> %{customdata}`);
-        const headPart = head.length ? head.join("<br>") + "<br>" : "";
-        return `${headPart}PC${pcx}: %{x:.3f}<br>PC${pcy}: %{y:.3f}<extra></extra>`;
-    }
-    
-    if (pcaData.color_categories) {
-        // Kategoryczne: wiele trace'ów + legenda
-        pcaData.plot_data.forEach((dataset, idx) => {
-            // Obsługa dwóch formatów danych:
-            // 1. dataset.data = [{x: ..., y: ...}] (przed filtrowaniem)
-            // 2. dataset.x = [...], dataset.y = [...] (po filtrowaniu)
-            let xs, ys;
-            if (dataset.data && Array.isArray(dataset.data)) {
-                // Format 1: array of objects
-                xs = dataset.data.map(p => p.x);
-                ys = dataset.data.map(p => p.y);
-                console.log(`Dataset ${idx} (${dataset.label}): extracted ${xs.length} points from data array`);
-            } else if (dataset.x && dataset.y) {
-                // Format 2: separate arrays
-                xs = dataset.x;
-                ys = dataset.y;
-                console.log(`Dataset ${idx} (${dataset.label}): using ${xs.length} points from x/y arrays`);
-            } else {
-                console.error('Invalid dataset format:', dataset);
-                return; // Skip this dataset
+
+        // Dynamicznie ustaw wysokość (kwadrat)
+        function setSquareHeight() {
+            const wrapper = document.getElementById('pca-plotly-wrapper');
+            const pcaPlotly = document.getElementById('pca-plotly');
+            if (wrapper && pcaPlotly) {
+                const width = wrapper.offsetWidth;
+                pcaPlotly.style.height = width + 'px';
             }
-            
-            // Skip empty datasets
-            if (!xs || !ys || xs.length === 0) {
-                console.warn(`Skipping empty dataset ${idx} (${dataset.label})`);
-                return;
+        }
+        setSquareHeight();
+
+        let traces = [];
+
+        console.log('Building traces...');
+        console.log('pcaData.color_categories:', pcaData.color_categories);
+        console.log('pcaData.color_data:', pcaData.color_data ? 'exists (' + pcaData.color_data.length + ' values)' : 'null');
+        console.log('pcaData.plot_data:', pcaData.plot_data ? pcaData.plot_data.length + ' datasets' : 'null');
+
+        if (pcaData.plot_data && pcaData.plot_data.length > 0) {
+            console.log('First dataset structure:', Object.keys(pcaData.plot_data[0]));
+            if (pcaData.plot_data[0].x) {
+                console.log('First dataset x length:', pcaData.plot_data[0].x.length);
             }
-            
-            // Prepare hover text
-            let hoverText = dataset.hover_text || null;
-            if (hoverText) {
-                console.log(`Dataset ${idx}: has ${hoverText.length} hover text entries`);
-                // Ensure hover text length matches points
-                if (hoverText.length !== xs.length) {
-                    console.warn(`Hover text length mismatch: ${hoverText.length} vs ${xs.length} points`);
-                    hoverText = hoverText.slice(0, xs.length);
+            if (pcaData.plot_data[0].data) {
+                console.log('First dataset data length:', pcaData.plot_data[0].data.length);
+            }
+        }
+
+        // HELPER: hovertemplate
+        function buildHoverTemplate({ pcx, pcy, colorBy, hoverColumn }) {
+            const head = [];
+            if (hoverColumn) head.push(`<b>${hoverColumn}:</b> %{text}`);
+            if (colorBy) head.push(`<b>${colorBy}:</b> %{customdata}`);
+            const headPart = head.length ? head.join("<br>") + "<br>" : "";
+            return `${headPart}PC${pcx}: %{x:.3f}<br>PC${pcy}: %{y:.3f}<extra></extra>`;
+        }
+
+        if (pcaData.color_categories) {
+            // Kategoryczne: wiele trace'ów + legenda
+            pcaData.plot_data.forEach((dataset, idx) => {
+                // Obsługa dwóch formatów danych:
+                // 1. dataset.data = [{x: ..., y: ...}] (przed filtrowaniem)
+                // 2. dataset.x = [...], dataset.y = [...] (po filtrowaniu)
+                let xs, ys;
+                if (dataset.data && Array.isArray(dataset.data)) {
+                    // Format 1: array of objects
+                    xs = dataset.data.map(p => p.x);
+                    ys = dataset.data.map(p => p.y);
+                    console.log(`Dataset ${idx} (${dataset.label}): extracted ${xs.length} points from data array`);
+                } else if (dataset.x && dataset.y) {
+                    // Format 2: separate arrays
+                    xs = dataset.x;
+                    ys = dataset.y;
+                    console.log(`Dataset ${idx} (${dataset.label}): using ${xs.length} points from x/y arrays`);
+                } else {
+                    console.error('Invalid dataset format:', dataset);
+                    return; // Skip this dataset
                 }
-            }
-            
+
+                // Skip empty datasets
+                if (!xs || !ys || xs.length === 0) {
+                    console.warn(`Skipping empty dataset ${idx} (${dataset.label})`);
+                    return;
+                }
+
+                // Prepare hover text
+                let hoverText = dataset.hover_text || null;
+                if (hoverText) {
+                    console.log(`Dataset ${idx}: has ${hoverText.length} hover text entries`);
+                    // Ensure hover text length matches points
+                    if (hoverText.length !== xs.length) {
+                        console.warn(`Hover text length mismatch: ${hoverText.length} vs ${xs.length} points`);
+                        hoverText = hoverText.slice(0, xs.length);
+                    }
+                }
+
+                const trace = {
+                    x: xs,
+                    y: ys,
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: dataset.label,
+                    marker: { size: 8, opacity: 0.7 },
+                    text: hoverText,
+                    customdata: new Array(xs.length).fill(dataset.label),
+                    hovertemplate: buildHoverTemplate({
+                        pcx: pcaData.pc_x,
+                        pcy: pcaData.pc_y,
+                        colorBy: pcaData.color_by,
+                        hoverColumn: pcaData.hover_column
+                    })
+                };
+                if (dataset.color) trace.marker.color = dataset.color;
+                traces.push(trace);
+
+                console.log(`Added trace for ${dataset.label}: ${xs.length} points`);
+            });
+        } else if (pcaData.color_data) {
+            // Liczbowe: JEDEN trace z colorbarem
+            const base = pcaData.plot_data[0];
+
+            // customdata do hovera: 'NA' dla braków, liczba jako string dla reszty
+            const colorDisplay = (pcaData.color_data || []).map(v =>
+                (v === null || !isFinite(v)) ? 'NA' : (+v).toFixed(4)
+            );
+
             const trace = {
-                x: xs,
-                y: ys,
+                x: base.x,
+                y: base.y,
                 mode: 'markers',
                 type: 'scatter',
-                name: dataset.label,
-                marker: { size: 8, opacity: 0.7 },
-                text: hoverText,
-                customdata: new Array(xs.length).fill(dataset.label),
+                name: 'Samples',
+                marker: {
+                    size: 8,
+                    color: pcaData.color_data,
+                    colorscale: 'Viridis',
+                    showscale: true,
+                    colorbar: {
+                        title: pcaData.color_by || 'Value',
+                        titleside: 'right',
+                        thickness: 15,
+                        len: 0.7
+                    },
+                    opacity: 0.7
+                },
+                text: base.hover_text || null,
+                customdata: colorDisplay,
                 hovertemplate: buildHoverTemplate({
                     pcx: pcaData.pc_x,
                     pcy: pcaData.pc_y,
@@ -1380,405 +1451,377 @@ function renderPCAPlot(pcaData, applyFilter = false) {
                     hoverColumn: pcaData.hover_column
                 })
             };
-            if (dataset.color) trace.marker.color = dataset.color;
             traces.push(trace);
-            
-            console.log(`Added trace for ${dataset.label}: ${xs.length} points`);
-        });
-    } else if (pcaData.color_data) {
-        // Liczbowe: JEDEN trace z colorbarem
-        const base = pcaData.plot_data[0];
+        } else {
+            // Bez kolorowania
+            const base = pcaData.plot_data[0];
+            const trace = {
+                x: base.x,
+                y: base.y,
+                mode: 'markers',
+                type: 'scatter',
+                name: 'Samples',
+                marker: { size: 8, color: 'rgba(37, 99, 235, 0.7)', opacity: 0.7 },
+                text: base.hover_text || null,
+                customdata: base.hover_text || null,
+                hovertemplate: buildHoverTemplate({
+                    pcx: pcaData.pc_x,
+                    pcy: pcaData.pc_y,
+                    colorBy: null,
+                    hoverColumn: pcaData.hover_column
+                })
+            };
+            traces.push(trace);
+        }
 
-        // customdata do hovera: 'NA' dla braków, liczba jako string dla reszty
-        const colorDisplay = (pcaData.color_data || []).map(v =>
-            (v === null || !isFinite(v)) ? 'NA' : (+v).toFixed(4)
-        );
+        // LEGEND: tylko dla kategorycznego
+        const showLegend = !!(pcaData.color_categories && pcaData.color_categories.length <= 50);
 
-        const trace = {
-            x: base.x,
-            y: base.y,
-            mode: 'markers',
-            type: 'scatter',
-            name: 'Samples',
-            marker: {
-                size: 8,
-                color: pcaData.color_data,
-                colorscale: 'Viridis',
-                showscale: true,
-                colorbar: {
-                    title: pcaData.color_by || 'Value',
-                    titleside: 'right',
-                    thickness: 15,
-                    len: 0.7
-                },
-                opacity: 0.7
+        // Build title with filter info
+        let titleText = `PCA: PC${pcaData.pc_x} vs PC${pcaData.pc_y}`;
+        if (pcaData.filter_info) {
+            const filterInfo = pcaData.filter_info;
+            const sourceLabel = filterInfo.is_external ? '(external)' : '';
+            titleText += `<br><sub>Filtered by ${filterInfo.column} ${sourceLabel}: ${filterInfo.filtered_points}/${filterInfo.total_points} points</sub>`;
+        }
+
+        const layout = {
+            title: {
+                text: titleText,
+                font: {
+                    size: 18,
+                    color: '#1f2937',
+                    family: 'Inter, sans-serif'
+                }
             },
-            text: base.hover_text || null,
-            customdata: colorDisplay,
-            hovertemplate: buildHoverTemplate({
-                pcx: pcaData.pc_x,
-                pcy: pcaData.pc_y,
-                colorBy: pcaData.color_by,
-                hoverColumn: pcaData.hover_column
-            })
+            xaxis: {
+                title: `PC${pcaData.pc_x} (${pcaData.variance_x}% variance)`,
+                gridcolor: 'rgba(230, 230, 230, 0.8)',
+                titlefont: { color: '#1f2937', size: 14 },
+                zeroline: true,
+                zerolinecolor: 'rgba(0, 0, 0, 0.3)',
+                zerolinewidth: 1,
+                scaleanchor: 'y',
+                scaleratio: 1
+            },
+            yaxis: {
+                title: `PC${pcaData.pc_y} (${pcaData.variance_y}% variance)`,
+                gridcolor: 'rgba(230, 230, 230, 0.8)',
+                titlefont: { color: '#1f2937', size: 14 },
+                zeroline: true,
+                zerolinecolor: 'rgba(0, 0, 0, 0.3)',
+                zerolinewidth: 1,
+                constrain: 'domain'
+            },
+            paper_bgcolor: 'rgba(0, 0, 0, 0)',
+            plot_bgcolor: 'rgba(0, 0, 0, 0)',
+            margin: {
+                l: 70,
+                r: showLegend ? 150 : 30,
+                b: 70,
+                t: 80,
+                pad: 4
+            },
+            autosize: true,
+            hovermode: 'closest',
+            showlegend: showLegend,
+            legend: {
+                orientation: 'v',
+                yanchor: 'top',
+                y: 1,
+                xanchor: 'left',
+                x: 1.02,
+                bgcolor: 'rgba(255, 255, 255, 0.8)',
+                bordercolor: 'rgba(0, 0, 0, 0.2)',
+                borderwidth: 1,
+                font: { size: 10 }
+            },
+            images: [{
+                source: '/static/img/watermarks/watermark.png',
+                xref: 'paper',
+                yref: 'paper',
+                x: 0.5,
+                y: 0.5,
+                sizex: 0.9,
+                sizey: 0.9,
+                sizing: 'contain',
+                xanchor: 'center',
+                yanchor: 'middle',
+                opacity: 0.15,
+                layer: 'below'
+            }]
         };
-        traces.push(trace);
-    } else {
-        // Bez kolorowania
-        const base = pcaData.plot_data[0];
-        const trace = {
-            x: base.x,
-            y: base.y,
-            mode: 'markers',
-            type: 'scatter',
-            name: 'Samples',
-            marker: { size: 8, color: 'rgba(37, 99, 235, 0.7)', opacity: 0.7 },
-            text: base.hover_text || null,
-            customdata: base.hover_text || null,
-            hovertemplate: buildHoverTemplate({
-                pcx: pcaData.pc_x,
-                pcy: pcaData.pc_y,
-                colorBy: null,
-                hoverColumn: pcaData.hover_column
-            })
+
+        Plotly.newPlot('pca-plotly', traces, layout, {
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+            displaylogo: false
+        });
+
+        // Resize handler
+        if (pcaResizeHandler) {
+            window.removeEventListener('resize', pcaResizeHandler);
+        }
+        let resizeTimer;
+        pcaResizeHandler = function () {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function () {
+                setSquareHeight();
+                Plotly.Plots.resize('pca-plotly');
+            }, 250);
         };
-        traces.push(trace);
+        window.addEventListener('resize', pcaResizeHandler);
+
+        // Setup filter controls if filter_column is selected
+        // Show controls both on initial render AND after applying filter
+        if (colorFileData.filter_column) {
+            console.log('Setting up filter controls for:', colorFileData.filter_column);
+            setupPCAFilterControls(originalPCAData);
+        } else {
+            // Hide filter controls if no filter column selected
+            document.getElementById('pca-filter-controls').style.display = 'none';
+        }
     }
-    
-    // LEGEND: tylko dla kategorycznego
-    const showLegend = !!(pcaData.color_categories && pcaData.color_categories.length <= 50);
-    
-    // Build title with filter info
-    let titleText = `PCA: PC${pcaData.pc_x} vs PC${pcaData.pc_y}`;
-    if (pcaData.filter_info) {
-        const filterInfo = pcaData.filter_info;
-        const sourceLabel = filterInfo.is_external ? '(external)' : '';
-        titleText += `<br><sub>Filtered by ${filterInfo.column} ${sourceLabel}: ${filterInfo.filtered_points}/${filterInfo.total_points} points</sub>`;
+
+    // Modal function
+    function openImageModal() {
+        const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+        modal.show();
     }
-    
-    const layout = {
-        title: {
-            text: titleText,
-            font: {
-                size: 18,
-                color: '#1f2937',
-                family: 'Inter, sans-serif'
+
+    function showExternalColumnSelection(columns, columnInfo) {
+        const externalColumnSelection = document.getElementById('external-column-selection');
+        const colorColumnSelect = document.getElementById('color_column_select');
+        const filterColumnSelect = document.getElementById('filter_column_select');
+        const colorColumnInfoDiv = document.getElementById('color-column-info');
+        const filterColumnInfoDiv = document.getElementById('filter-column-info');
+
+        if (!externalColumnSelection || !colorColumnSelect || !filterColumnSelect) return;
+
+        // Wypełnij opcje dla color column
+        colorColumnSelect.innerHTML = '<option value="">None (use PCA data)</option>';
+        columns.forEach(col => {
+            const option = document.createElement('option');
+            option.value = col;
+
+            let label = col;
+            if (columnInfo && columnInfo[col]) {
+                const info = columnInfo[col];
+                if (info.is_numeric) {
+                    label += ` (numeric, ${info.n_unique} unique)`;
+                } else {
+                    label += ` (categorical, ${info.n_unique} categories)`;
+                }
             }
-        },
-        xaxis: {
-            title: `PC${pcaData.pc_x} (${pcaData.variance_x}% variance)`,
-            gridcolor: 'rgba(230, 230, 230, 0.8)',
-            titlefont: { color: '#1f2937', size: 14 },
-            zeroline: true,
-            zerolinecolor: 'rgba(0, 0, 0, 0.3)',
-            zerolinewidth: 1,
-            scaleanchor: 'y',
-            scaleratio: 1
-        },
-        yaxis: {
-            title: `PC${pcaData.pc_y} (${pcaData.variance_y}% variance)`,
-            gridcolor: 'rgba(230, 230, 230, 0.8)',
-            titlefont: { color: '#1f2937', size: 14 },
-            zeroline: true,
-            zerolinecolor: 'rgba(0, 0, 0, 0.3)',
-            zerolinewidth: 1,
-            constrain: 'domain'
-        },
-        paper_bgcolor: 'rgba(0, 0, 0, 0)',
-        plot_bgcolor: 'rgba(0, 0, 0, 0)',
-        margin: {
-            l: 70,
-            r: showLegend ? 150 : 30,
-            b: 70,
-            t: 80,
-            pad: 4
-        },
-        autosize: true,
-        hovermode: 'closest',
-        showlegend: showLegend,
-        legend: {
-            orientation: 'v',
-            yanchor: 'top',
-            y: 1,
-            xanchor: 'left',
-            x: 1.02,
-            bgcolor: 'rgba(255, 255, 255, 0.8)',
-            bordercolor: 'rgba(0, 0, 0, 0.2)',
-            borderwidth: 1,
-            font: { size: 10 }
-        }
-    };
-    
-    Plotly.newPlot('pca-plotly', traces, layout, {
-        responsive: true,
-        displayModeBar: true,
-        modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-        displaylogo: false
-    });
-    
-    // Resize handler
-    if (pcaResizeHandler) {
-        window.removeEventListener('resize', pcaResizeHandler);
-    }
-    let resizeTimer;
-    pcaResizeHandler = function() {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(function() {
-            setSquareHeight();
-            Plotly.Plots.resize('pca-plotly');
-        }, 250);
-    };
-    window.addEventListener('resize', pcaResizeHandler);
-    
-    // Setup filter controls if filter_column is selected
-    // Show controls both on initial render AND after applying filter
-    if (colorFileData.filter_column) {
-        console.log('Setting up filter controls for:', colorFileData.filter_column);
-        setupPCAFilterControls(originalPCAData);
-    } else {
-        // Hide filter controls if no filter column selected
-        document.getElementById('pca-filter-controls').style.display = 'none';
-    }
-}
 
-// Modal function
-function openImageModal() {
-    const modal = new bootstrap.Modal(document.getElementById('imageModal'));
-    modal.show();
-}
+            option.textContent = label;
+            colorColumnSelect.appendChild(option);
+        });
 
-function showExternalColumnSelection(columns, columnInfo) {
-    const externalColumnSelection = document.getElementById('external-column-selection');
-    const colorColumnSelect = document.getElementById('color_column_select');
-    const filterColumnSelect = document.getElementById('filter_column_select');
-    const colorColumnInfoDiv = document.getElementById('color-column-info');
-    const filterColumnInfoDiv = document.getElementById('filter-column-info');
-    
-    if (!externalColumnSelection || !colorColumnSelect || !filterColumnSelect) return;
-    
-    // Wypełnij opcje dla color column
-    colorColumnSelect.innerHTML = '<option value="">None (use PCA data)</option>';
-    columns.forEach(col => {
-        const option = document.createElement('option');
-        option.value = col;
-        
-        let label = col;
-        if (columnInfo && columnInfo[col]) {
-            const info = columnInfo[col];
-            if (info.is_numeric) {
-                label += ` (numeric, ${info.n_unique} unique)`;
-            } else {
-                label += ` (categorical, ${info.n_unique} categories)`;
+        // Wypełnij opcje dla filter column (te same kolumny)
+        filterColumnSelect.innerHTML = '<option value="">None</option>';
+        columns.forEach(col => {
+            const option = document.createElement('option');
+            option.value = col;
+
+            let label = col;
+            if (columnInfo && columnInfo[col]) {
+                const info = columnInfo[col];
+                if (info.is_numeric) {
+                    label += ` (numeric, ${info.n_unique} unique)`;
+                } else {
+                    label += ` (categorical, ${info.n_unique} categories)`;
+                }
             }
-        }
-        
-        option.textContent = label;
-        colorColumnSelect.appendChild(option);
-    });
-    
-    // Wypełnij opcje dla filter column (te same kolumny)
-    filterColumnSelect.innerHTML = '<option value="">None</option>';
-    columns.forEach(col => {
-        const option = document.createElement('option');
-        option.value = col;
-        
-        let label = col;
-        if (columnInfo && columnInfo[col]) {
-            const info = columnInfo[col];
-            if (info.is_numeric) {
-                label += ` (numeric, ${info.n_unique} unique)`;
-            } else {
-                label += ` (categorical, ${info.n_unique} categories)`;
+
+            option.textContent = label;
+            filterColumnSelect.appendChild(option);
+        });
+
+        // Pokaż informację
+        if (columnInfo) {
+            const numericCols = Object.entries(columnInfo).filter(([k, v]) => v.is_numeric).length;
+            const categoricalCols = Object.entries(columnInfo).filter(([k, v]) => !v.is_numeric).length;
+
+            let infoText = `${columns.length} columns available: `;
+            if (numericCols > 0) {
+                infoText += `${numericCols} numeric`;
             }
+            if (categoricalCols > 0) {
+                if (numericCols > 0) infoText += ', ';
+                infoText += `${categoricalCols} categorical`;
+            }
+
+            colorColumnInfoDiv.textContent = infoText;
+            filterColumnInfoDiv.textContent = 'Select a different column for filtering';
         }
-        
-        option.textContent = label;
-        filterColumnSelect.appendChild(option);
-    });
-    
-    // Pokaż informację
-    if (columnInfo) {
-        const numericCols = Object.entries(columnInfo).filter(([k, v]) => v.is_numeric).length;
-        const categoricalCols = Object.entries(columnInfo).filter(([k, v]) => !v.is_numeric).length;
-        
-        let infoText = `${columns.length} columns available: `;
-        if (numericCols > 0) {
-            infoText += `${numericCols} numeric`;
-        }
-        if (categoricalCols > 0) {
-            if (numericCols > 0) infoText += ', ';
-            infoText += `${categoricalCols} categorical`;
-        }
-        
-        colorColumnInfoDiv.textContent = infoText;
-        filterColumnInfoDiv.textContent = 'Select a different column for filtering';
+
+        externalColumnSelection.style.display = 'block';
     }
-    
-    externalColumnSelection.style.display = 'block';
-}
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Add entrance animations with delay
-    const cards = document.querySelectorAll('.animate-in');
-    cards.forEach((card, index) => {
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(20px)';
-        setTimeout(() => {
-            card.style.transition = 'all 0.6s ease';
-            card.style.opacity = '1';
-            card.style.transform = 'translateY(0)';
-        }, index * 150);
-    });
+    document.addEventListener('DOMContentLoaded', function () {
+        // Add entrance animations with delay
+        const cards = document.querySelectorAll('.animate-in');
+        cards.forEach((card, index) => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(20px)';
+            setTimeout(() => {
+                card.style.transition = 'all 0.6s ease';
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            }, index * 150);
+        });
 
-    // Elements
-    const xyForm = document.getElementById('xy-visualization-form');
-    const histogramForm = document.getElementById('histogram-visualization-form');
-    const pcaForm = document.getElementById('pca-visualization-form');
-    const xyContainer = document.getElementById('xy-plot-container');
-    const histogramContainer = document.getElementById('histogram-container');
-    const pcaContainer = document.getElementById('pca-plot-container');
-    
-    // Elementy kolorowania
-    const colorFileForm = document.getElementById('color-file-upload-form');
-    const colorFileInput = document.getElementById('color_file');
-    const colorFileStatus = document.getElementById('color-file-status');
-    const keyColumnSelection = document.getElementById('key-column-selection');
-    const externalColumnSelection = document.getElementById('external-column-selection');
-    const keyColumnSelect = document.getElementById('key_column_select');
-    const colorColumnSelect = document.getElementById('color_column_select');
-    const filterColumnSelect = document.getElementById('filter_column_select');
-    const confirmKeyButton = document.getElementById('confirm-key-column');
-    
-    // Flash message function
-    function showFlashMessage(message, category) {
-        const flashContainer = document.createElement('div');
-        flashContainer.className = `modern-alert alert-${category} alert-dismissible fade show`;
-        
-        flashContainer.style.position = 'fixed';
-        flashContainer.style.top = '140px';
-        flashContainer.style.right = '20px';
-        flashContainer.style.zIndex = '99999';
-        flashContainer.style.minWidth = '300px';
-        flashContainer.style.maxWidth = '400px';
-        flashContainer.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-        
-        flashContainer.innerHTML = `
+        // Elements
+        const xyForm = document.getElementById('xy-visualization-form');
+        const histogramForm = document.getElementById('histogram-visualization-form');
+        const pcaForm = document.getElementById('pca-visualization-form');
+        const xyContainer = document.getElementById('xy-plot-container');
+        const histogramContainer = document.getElementById('histogram-container');
+        const pcaContainer = document.getElementById('pca-plot-container');
+
+        // Elementy kolorowania
+        const colorFileForm = document.getElementById('color-file-upload-form');
+        const colorFileInput = document.getElementById('color_file');
+        const colorFileStatus = document.getElementById('color-file-status');
+        const keyColumnSelection = document.getElementById('key-column-selection');
+        const externalColumnSelection = document.getElementById('external-column-selection');
+        const keyColumnSelect = document.getElementById('key_column_select');
+        const colorColumnSelect = document.getElementById('color_column_select');
+        const filterColumnSelect = document.getElementById('filter_column_select');
+        const confirmKeyButton = document.getElementById('confirm-key-column');
+
+        // Flash message function
+        function showFlashMessage(message, category) {
+            const flashContainer = document.createElement('div');
+            flashContainer.className = `modern-alert alert-${category} alert-dismissible fade show`;
+
+            flashContainer.style.position = 'fixed';
+            flashContainer.style.top = '140px';
+            flashContainer.style.right = '20px';
+            flashContainer.style.zIndex = '99999';
+            flashContainer.style.minWidth = '300px';
+            flashContainer.style.maxWidth = '400px';
+            flashContainer.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+
+            flashContainer.innerHTML = `
             <i class="fas fa-${category === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
             ${message}
         `;
-        
-        document.body.appendChild(flashContainer);
-        
-        setTimeout(() => {
-            flashContainer.style.transform = 'translateX(0)';
-            flashContainer.style.opacity = '1';
-        }, 10);
-        
-        setTimeout(() => {
-            if (flashContainer.parentElement) {
-                flashContainer.style.transform = 'translateX(100%)';
-                flashContainer.style.opacity = '0';
-                setTimeout(() => {
-                    flashContainer.remove();
-                }, 300);
-            }
-        }, 5000);
-    }
-    
-    // Function to safely handle JSON responses
-    function safelyParseResponse(response) {
-        return response.text().then(text => {
-            try {
-                return JSON.parse(text);
-            } catch (e) {
-                if (text.includes('<html') && text.includes('Error')) {
-                    const errorMatch = text.match(/<div class="alert alert-danger">(.*?)<\/div>/);
-                    if (errorMatch && errorMatch[1]) {
-                        return {
-                            status: 'error',
-                            message: errorMatch[1].trim(),
-                            html_response: true
-                        };
-                    }
+
+            document.body.appendChild(flashContainer);
+
+            setTimeout(() => {
+                flashContainer.style.transform = 'translateX(0)';
+                flashContainer.style.opacity = '1';
+            }, 10);
+
+            setTimeout(() => {
+                if (flashContainer.parentElement) {
+                    flashContainer.style.transform = 'translateX(100%)';
+                    flashContainer.style.opacity = '0';
+                    setTimeout(() => {
+                        flashContainer.remove();
+                    }, 300);
                 }
-                
-                return {
-                    status: 'error',
-                    message: 'Server returned a non-JSON response. The page might have encountered an error.',
-                    html_response: true,
-                    responseText: text.substring(0, 500) + '...'
-                };
-            }
-        });
-    }
-    
-    // Obsługa wgrywania pliku z kolorami
-    if (colorFileForm) {
-        colorFileForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const file = colorFileInput.files[0];
-            if (!file) {
-                showFlashMessage('Please select a file first', 'warning');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('color_file', file);
-            formData.append('action', 'upload_color_file');
-            
-            // Pokaż loading
-            colorFileStatus.innerHTML = `
+            }, 5000);
+        }
+
+        // Function to safely handle JSON responses
+        function safelyParseResponse(response) {
+            return response.text().then(text => {
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    if (text.includes('<html') && text.includes('Error')) {
+                        const errorMatch = text.match(/<div class="alert alert-danger">(.*?)<\/div>/);
+                        if (errorMatch && errorMatch[1]) {
+                            return {
+                                status: 'error',
+                                message: errorMatch[1].trim(),
+                                html_response: true
+                            };
+                        }
+                    }
+
+                    return {
+                        status: 'error',
+                        message: 'Server returned a non-JSON response. The page might have encountered an error.',
+                        html_response: true,
+                        responseText: text.substring(0, 500) + '...'
+                    };
+                }
+            });
+        }
+
+        // Obsługa wgrywania pliku z kolorami
+        if (colorFileForm) {
+            colorFileForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                const file = colorFileInput.files[0];
+                if (!file) {
+                    showFlashMessage('Please select a file first', 'warning');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('color_file', file);
+                formData.append('action', 'upload_color_file');
+
+                // Pokaż loading
+                colorFileStatus.innerHTML = `
                 <div class="loading-container">
                     <div class="spinner"></div>
                     <p class="loading-text">Analyzing external data file...</p>
                 </div>
             `;
-            
-            fetch('/chemalize/visualize', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => safelyParseResponse(response))
-            .then(data => {
-                if (data.status === 'success') {
-                    colorFileData.uploaded = true;
-                    colorFileData.auto_detected = data.auto_detected;
-                    colorFileData.available_columns = data.available_color_columns || [];
-                    colorFileData.column_info = data.color_column_info || {};
-                    
-                    // Store merged data if available
-                    if (data.merged_data) {
-                        colorFileData.merged_data = data.merged_data;
+
+                fetch('/chemalize/visualize', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
                     }
-                    
-                    // Jeśli automatycznie wykryto klucz
-                    if (data.auto_detected && data.key_column) {
-                        colorFileData.key_column = data.key_column;
-                        
-                        colorFileStatus.innerHTML = `
+                })
+                    .then(response => safelyParseResponse(response))
+                    .then(data => {
+                        if (data.status === 'success') {
+                            colorFileData.uploaded = true;
+                            colorFileData.auto_detected = data.auto_detected;
+                            colorFileData.available_columns = data.available_color_columns || [];
+                            colorFileData.column_info = data.color_column_info || {};
+
+                            // Store merged data if available
+                            if (data.merged_data) {
+                                colorFileData.merged_data = data.merged_data;
+                            }
+
+                            // Jeśli automatycznie wykryto klucz
+                            if (data.auto_detected && data.key_column) {
+                                colorFileData.key_column = data.key_column;
+
+                                colorFileStatus.innerHTML = `
                             <div class="modern-alert alert-success">
                                 <i class="fas fa-check-circle"></i>
                                 <div>
                                     <strong>File Uploaded Successfully!</strong>
                                     <p class="mb-1">${data.message}</p>
                                     <p class="mb-0"><strong>Detected Key Column:</strong> ${data.key_column}</p>
-                                    ${data.warnings && data.warnings.length > 0 ? 
-                                        '<p class="mt-2 mb-0 text-warning"><i class="fas fa-exclamation-triangle"></i> ' + 
+                                    ${data.warnings && data.warnings.length > 0 ?
+                                        '<p class="mt-2 mb-0 text-warning"><i class="fas fa-exclamation-triangle"></i> ' +
                                         data.warnings.join('<br>') + '</p>' : ''}
                                 </div>
                             </div>
                         `;
-                        
-                        // Pokaż wybór kolumn do kolorowania i filtrowania
-                        showExternalColumnSelection(data.available_color_columns, data.color_column_info);
-                        
-                    } else if (data.common_columns && data.common_columns.length > 0) {
-                        // Użytkownik musi wybrać kolumnę klucza
-                        colorFileStatus.innerHTML = `
+
+                                // Pokaż wybór kolumn do kolorowania i filtrowania
+                                showExternalColumnSelection(data.available_color_columns, data.color_column_info);
+
+                            } else if (data.common_columns && data.common_columns.length > 0) {
+                                // Użytkownik musi wybrać kolumnę klucza
+                                colorFileStatus.innerHTML = `
                             <div class="modern-alert alert-info">
                                 <i class="fas fa-info-circle"></i>
                                 <div>
@@ -1787,22 +1830,22 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </div>
                             </div>
                         `;
-                        
-                        // Wypełnij opcje wyboru kolumny klucza
-                        keyColumnSelect.innerHTML = '';
-                        data.common_columns.forEach(col => {
-                            const option = document.createElement('option');
-                            option.value = col;
-                            option.textContent = col;
-                            keyColumnSelect.appendChild(option);
-                        });
-                        
-                        keyColumnSelection.style.display = 'block';
-                        colorFileData.common_columns = data.common_columns;
-                        
-                    } else {
-                        // Brak wspólnych kolumn
-                        colorFileStatus.innerHTML = `
+
+                                // Wypełnij opcje wyboru kolumny klucza
+                                keyColumnSelect.innerHTML = '';
+                                data.common_columns.forEach(col => {
+                                    const option = document.createElement('option');
+                                    option.value = col;
+                                    option.textContent = col;
+                                    keyColumnSelect.appendChild(option);
+                                });
+
+                                keyColumnSelection.style.display = 'block';
+                                colorFileData.common_columns = data.common_columns;
+
+                            } else {
+                                // Brak wspólnych kolumn
+                                colorFileStatus.innerHTML = `
                             <div class="modern-alert alert-danger">
                                 <i class="fas fa-exclamation-triangle"></i>
                                 <div>
@@ -1812,10 +1855,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </div>
                             </div>
                         `;
-                        colorFileData.uploaded = false;
-                    }
-                } else {
-                    colorFileStatus.innerHTML = `
+                                colorFileData.uploaded = false;
+                            }
+                        } else {
+                            colorFileStatus.innerHTML = `
                         <div class="modern-alert alert-danger">
                             <i class="fas fa-exclamation-triangle"></i>
                             <div>
@@ -1824,12 +1867,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         </div>
                     `;
-                    colorFileData.uploaded = false;
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                colorFileStatus.innerHTML = `
+                            colorFileData.uploaded = false;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        colorFileStatus.innerHTML = `
                     <div class="modern-alert alert-danger">
                         <i class="fas fa-exclamation-triangle"></i>
                         <div>
@@ -1838,47 +1881,47 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                 `;
-                colorFileData.uploaded = false;
+                        colorFileData.uploaded = false;
+                    });
             });
-        });
-    }
-    
-    // Obsługa potwierdzenia kolumny klucza
-    if (confirmKeyButton) {
-        confirmKeyButton.addEventListener('click', function() {
-            const selectedKey = keyColumnSelect.value;
-            
-            if (!selectedKey) {
-                showFlashMessage('Please select a key column', 'warning');
-                return;
-            }
-            
-            // Wyślij żądanie walidacji
-            const formData = new FormData();
-            formData.append('action', 'confirm_key_column');
-            formData.append('key_column', selectedKey);
-            
-            fetch('/chemalize/visualize', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
+        }
+
+        // Obsługa potwierdzenia kolumny klucza
+        if (confirmKeyButton) {
+            confirmKeyButton.addEventListener('click', function () {
+                const selectedKey = keyColumnSelect.value;
+
+                if (!selectedKey) {
+                    showFlashMessage('Please select a key column', 'warning');
+                    return;
                 }
-            })
-            .then(response => safelyParseResponse(response))
-            .then(data => {
-                if (data.status === 'success') {
-                    colorFileData.key_column = selectedKey;
-                    colorFileData.available_columns = data.available_color_columns || [];
-                    colorFileData.column_info = data.color_column_info || {};
-                    
-                    if (data.merged_data) {
-                        colorFileData.merged_data = data.merged_data;
+
+                // Wyślij żądanie walidacji
+                const formData = new FormData();
+                formData.append('action', 'confirm_key_column');
+                formData.append('key_column', selectedKey);
+
+                fetch('/chemalize/visualize', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
                     }
-                    
-                    keyColumnSelection.style.display = 'none';
-                    
-                    colorFileStatus.innerHTML = `
+                })
+                    .then(response => safelyParseResponse(response))
+                    .then(data => {
+                        if (data.status === 'success') {
+                            colorFileData.key_column = selectedKey;
+                            colorFileData.available_columns = data.available_color_columns || [];
+                            colorFileData.column_info = data.color_column_info || {};
+
+                            if (data.merged_data) {
+                                colorFileData.merged_data = data.merged_data;
+                            }
+
+                            keyColumnSelection.style.display = 'none';
+
+                            colorFileStatus.innerHTML = `
                         <div class="modern-alert alert-success">
                             <i class="fas fa-check-circle"></i>
                             <div>
@@ -1888,113 +1931,113 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         </div>
                     `;
-                    
-                    // Pokaż wybór kolumn
-                    showExternalColumnSelection(data.available_color_columns, data.color_column_info);
-                } else {
-                    showFlashMessage(data.message, 'danger');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showFlashMessage('Error confirming key column: ' + error.message, 'danger');
+
+                            // Pokaż wybór kolumn
+                            showExternalColumnSelection(data.available_color_columns, data.color_column_info);
+                        } else {
+                            showFlashMessage(data.message, 'danger');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showFlashMessage('Error confirming key column: ' + error.message, 'danger');
+                    });
             });
-        });
-    }
-    
-    // Obsługa wyboru kolumny do kolorowania
-    if (colorColumnSelect) {
-        colorColumnSelect.addEventListener('change', function() {
-            const selectedColumn = this.value;
-            
-            if (selectedColumn && colorFileData.uploaded && colorFileData.key_column) {
-                colorFileData.color_column = selectedColumn;
-                
-                // Ustaw hidden inputs dla formularza PCA
-                document.getElementById('use_external_coloring').value = '1';
-                document.getElementById('external_key_column').value = colorFileData.key_column;
-                document.getElementById('external_color_column').value = selectedColumn;
-                
-                // Wyłącz select z PCA data
-                const pcaColorSelect = document.getElementById('pca_color_by_select');
-                if (pcaColorSelect) {
-                    pcaColorSelect.value = '';
-                    pcaColorSelect.disabled = true;
-                }
-                
-                showFlashMessage(`External coloring: ${selectedColumn}`, 'success');
-            } else {
-                // Włącz z powrotem select z PCA data
-                document.getElementById('use_external_coloring').value = '0';
-                const pcaColorSelect = document.getElementById('pca_color_by_select');
-                if (pcaColorSelect) {
-                    pcaColorSelect.disabled = false;
-                }
-                colorFileData.color_column = null;
-            }
-        });
-    }
-    
-    // Obsługa wyboru kolumny do filtrowania
-    if (filterColumnSelect) {
-        filterColumnSelect.addEventListener('change', function() {
-            const selectedColumn = this.value;
-            
-            console.log('Filter column changed to:', selectedColumn);
-            
-            if (selectedColumn && colorFileData.uploaded && colorFileData.key_column) {
-                colorFileData.filter_column = selectedColumn;
-                
-                // Ustaw hidden input
-                document.getElementById('external_filter_column').value = selectedColumn;
-                
-                showFlashMessage(`Filter column selected: ${selectedColumn}. Regenerate PCA plot to enable filtering.`, 'info');
-                
-                // Jeśli plot już jest wyrenderowany, spróbuj ustawić kontrolki filtra
-                if (originalPCAData) {
-                    console.log('Plot already rendered, setting up filter controls...');
-                    try {
-                        setupPCAFilterControls(originalPCAData);
-                    } catch (e) {
-                        console.error('Error setting up filter controls:', e);
-                        showFlashMessage('Please regenerate the PCA plot to enable filtering.', 'warning');
+        }
+
+        // Obsługa wyboru kolumny do kolorowania
+        if (colorColumnSelect) {
+            colorColumnSelect.addEventListener('change', function () {
+                const selectedColumn = this.value;
+
+                if (selectedColumn && colorFileData.uploaded && colorFileData.key_column) {
+                    colorFileData.color_column = selectedColumn;
+
+                    // Ustaw hidden inputs dla formularza PCA
+                    document.getElementById('use_external_coloring').value = '1';
+                    document.getElementById('external_key_column').value = colorFileData.key_column;
+                    document.getElementById('external_color_column').value = selectedColumn;
+
+                    // Wyłącz select z PCA data
+                    const pcaColorSelect = document.getElementById('pca_color_by_select');
+                    if (pcaColorSelect) {
+                        pcaColorSelect.value = '';
+                        pcaColorSelect.disabled = true;
                     }
+
+                    showFlashMessage(`External coloring: ${selectedColumn}`, 'success');
+                } else {
+                    // Włącz z powrotem select z PCA data
+                    document.getElementById('use_external_coloring').value = '0';
+                    const pcaColorSelect = document.getElementById('pca_color_by_select');
+                    if (pcaColorSelect) {
+                        pcaColorSelect.disabled = false;
+                    }
+                    colorFileData.color_column = null;
                 }
-            } else {
-                colorFileData.filter_column = null;
-                document.getElementById('external_filter_column').value = '';
-                // Ukryj kontrolki filtra
-                document.getElementById('pca-filter-controls').style.display = 'none';
-            }
-        });
-    }
-    
-    // Submit event for XY visualization
-    if (xyForm) {
-        xyForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(xyForm);
-            formData.append('Submit', 'XYVisualize');
-            
-            xyContainer.innerHTML = `
+            });
+        }
+
+        // Obsługa wyboru kolumny do filtrowania
+        if (filterColumnSelect) {
+            filterColumnSelect.addEventListener('change', function () {
+                const selectedColumn = this.value;
+
+                console.log('Filter column changed to:', selectedColumn);
+
+                if (selectedColumn && colorFileData.uploaded && colorFileData.key_column) {
+                    colorFileData.filter_column = selectedColumn;
+
+                    // Ustaw hidden input
+                    document.getElementById('external_filter_column').value = selectedColumn;
+
+                    showFlashMessage(`Filter column selected: ${selectedColumn}. Regenerate PCA plot to enable filtering.`, 'info');
+
+                    // Jeśli plot już jest wyrenderowany, spróbuj ustawić kontrolki filtra
+                    if (originalPCAData) {
+                        console.log('Plot already rendered, setting up filter controls...');
+                        try {
+                            setupPCAFilterControls(originalPCAData);
+                        } catch (e) {
+                            console.error('Error setting up filter controls:', e);
+                            showFlashMessage('Please regenerate the PCA plot to enable filtering.', 'warning');
+                        }
+                    }
+                } else {
+                    colorFileData.filter_column = null;
+                    document.getElementById('external_filter_column').value = '';
+                    // Ukryj kontrolki filtra
+                    document.getElementById('pca-filter-controls').style.display = 'none';
+                }
+            });
+        }
+
+        // Submit event for XY visualization
+        if (xyForm) {
+            xyForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                const formData = new FormData(xyForm);
+                formData.append('Submit', 'XYVisualize');
+
+                xyContainer.innerHTML = `
                 <div class="loading-container">
                     <div class="spinner"></div>
                     <p class="loading-text">Generating scatter plot...</p>
                 </div>
             `;
-            
-            fetch('/chemalize/visualize', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => safelyParseResponse(response))
-            .then(data => {
-                if (data.status === 'success') {
-                    xyContainer.innerHTML = `
+
+                fetch('/chemalize/visualize', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(response => safelyParseResponse(response))
+                    .then(data => {
+                        if (data.status === 'success') {
+                            xyContainer.innerHTML = `
                         <div class="plot-card">
                             <div class="plot-header">
                                 <h6><i class="fas fa-chart-scatter"></i> ${data.x_col_name} vs ${data.y_col_name}</h6>
@@ -2004,16 +2047,16 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         </div>
                     `;
-                    
-                    renderScatterPlot(data.plot_data, data.x_col_name, data.y_col_name);
-                    
-                    if (data.message) {
-                        showFlashMessage(data.message, 'success');
-                    }
-                } else {
-                    let errorMsg = data.message || 'Unknown error occurred';
-                    
-                    xyContainer.innerHTML = `
+
+                            renderScatterPlot(data.plot_data, data.x_col_name, data.y_col_name);
+
+                            if (data.message) {
+                                showFlashMessage(data.message, 'success');
+                            }
+                        } else {
+                            let errorMsg = data.message || 'Unknown error occurred';
+
+                            xyContainer.innerHTML = `
                         <div class="modern-alert alert-danger">
                             <i class="fas fa-exclamation-triangle"></i>
                             <div>
@@ -2023,11 +2066,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         </div>
                     `;
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                xyContainer.innerHTML = `
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        xyContainer.innerHTML = `
                     <div class="modern-alert alert-danger">
                         <i class="fas fa-exclamation-triangle"></i>
                         <div>
@@ -2037,37 +2080,37 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                 `;
+                    });
             });
-        });
-    }
-    
-    // Submit event for Histogram visualization
-    if (histogramForm) {
-        histogramForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(histogramForm);
-            formData.append('Submit', 'Visualize');
-            
-            histogramContainer.innerHTML = `
+        }
+
+        // Submit event for Histogram visualization
+        if (histogramForm) {
+            histogramForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                const formData = new FormData(histogramForm);
+                formData.append('Submit', 'Visualize');
+
+                histogramContainer.innerHTML = `
                 <div class="loading-container">
                     <div class="spinner"></div>
                     <p class="loading-text">Generating histogram...</p>
                 </div>
             `;
-            
-            fetch('/chemalize/visualize', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => safelyParseResponse(response))
-            .then(data => {
-                if (data.status === 'success') {
-                    if (data.histogram_data) {
-                        histogramContainer.innerHTML = `
+
+                fetch('/chemalize/visualize', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(response => safelyParseResponse(response))
+                    .then(data => {
+                        if (data.status === 'success') {
+                            if (data.histogram_data) {
+                                histogramContainer.innerHTML = `
                             <div class="plot-card">
                                 <div class="plot-header">
                                     <h6><i class="fas fa-chart-bar"></i> Distribution of ${data.x_col}</h6>
@@ -2077,14 +2120,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </div>
                             </div>
                         `;
-                        
-                        renderHistogram(data.histogram_data);
-                        
-                        if (data.message) {
-                            showFlashMessage(data.message, 'success');
-                        }
-                    } else if (data.plot_path) {
-                        histogramContainer.innerHTML = `
+
+                                renderHistogram(data.histogram_data);
+
+                                if (data.message) {
+                                    showFlashMessage(data.message, 'success');
+                                }
+                            } else if (data.plot_path) {
+                                histogramContainer.innerHTML = `
                             <div class="plot-card">
                                 <div class="plot-header">
                                     <h6><i class="fas fa-chart-bar"></i> Distribution of ${data.x_col}</h6>
@@ -2094,13 +2137,13 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </div>
                             </div>
                         `;
-                    } else {
-                        histogramContainer.innerHTML = `<div class="modern-alert alert-warning"><i class="fas fa-info-circle"></i> No visualization data available</div>`;
-                    }
-                } else {
-                    let errorMsg = data.message || 'Unknown error occurred';
-                    
-                    histogramContainer.innerHTML = `
+                            } else {
+                                histogramContainer.innerHTML = `<div class="modern-alert alert-warning"><i class="fas fa-info-circle"></i> No visualization data available</div>`;
+                            }
+                        } else {
+                            let errorMsg = data.message || 'Unknown error occurred';
+
+                            histogramContainer.innerHTML = `
                         <div class="modern-alert alert-danger">
                             <i class="fas fa-exclamation-triangle"></i>
                             <div>
@@ -2110,11 +2153,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         </div>
                     `;
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                histogramContainer.innerHTML = `
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        histogramContainer.innerHTML = `
                     <div class="modern-alert alert-danger">
                         <i class="fas fa-exclamation-triangle"></i>
                         <div>
@@ -2124,55 +2167,55 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                 `;
+                    });
             });
-        });
-    }
-    
-    // Submit event for PCA visualization
-    if (pcaForm) {
-        pcaForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(pcaForm);
-            formData.append('Submit', 'PCAVisualize');
-            
-            if (pcaContainer) {
-                pcaContainer.innerHTML = `
+        }
+
+        // Submit event for PCA visualization
+        if (pcaForm) {
+            pcaForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                const formData = new FormData(pcaForm);
+                formData.append('Submit', 'PCAVisualize');
+
+                if (pcaContainer) {
+                    pcaContainer.innerHTML = `
                     <div class="loading-container">
                         <div class="spinner"></div>
                         <p class="loading-text">Generating PCA plot...</p>
                     </div>
                 `;
-            }
-            
-            fetch('/chemalize/visualize', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
                 }
-            })
-            .then(response => safelyParseResponse(response))
-            .then(data => {
-                if (data.status === 'success') {
-                    console.log('PCA data received:', data);
-                    console.log('external_data in response:', data.external_data ? Object.keys(data.external_data).length + ' columns' : 'none');
-                    
-                    // WAŻNE: NIE nadpisuj data.external_data!
-                    // Backend już wysłał external_data w response
-                    // Tylko dodaj jeśli NIE MA w response (dla kompatybilności wstecznej)
-                    if (!data.external_data && colorFileData.merged_data) {
-                        console.log('Adding external_data from colorFileData.merged_data');
-                        data.external_data = colorFileData.merged_data;
+
+                fetch('/chemalize/visualize', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
                     }
-                    
-                    renderPCAPlot(data);
-                    if (data.message) {
-                        showFlashMessage(data.message, 'success');
-                    }
-                } else {
-                    if (pcaContainer) {
-                        pcaContainer.innerHTML = `
+                })
+                    .then(response => safelyParseResponse(response))
+                    .then(data => {
+                        if (data.status === 'success') {
+                            console.log('PCA data received:', data);
+                            console.log('external_data in response:', data.external_data ? Object.keys(data.external_data).length + ' columns' : 'none');
+
+                            // WAŻNE: NIE nadpisuj data.external_data!
+                            // Backend już wysłał external_data w response
+                            // Tylko dodaj jeśli NIE MA w response (dla kompatybilności wstecznej)
+                            if (!data.external_data && colorFileData.merged_data) {
+                                console.log('Adding external_data from colorFileData.merged_data');
+                                data.external_data = colorFileData.merged_data;
+                            }
+
+                            renderPCAPlot(data);
+                            if (data.message) {
+                                showFlashMessage(data.message, 'success');
+                            }
+                        } else {
+                            if (pcaContainer) {
+                                pcaContainer.innerHTML = `
                             <div class="modern-alert alert-danger">
                                 <i class="fas fa-exclamation-triangle"></i>
                                 <div>
@@ -2182,13 +2225,13 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </div>
                             </div>
                         `;
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                if (pcaContainer) {
-                    pcaContainer.innerHTML = `
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        if (pcaContainer) {
+                            pcaContainer.innerHTML = `
                         <div class="modern-alert alert-danger">
                             <i class="fas fa-exclamation-triangle"></i>
                             <div>
@@ -2198,61 +2241,61 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         </div>
                     `;
-                }
+                        }
+                    });
             });
-        });
-    }
-    
-    // PCA Filter button handlers
-    document.getElementById('apply-pca-filter')?.addEventListener('click', function() {
-        console.log('=== APPLY FILTER CLICKED ===');
-        console.log('originalPCAData exists:', !!originalPCAData);
-        console.log('currentFilterColumn:', currentFilterColumn);
-        console.log('currentFilterValues (before):', currentFilterValues);
-        
-        if (!originalPCAData) {
-            showFlashMessage('No PCA data to filter', 'warning');
-            return;
         }
-        
-        // Get current filter values based on type
-        const filterOptionsDiv = document.getElementById('pca-filter-options');
-        
-        if (filterOptionsDiv.querySelector('#filter-min')) {
-            // Numeric filter
-            const minVal = parseFloat(document.getElementById('filter-min').value);
-            const maxVal = parseFloat(document.getElementById('filter-max').value);
-            currentFilterValues = [minVal, maxVal];
-            console.log('Numeric filter values:', currentFilterValues);
-        } else {
-            // Categorical filter
-            const checkedBoxes = filterOptionsDiv.querySelectorAll('.filter-category-checkbox:checked');
-            currentFilterValues = Array.from(checkedBoxes).map(cb => cb.value);
-            console.log('Categorical filter - checked boxes:', checkedBoxes.length);
-            console.log('Categorical filter values:', currentFilterValues);
-            
-            if (currentFilterValues.length === 0) {
-                showFlashMessage('Please select at least one category', 'warning');
+
+        // PCA Filter button handlers
+        document.getElementById('apply-pca-filter')?.addEventListener('click', function () {
+            console.log('=== APPLY FILTER CLICKED ===');
+            console.log('originalPCAData exists:', !!originalPCAData);
+            console.log('currentFilterColumn:', currentFilterColumn);
+            console.log('currentFilterValues (before):', currentFilterValues);
+
+            if (!originalPCAData) {
+                showFlashMessage('No PCA data to filter', 'warning');
                 return;
             }
-        }
-        
-        console.log('Calling renderPCAPlot with applyFilter=true');
-        renderPCAPlot(originalPCAData, true);
-        showFlashMessage('Filter applied successfully', 'success');
+
+            // Get current filter values based on type
+            const filterOptionsDiv = document.getElementById('pca-filter-options');
+
+            if (filterOptionsDiv.querySelector('#filter-min')) {
+                // Numeric filter
+                const minVal = parseFloat(document.getElementById('filter-min').value);
+                const maxVal = parseFloat(document.getElementById('filter-max').value);
+                currentFilterValues = [minVal, maxVal];
+                console.log('Numeric filter values:', currentFilterValues);
+            } else {
+                // Categorical filter
+                const checkedBoxes = filterOptionsDiv.querySelectorAll('.filter-category-checkbox:checked');
+                currentFilterValues = Array.from(checkedBoxes).map(cb => cb.value);
+                console.log('Categorical filter - checked boxes:', checkedBoxes.length);
+                console.log('Categorical filter values:', currentFilterValues);
+
+                if (currentFilterValues.length === 0) {
+                    showFlashMessage('Please select at least one category', 'warning');
+                    return;
+                }
+            }
+
+            console.log('Calling renderPCAPlot with applyFilter=true');
+            renderPCAPlot(originalPCAData, true);
+            showFlashMessage('Filter applied successfully', 'success');
+        });
+
+        document.getElementById('clear-pca-filter')?.addEventListener('click', function () {
+            if (!originalPCAData) {
+                showFlashMessage('No PCA data to restore', 'warning');
+                return;
+            }
+
+            currentFilterValues = null;
+            renderPCAPlot(originalPCAData, false);
+            showFlashMessage('Filter cleared', 'info');
+        });
     });
-    
-    document.getElementById('clear-pca-filter')?.addEventListener('click', function() {
-        if (!originalPCAData) {
-            showFlashMessage('No PCA data to restore', 'warning');
-            return;
-        }
-        
-        currentFilterValues = null;
-        renderPCAPlot(originalPCAData, false);
-        showFlashMessage('Filter cleared', 'info');
-    });
-});
 </script>
 
 {% endblock content %}

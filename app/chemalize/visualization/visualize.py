@@ -9,6 +9,7 @@ import json
 import plotly.express as px
 import plotly.io as pio
 from app.config import STATIC_IMG_DIR, get_clean_path as config_get_clean_path
+from app.utils.watermark import add_watermark_matplotlib_after_plot
 
 def get_clean_path():
     from flask import session
@@ -56,6 +57,7 @@ def pair_plot():
     os.makedirs(STATIC_IMG_DIR, exist_ok=True)
 
     plot_path = os.path.join(STATIC_IMG_DIR, "pairplot1.png")
+    add_watermark_matplotlib_after_plot(sns_plot.figure)
     sns_plot.savefig(plot_path)
     plt.close()  # Cleanup memory
     return "/static/img/pairplot1.png"  # Zwróć ścieżkę względną
@@ -235,6 +237,7 @@ def xy_plot(feature_x, feature_y, df=None):
         plt.grid(True, alpha=0.3)
 
         # Zapisz wykres
+        add_watermark_matplotlib_after_plot(plt.gcf())
         plot_path = os.path.join(STATIC_IMG_DIR, "fig.png")
         plt.savefig(plot_path)
         print(f"Plot saved to {plot_path}")
@@ -305,6 +308,7 @@ def static_hist_plot(df, feature_x):
         
         # Zapisz wykres
         plt.tight_layout()
+        add_watermark_matplotlib_after_plot(plt.gcf())
         plt.savefig(abs_plot_path)
         plt.close()  # Cleanup memory
         

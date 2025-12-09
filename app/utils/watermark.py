@@ -218,10 +218,12 @@ def add_watermark_matplotlib_after_plot(fig_or_ax, watermark_file=None, alpha=0.
         img_aspect = img_width / img_height
         
         for ax in axes_list:
-            # Get axes dimensions in display coordinates to calculate aspect ratio
-            bbox = ax.get_window_extent()
-            ax_width = bbox.width
-            ax_height = bbox.height
+            # Get axes dimensions from figure coordinates (more reliable than window_extent before savefig)
+            ax_bbox = ax.get_position()
+            fig_width = fig.get_figwidth()
+            fig_height = fig.get_figheight()
+            ax_width = ax_bbox.width * fig_width
+            ax_height = ax_bbox.height * fig_height
             ax_aspect = ax_width / ax_height
             
             # Calculate the position to center the watermark while maintaining aspect ratio

@@ -19,6 +19,7 @@ from sklearn.metrics import (
 from app.config import get_clean_path, get_upload_path, get_static_img_path
 from app.chemalize.preprocessing import generic_preprocessing as gprep
 from app.analysis_helpers import AnalysisSession
+from app.utils.watermark import add_watermark_matplotlib_after_plot
 
 
 def DecisionTree(value, choice, scale_val, encode_val):
@@ -93,6 +94,7 @@ def DecisionTree(value, choice, scale_val, encode_val):
         )
         fig = plt.gcf()
         fig.set_size_inches(20, 15)
+        add_watermark_matplotlib_after_plot(fig)
         tree_plot_path = get_static_img_path("tree.png")
         fig.savefig(tree_plot_path)
         plt.close()
@@ -167,6 +169,7 @@ def DecisionTree(value, choice, scale_val, encode_val):
         )
         fig = plt.gcf()
         fig.set_size_inches(25, 15)
+        add_watermark_matplotlib_after_plot(fig)
         tree_plot_path = get_static_img_path("tree.png")
         fig.savefig(tree_plot_path)
         plt.close()
@@ -249,6 +252,7 @@ def DecisionTree(value, choice, scale_val, encode_val):
         )
         fig = plt.gcf()
         fig.set_size_inches(25, 15)
+        add_watermark_matplotlib_after_plot(fig)
         tree_plot_path = get_static_img_path("tree.png")
         fig.savefig(tree_plot_path)
         plt.close()

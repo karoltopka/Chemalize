@@ -34,6 +34,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch
+from app.utils.watermark import add_watermark_matplotlib_after_plot
 
 
 alvadesk_pca_bp = Blueprint('alvadesk_pca', __name__)
@@ -261,6 +262,7 @@ def perform_alvadesk_pca():
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
 
+        add_watermark_matplotlib_after_plot(plt.gcf())
         variance_plot_path = os.path.join(temp_path, 'alvadesk_pca_variance.png')
         plt.savefig(variance_plot_path, dpi=150, bbox_inches='tight')
         plt.close()
@@ -291,6 +293,7 @@ def perform_alvadesk_pca():
                 axes[idx].grid(True, axis='x', linewidth=0.3, alpha=0.4)
 
             plt.tight_layout()
+            add_watermark_matplotlib_after_plot(fig)
             loadings_plot_path = os.path.join(temp_path, 'alvadesk_pca_loadings.png')
             plt.savefig(loadings_plot_path, dpi=150, bbox_inches='tight')
             plt.close(fig)
@@ -713,7 +716,7 @@ def save_alvadesk_colored_plot():
         color_data = payload.get('color_data')
         filter_info = payload.get('filter_info')
 
-        fig, ax = plt.subplots(figsize=(8, 6))
+        fig, ax = plt.subplots(figsize=(12, 9))
         points_plotted = 0
 
         if color_categories:
@@ -869,7 +872,8 @@ def save_alvadesk_colored_plot():
         filename = f"alvadesk_pca_colored_{int(time.time() * 1000)}.png"
         save_path = os.path.join(temp_path, filename)
         fig.tight_layout()
-        fig.savefig(save_path, dpi=150, bbox_inches='tight')
+        add_watermark_matplotlib_after_plot(fig)
+        fig.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.close(fig)
 
         image_url = url_for('utils.serve_temp_image', filename=filename, t=int(time.time() * 1000))
