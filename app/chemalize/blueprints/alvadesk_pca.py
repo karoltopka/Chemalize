@@ -1625,3 +1625,209 @@ def download_alvadesk_pca_projected():
         download_name='alvadesk_pca_new_compounds_projected.csv',
         mimetype='text/csv'
     )
+
+
+@alvadesk_pca_bp.route("/alvadesk_pca_analyze_group_correlations", methods=['POST'])
+def alvadesk_pca_analyze_group_correlations():
+    """Analyze correlation between descriptor group combinations and target variable."""
+
+    if not check_dataset():
+        return jsonify({
+            "status": "error",
+            "message": "Please upload a dataset first."
+        }), 400
+
+    try:
+        from scipy.stats import pearsonr
+        from sklearn.linear_model import LinearRegression
+        from sklearn.metrics import r2_score
+        from itertools import combinations as iter_combinations
+
+        # Get parameters
+        target_variable = request.form.get('target_variable')
+        combination_size = request.form.get('combination_size')
+
+        if not target_variable:
+            return jsonify({
+                "status": "error",
+                "message": "Please select a target variable."
+            }), 400
+
+        try:
+            combination_size = int(combination_size)
+        except (ValueError, TypeError):
+            return jsonify({
+                "status": "error",
+                "message": "Invalid combination size."
+            }), 400
+
+        if combination_size < 1 or combination_size > 34:
+            return jsonify({
+                "status": "error",
+                "message": "Combination size must be between 1 and 34."
+            }), 400
+
+        # Check if external color file is loaded
+        color_file_path = session.get('alvadesk_color_file_path')
+        if not color_file_path or not os.path.exists(color_file_path):
+            return jsonify({
+                "status": "error",
+                "message": "Please upload external color file first."
+            }), 400
+
+        # Load PCA dataset (with descriptors)
+        clean_path = get_clean_path(session["csv_name"])
+        df_pca = read_dataset(clean_path)
+
+        # Load external color file
+        df_external = coloring.load_coloring_file(color_file_path)
+
+        if df_external is None:
+            return jsonify({
+                "status": "error",
+                "message": "Failed to load external color file."
+            }), 400
+
+        # Check if target variable exists and is numeric
+        if target_variable not in df_external.columns:
+            return jsonify({
+                "status": "error",
+                "message": f"Target variable '{target_variable}' not found in external file."
+            }), 400
+
+        if not pd.api.types.is_numeric_dtype(df_external[target_variable]):
+            return jsonify({
+                "status": "error",
+                "message": f"Target variable '{target_variable}' must be numeric."
+            }), 400
+
+        # Get key column for merging
+        key_column = session.get('alvadesk_color_key_column')
+        if not key_column:
+            detection = session.get('alvadesk_color_detection', {})
+            if detection and detection.get('found'):
+                key_column = detection.get('key_column')
+
+        if not key_column or key_column not in df_pca.columns or key_column not in df_external.columns:
+            return jsonify({
+                "status": "error",
+                "message": "Cannot determine key column for merging datasets."
+            }), 400
+
+        # Merge datasets
+        df_merged = pd.merge(
+            df_pca,
+            df_external[[key_column, target_variable]],
+            on=key_column,
+            how='inner'
+        )
+
+        if len(df_merged) == 0:
+            return jsonify({
+                "status": "error",
+                "message": "No matching rows found between PCA data and external file."
+            }), 400
+
+        # Get target values and remove NaN
+        y = df_merged[target_variable].copy()
+        valid_indices = ~y.isna()
+        y = y[valid_indices]
+        df_valid = df_merged[valid_indices].copy()
+
+        if len(y) < 10:
+            return jsonify({
+                "status": "error",
+                "message": "Not enough valid samples (need at least 10)."
+            }), 400
+
+        # Parse descriptor groups (all 34 groups)
+        groups_dict = parse_descriptor_groups(DESCRIPTOR_GROUPS_FILE)
+        groups_dict = dict(sorted(groups_dict.items(), key=lambda x: int(x[0])))
+
+        # Generate group combinations
+        group_ids = list(groups_dict.keys())
+        group_combinations = list(iter_combinations(group_ids, combination_size))
+
+        # Analyze each group combination
+        results = []
+
+        for group_combo in group_combinations:
+            # Collect all descriptors from these groups
+            all_descriptors = []
+            group_names = []
+
+            for group_id in group_combo:
+                group_info = groups_dict[group_id]
+                group_names.append(group_info['name'])
+                all_descriptors.extend(group_info['descriptors'])
+
+            # Find available descriptors in dataset
+            available_descriptors = [d for d in all_descriptors if d in df_valid.columns]
+
+            if len(available_descriptors) == 0:
+                continue
+
+            # Get descriptor data (only numeric)
+            X_combo = df_valid[available_descriptors].select_dtypes(include=[np.number])
+            X_combo = X_combo.dropna(axis=1)
+
+            if X_combo.shape[1] == 0:
+                continue
+
+            # Calculate correlations
+            correlations = []
+            for desc in X_combo.columns:
+                try:
+                    corr, pval = pearsonr(X_combo[desc], y)
+                    if not np.isnan(corr):
+                        correlations.append(abs(corr))
+                except:
+                    continue
+
+            if len(correlations) == 0:
+                continue
+
+            avg_correlation = float(np.mean(correlations))
+            max_correlation = float(np.max(correlations))
+
+            # Calculate R² using linear regression
+            try:
+                model = LinearRegression()
+                model.fit(X_combo, y)
+                y_pred = model.predict(X_combo)
+                r2 = float(r2_score(y, y_pred))
+            except:
+                r2 = 0.0
+
+            results.append({
+                'group_ids': [int(gid) for gid in group_combo],
+                'group_names': group_names,
+                'n_descriptors': X_combo.shape[1],
+                'avg_correlation': round(avg_correlation, 4),
+                'max_correlation': round(max_correlation, 4),
+                'r2_score': round(r2, 4)
+            })
+
+        # Sort by average correlation (descending)
+        results.sort(key=lambda x: x['avg_correlation'], reverse=True)
+
+        # Store in session
+        session['alvadesk_group_correlation_analysis'] = results
+        session['alvadesk_group_correlation_target'] = target_variable
+
+        message = f"Analyzed {len(results)} group combinations (size={combination_size}) against '{target_variable}'."
+
+        return jsonify({
+            "status": "success",
+            "message": message,
+            "results": results,
+            "total_combinations": len(results)
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": f"Error analyzing group combinations: {str(e)}"
+        }), 500

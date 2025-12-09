@@ -464,6 +464,97 @@
                     <i class="fas fa-check"></i> Confirm
                 </button>
             </div>
+
+            <!-- Group Correlation Analysis (shown after external file is loaded) -->
+            <div id="alvadesk-correlation-analysis-section" class="mt-4" style="display: none;">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-lightbulb"></i> Descriptor Group Combination Analysis</h6>
+                    <p class="mb-2">Find which combinations of descriptor groups correlate best with your target variable.</p>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="correlation_target_var" class="form-label">
+                                <i class="fas fa-bullseye"></i> Target Variable:
+                            </label>
+                            <select class="form-select" id="correlation_target_var">
+                                <option value="">-- Select from external file --</option>
+                            </select>
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle"></i> Variable to correlate with group combinations
+                            </small>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="group_combination_size" class="form-label">
+                                <i class="fas fa-cubes"></i> Groups per Combination:
+                            </label>
+                            <input type="number" class="form-control" id="group_combination_size"
+                                   value="2" min="1" max="10" onchange="updateGroupCombinationsCount()">
+                            <small class="text-muted">
+                                Number of groups to combine (e.g., 2 for pairs)
+                            </small>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label d-block">&nbsp;</label>
+                            <button type="button" class="btn btn-success w-100 mb-2" id="analyze-groups-btn" onclick="analyzeGroupCorrelations()">
+                                <i class="fas fa-play-circle"></i> Analyze Group Combinations
+                            </button>
+                            <div class="alert alert-light py-2 px-2 mb-0">
+                                <small>
+                                    <div id="combinations-count" class="text-primary fw-bold">
+                                        Select parameters above
+                                    </div>
+                                    <div class="text-muted mt-1">
+                                        All descriptors from selected groups will be combined
+                                    </div>
+                                </small>
+                            </div>
+                            <span class="text-muted mt-2 d-block" id="analyze-status"></span>
+                        </div>
+                    </div>
+
+                    <!-- Results Container -->
+                    <div id="correlation-results" class="mt-3" style="display: none;">
+                        <div class="bg-white rounded p-3 border">
+                            <h6 class="text-dark"><i class="fas fa-trophy"></i> Group Combination Rankings</h6>
+                            <p class="text-muted small mb-2">
+                                Descriptor group combinations ranked by correlation with <strong id="target-var-name"></strong>.
+                            </p>
+
+                            <!-- Results Table -->
+                            <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                                <table class="table table-hover table-sm">
+                                    <thead class="table-dark sticky-top">
+                                        <tr>
+                                            <th>Rank</th>
+                                            <th>Group Combination</th>
+                                            <th title="Number of descriptors in combination">Descriptors</th>
+                                            <th title="Average absolute Pearson correlation">Avg |r|</th>
+                                            <th title="Maximum absolute correlation">Max |r|</th>
+                                            <th title="R² from linear regression">R²</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="correlation-results-tbody">
+                                        <!-- Results will be inserted here -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-sm btn-primary" onclick="selectTopGroupCombinations(5)">
+                                    <i class="fas fa-check-square"></i> Select Top 5 Groups
+                                </button>
+                                <button type="button" class="btn btn-sm btn-primary" onclick="selectTopGroupCombinations(10)">
+                                    <i class="fas fa-check-square"></i> Select Top 10 Groups
+                                </button>
+                                <p class="text-muted small mt-2 mb-1">
+                                    <i class="fas fa-info-circle"></i> After selection, scroll to Step 1 and perform PCA with selected groups.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Visualization Controls -->
@@ -805,6 +896,204 @@ function selectAllGroups() {
 function selectNoneGroups() {
     document.querySelectorAll('.descriptor-group-checkbox').forEach(cb => cb.checked = false);
     updateSelectedCount();
+}
+
+// Correlation analysis storage
+let correlationAnalysisResults = [];
+
+// Analyze group correlations
+async function analyzeGroupCorrelations() {
+    const targetSelect = document.getElementById('correlation_target_var');
+    const sizeInput = document.getElementById('group_combination_size');
+    const statusEl = document.getElementById('analyze-status');
+    const btnEl = document.getElementById('analyze-groups-btn');
+
+    const targetVar = targetSelect.value;
+    const combSize = parseInt(sizeInput.value);
+
+    if (!targetVar) {
+        alert('Please select a target variable');
+        return;
+    }
+
+    if (!combSize || combSize < 1 || combSize > 34) {
+        alert('Please enter a valid combination size (1-34)');
+        return;
+    }
+
+    // Calculate number of combinations
+    const nCombinations = calculateCombinations(34, combSize);
+
+    // Update UI
+    btnEl.disabled = true;
+    statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Analyzing ${nCombinations.toLocaleString()} group combinations...`;
+
+    try {
+        const formData = new FormData();
+        formData.append('target_variable', targetVar);
+        formData.append('combination_size', combSize);
+
+        const response = await fetch('{{ url_for("alvadesk_pca.alvadesk_pca_analyze_group_correlations") }}', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            correlationAnalysisResults = data.results;
+            displayGroupCombinationResults(data.results, targetVar);
+            statusEl.innerHTML = '<i class="fas fa-check-circle text-success"></i> Done!';
+            setTimeout(() => statusEl.innerHTML = '', 3000);
+        } else {
+            alert('Error: ' + data.message);
+            statusEl.innerHTML = '';
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error analyzing group combinations: ' + error.message);
+        statusEl.innerHTML = '';
+    } finally {
+        btnEl.disabled = false;
+    }
+}
+
+// Display group combination results
+function displayGroupCombinationResults(results, targetVar) {
+    const resultsDiv = document.getElementById('correlation-results');
+    const tbody = document.getElementById('correlation-results-tbody');
+    const targetNameEl = document.getElementById('target-var-name');
+
+    targetNameEl.textContent = targetVar;
+    tbody.innerHTML = '';
+
+    results.forEach((result, index) => {
+        const row = document.createElement('tr');
+
+        // Add color based on correlation strength
+        let rowClass = '';
+        if (result.avg_correlation >= 0.7) rowClass = 'table-success';
+        else if (result.avg_correlation >= 0.5) rowClass = 'table-info';
+        else if (result.avg_correlation >= 0.3) rowClass = 'table-warning';
+
+        row.className = rowClass;
+
+        // Format group names
+        const groupText = result.group_names.join(' + ');
+        const groupIds = result.group_ids;
+
+        row.innerHTML = `
+            <td><strong>${index + 1}</strong></td>
+            <td title="${groupText}">${groupText.length > 50 ? groupText.substring(0, 50) + '...' : groupText}</td>
+            <td>${result.n_descriptors}</td>
+            <td><strong>${result.avg_correlation.toFixed(3)}</strong></td>
+            <td>${result.max_correlation.toFixed(3)}</td>
+            <td>${result.r2_score.toFixed(3)}</td>
+            <td>
+                <button class="btn btn-xs btn-outline-primary" onclick='selectGroupCombination(${JSON.stringify(groupIds)})' title="Select these groups">
+                    <i class="fas fa-check"></i>
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(row);
+    });
+
+    resultsDiv.style.display = 'block';
+
+    // Scroll to results
+    resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Select a group combination
+function selectGroupCombination(groupIds) {
+    // First uncheck all
+    document.querySelectorAll('.descriptor-group-checkbox').forEach(cb => cb.checked = false);
+
+    // Then check the selected groups
+    groupIds.forEach(groupId => {
+        const checkbox = document.getElementById(`group_${groupId}`);
+        if (checkbox) checkbox.checked = true;
+    });
+
+    updateSelectedCount();
+    alert(`Selected ${groupIds.length} groups. Scroll to Step 1 to perform PCA.`);
+}
+
+// Select top N group combinations
+function selectTopGroupCombinations(n) {
+    if (!correlationAnalysisResults || correlationAnalysisResults.length === 0) {
+        alert('Please run analysis first');
+        return;
+    }
+
+    // Get all unique group IDs from top N combinations
+    const allGroupIds = new Set();
+    for (let i = 0; i < Math.min(n, correlationAnalysisResults.length); i++) {
+        correlationAnalysisResults[i].group_ids.forEach(id => allGroupIds.add(id));
+    }
+
+    // Select all these groups
+    document.querySelectorAll('.descriptor-group-checkbox').forEach(cb => cb.checked = false);
+    allGroupIds.forEach(groupId => {
+        const checkbox = document.getElementById(`group_${groupId}`);
+        if (checkbox) checkbox.checked = true;
+    });
+
+    updateSelectedCount();
+    alert(`Selected ${allGroupIds.size} unique groups from top ${n} combinations. Scroll to Step 1 to perform PCA.`);
+}
+
+// Select a single group
+function selectSingleGroup(groupId) {
+    const checkbox = document.getElementById(`group_${groupId}`);
+    if (checkbox) {
+        checkbox.checked = true;
+        updateSelectedCount();
+        // Scroll to the checkbox
+        checkbox.closest('.descriptor-group-item').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+// Select top N groups from analysis
+function selectTopGroups(n) {
+    if (correlationAnalysisResults.length === 0) {
+        alert('Please run correlation analysis first');
+        return;
+    }
+
+    // First uncheck all
+    selectNoneGroups();
+
+    // Select top N
+    const topGroups = correlationAnalysisResults.slice(0, n);
+    topGroups.forEach(result => {
+        const checkbox = document.getElementById(`group_${result.group_id}`);
+        if (checkbox) checkbox.checked = true;
+    });
+
+    updateSelectedCount();
+    alert(`Selected top ${n} groups`);
+}
+
+// Select all groups from analysis
+function selectGroupsFromAnalysis() {
+    if (correlationAnalysisResults.length === 0) {
+        alert('Please run correlation analysis first');
+        return;
+    }
+
+    // First uncheck all
+    selectNoneGroups();
+
+    // Select all analyzed groups
+    correlationAnalysisResults.forEach(result => {
+        const checkbox = document.getElementById(`group_${result.group_id}`);
+        if (checkbox) checkbox.checked = true;
+    });
+
+    updateSelectedCount();
+    alert(`Selected all ${correlationAnalysisResults.length} analyzed groups`);
 }
 
 // Update color options based on source selection
@@ -1200,6 +1489,76 @@ function populateAlvadeskExternalColumns(keyColumn, colorColumns) {
     colorColumns.forEach(col => {
         filterSelect.innerHTML += `<option value="${col}">${col}</option>`;
     });
+
+    // Show and populate correlation analysis section
+    showCorrelationAnalysisSection(colorColumns);
+}
+
+// Show correlation analysis section and populate with external columns
+function showCorrelationAnalysisSection(colorColumns) {
+    const section = document.getElementById('alvadesk-correlation-analysis-section');
+    const targetSelect = document.getElementById('correlation_target_var');
+
+    if (!section || !targetSelect) return;
+
+    // Populate single select with columns
+    targetSelect.innerHTML = '<option value="">-- Select from external file --</option>';
+    colorColumns.forEach(col => {
+        const option = document.createElement('option');
+        option.value = col;
+        option.textContent = col;
+        targetSelect.appendChild(option);
+    });
+
+    // Show the section
+    section.style.display = 'block';
+    updateGroupCombinationsCount();
+}
+
+// Calculate and display number of group combinations
+function updateGroupCombinationsCount() {
+    const sizeInput = document.getElementById('group_combination_size');
+    const countDiv = document.getElementById('combinations-count');
+
+    if (!sizeInput || !countDiv) return;
+
+    const k = parseInt(sizeInput.value);
+    const n = 34; // Total number of descriptor groups
+
+    if (!k || k < 1) {
+        countDiv.innerHTML = 'Enter valid number of groups';
+        return;
+    }
+
+    if (k > n) {
+        countDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Cannot combine more than ${n} groups`;
+        return;
+    }
+
+    // Calculate C(34, k) = 34! / (k! * (34-k)!)
+    const nCombinations = calculateCombinations(n, k);
+
+    if (k === 1) {
+        countDiv.innerHTML = `<strong>${n}</strong> individual groups to test`;
+    } else {
+        countDiv.innerHTML = `<strong>C(${n}, ${k}) = ${nCombinations.toLocaleString()}</strong> combinations to test`;
+    }
+}
+
+// Helper function to calculate combinations C(n,k)
+function calculateCombinations(n, k) {
+    if (k > n) return 0;
+    if (k === 0 || k === n) return 1;
+
+    // Use the smaller of k and n-k for efficiency
+    k = Math.min(k, n - k);
+
+    let result = 1;
+    for (let i = 0; i < k; i++) {
+        result = result * (n - i) / (i + 1);
+    }
+
+    return Math.round(result);
 }
 
 // Generate PCA plot
