@@ -120,16 +120,29 @@ def visualize():
                     session['color_validation'] = validation
                     session['color_column_info'] = color_column_info
                     session['color_merged_data'] = merged_data  # NOWE!
-                    
+
+                    # Prepare candidate info for frontend with scores
+                    candidates_with_scores = []
+                    if 'candidates_info' in detection:
+                        for cand in detection['candidates_info']:
+                            candidates_with_scores.append({
+                                'column': cand['column'],
+                                'uniqueness': round(cand['uniqueness'] * 100, 1),  # As percentage
+                                'overlap': round(cand['overlap'] * 100, 1),
+                                'is_common': cand['is_common']
+                            })
+
                     response_data = {
                         "status": "success",
                         "auto_detected": detection['found'],
                         "key_column": detection['key_column'],
                         "common_columns": detection.get('common_columns', []),
+                        "pca_key_candidates": detection.get('pca_candidates', []),  # ALL available PCA columns
+                        "candidates_with_scores": candidates_with_scores,  # Scored candidates for dropdown
                         "available_color_columns": validation['available_color_columns'],
                         "color_column_info": color_column_info,
                         "merged_data": merged_data,  # NOWE!
-                        "message": validation['recommendations'][0] if validation['recommendations'] else 
+                        "message": validation['recommendations'][0] if validation['recommendations'] else
                                   "File uploaded successfully",
                         "warnings": validation['warnings']
                     }
@@ -150,7 +163,8 @@ def visualize():
             elif request.form.get('action') == 'confirm_key_column':
                 try:
                     key_column = request.form.get('key_column')
-                    
+                    print(f"\n🔄 CONFIRM KEY COLUMN: {key_column}")
+
                     if not key_column:
                         return jsonify({
                             "status": "error",
@@ -208,15 +222,22 @@ def visualize():
                     session['color_validation'] = validation
                     session['color_column_info'] = color_column_info
                     session['color_merged_data'] = merged_data  # NOWE!
-                    
-                    return jsonify({
+
+                    print(f"✅ Key column updated successfully")
+                    print(f"   Available color columns: {len(validation['available_color_columns'])}")
+                    print(f"   Merged data columns: {len(merged_data)}")
+
+                    response = {
                         "status": "success",
                         "key_column": key_column,
                         "available_color_columns": validation['available_color_columns'],
                         "color_column_info": color_column_info,
                         "merged_data": merged_data,  # NOWE!
                         "message": f"Key column '{key_column}' confirmed successfully"
-                    })
+                    }
+
+                    print(f"📤 Sending response: status={response['status']}\n")
+                    return jsonify(response)
                     
                 except Exception as e:
                     import traceback

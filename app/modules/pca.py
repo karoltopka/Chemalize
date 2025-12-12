@@ -82,7 +82,13 @@ def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True
     
     # Ensure the temporary directory exists
     os.makedirs(temp_path, exist_ok=True)
-    
+
+    # DEBUG: Check what columns we have
+    print(f"\nDEBUG PCA: Input dataframe shape: {df.shape}")
+    print(f"DEBUG PCA: All columns: {df.columns.tolist()[:10]}... (showing first 10)")
+    print(f"DEBUG PCA: Non-numeric columns: {df.select_dtypes(exclude=['number']).columns.tolist()}")
+    print(f"DEBUG PCA: Numeric columns: {len(df.select_dtypes(include=['number']).columns)} columns")
+
     # Handle categorical variables and missing values
     df_numeric = df.select_dtypes(include=[np.number])
     
@@ -115,10 +121,30 @@ def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True
         data=principal_components,
         columns=[f'PC{i+1}' for i in range(pca_model.n_components_)]
     )
-    
-    # Add color column if specified and exists in the original DataFrame
-    if color_by and color_by in df.columns:
-        pc_df[color_by] = df[color_by].reset_index(drop=True)
+
+    # Add all non-numeric columns from original data (identifiers, categories, etc.)
+    # This allows users to map/join on any identifier column during visualization
+    non_numeric_cols = df.select_dtypes(exclude=['number']).columns.tolist()
+    print(f"\nDEBUG PCA: Adding non-numeric columns: {non_numeric_cols}")
+    for col in non_numeric_cols:
+        if col not in pc_df.columns:  # Avoid duplicates
+            pc_df[col] = df[col].reset_index(drop=True)
+            print(f"  Added column: {col}")
+
+    # Also add numeric columns that might be identifiers (high uniqueness ratio)
+    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+    added_numeric_ids = []
+    for col in numeric_cols:
+        if col not in df_clean.columns:  # Not used in PCA (likely an ID)
+            uniqueness = df[col].nunique() / len(df)
+            if uniqueness > 0.9:  # Likely an identifier
+                pc_df[col] = df[col].reset_index(drop=True)
+                added_numeric_ids.append(col)
+    if added_numeric_ids:
+        print(f"DEBUG PCA: Added high-uniqueness numeric columns: {added_numeric_ids}")
+
+    print(f"DEBUG PCA: Final pc_df columns: {pc_df.columns.tolist()}")
+    print(f"DEBUG PCA: Final pc_df shape: {pc_df.shape}\n")
     
     # FIXED: Calculate proper normalized loadings (correlations between original variables and PCs)
     # Loadings = components * sqrt(explained_variance) - this gives correlations in [-1,1] range

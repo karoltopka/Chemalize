@@ -79,11 +79,19 @@ def visualize():
                     
                     # Wykryj kolumnę klucza
                     detection = coloring.detect_key_column(df_pca, df_color)
-                    
+
+                    # Get ALL non-PC columns from PCA data as potential key columns
+                    # (not just common ones - users should be able to map on any unique column)
+                    pca_key_candidates = [col for col in df_pca.columns if not col.startswith('PC')]
+
+                    # Debug: Print what we found
+                    print(f"DEBUG: PCA file columns: {df_pca.columns.tolist()}")
+                    print(f"DEBUG: PCA key candidates (non-PC columns): {pca_key_candidates}")
+
                     # Waliduj setup
                     validation = coloring.validate_coloring_setup(
-                        df_pca, 
-                        df_color, 
+                        df_pca,
+                        df_color,
                         detection['key_column'] if detection['found'] else None
                     )
                     
@@ -121,15 +129,28 @@ def visualize():
                     session['color_column_info'] = color_column_info
                     session['color_merged_data'] = merged_data  # NOWE!
                     
+                    # Prepare candidate info for frontend
+                    candidates_with_scores = []
+                    if 'candidates_info' in detection:
+                        for cand in detection['candidates_info']:
+                            candidates_with_scores.append({
+                                'column': cand['column'],
+                                'uniqueness': round(cand['uniqueness'] * 100, 1),  # As percentage
+                                'overlap': round(cand['overlap'] * 100, 1),
+                                'is_common': cand['is_common']
+                            })
+
                     response_data = {
                         "status": "success",
                         "auto_detected": detection['found'],
                         "key_column": detection['key_column'],
                         "common_columns": detection.get('common_columns', []),
+                        "pca_key_candidates": pca_key_candidates,  # ALL available PCA columns for mapping
+                        "candidates_with_scores": candidates_with_scores,  # Scored candidates
                         "available_color_columns": validation['available_color_columns'],
                         "color_column_info": color_column_info,
                         "merged_data": merged_data,  # NOWE!
-                        "message": validation['recommendations'][0] if validation['recommendations'] else 
+                        "message": validation['recommendations'][0] if validation['recommendations'] else
                                   "File uploaded successfully",
                         "warnings": validation['warnings']
                     }

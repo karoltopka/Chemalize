@@ -235,18 +235,18 @@
             <!-- Color File Status -->
             <div id="color-file-status"></div>
 
-            <!-- Key Column Selection (shown when multiple common columns found) -->
+            <!-- Key Column Selection (shown when user needs to select mapping column) -->
             <div id="key-column-selection" style="display: none;" class="mt-3">
                 <div class="modern-alert alert-warning">
                     <i class="fas fa-question-circle"></i>
                     <div>
-                        <strong>Multiple Common Columns Detected</strong>
-                        <p class="mb-2">Please select which column should be used as the key to match data:</p>
+                        <strong>Select Mapping Column</strong>
+                        <p class="mb-2">Choose which column from your PCA data will be used to join/map with the external file:</p>
                         <select id="key_column_select" class="form-control">
                             <!-- Options will be populated dynamically -->
                         </select>
                         <button id="confirm-key-column" class="modern-btn btn-sm btn-primary-modern mt-2">
-                            <i class="fas fa-check"></i> Confirm Key Column
+                            <i class="fas fa-check"></i> Confirm Mapping Column
                         </button>
                     </div>
                 </div>
@@ -1802,13 +1802,47 @@
                             if (data.auto_detected && data.key_column) {
                                 colorFileData.key_column = data.key_column;
 
+                                // Show success with option to change (collapsed by default)
+                                const candidateOptions = data.candidates_with_scores || [];
+                                let candidateList = '';
+                                if (candidateOptions.length > 1) {
+                                    candidateList = `
+                                        <details class="mt-2" style="cursor: pointer;">
+                                            <summary style="color: #666; font-size: 0.9rem; user-select: none;">
+                                                <small>▸ Change mapping column if needed</small>
+                                            </summary>
+                                            <div class="mt-2 p-2" style="background: #f8f9fa; border-radius: 4px; border-left: 2px solid #007bff;">
+                                                <select id="change_key_column" class="form-control form-control-sm">
+                                    `;
+                                    candidateOptions.forEach(cand => {
+                                        const selected = cand.column === data.key_column ? 'selected' : '';
+                                        const badge = cand.is_common ? ' (common)' : '';
+                                        candidateList += `<option value="${cand.column}" ${selected}>
+                                            ${cand.column}${badge} - ${cand.uniqueness}% unique, ${cand.overlap}% overlap
+                                        </option>`;
+                                    });
+                                    candidateList += `
+                                                </select>
+                                                <button id="confirm_change_key" class="modern-btn btn-sm btn-primary-modern mt-2" style="width: 100%;">
+                                                    <i class="fas fa-sync-alt"></i> Update Mapping Column
+                                                </button>
+                                            </div>
+                                        </details>
+                                    `;
+                                }
+
                                 colorFileStatus.innerHTML = `
                             <div class="modern-alert alert-success">
                                 <i class="fas fa-check-circle"></i>
                                 <div>
                                     <strong>File Uploaded Successfully!</strong>
-                                    <p class="mb-1">${data.message}</p>
-                                    <p class="mb-0"><strong>Detected Key Column:</strong> ${data.key_column}</p>
+                                    <p class="mb-1">
+                                        <i class="fas fa-key"></i> <strong>Mapping Column:</strong>
+                                        <span style="color: #28a745; font-weight: 600;">${data.key_column}</span>
+                                        ${candidateOptions.find(c => c.column === data.key_column) ?
+                                            `<small style="color: #666;"> (${candidateOptions.find(c => c.column === data.key_column).uniqueness}% unique)</small>` : ''}
+                                    </p>
+                                    ${candidateList}
                                     ${data.warnings && data.warnings.length > 0 ?
                                         '<p class="mt-2 mb-0 text-warning"><i class="fas fa-exclamation-triangle"></i> ' +
                                         data.warnings.join('<br>') + '</p>' : ''}
@@ -1816,42 +1850,162 @@
                             </div>
                         `;
 
+                                // Add event listener for change button
+                                const changeBtn = document.getElementById('confirm_change_key');
+                                if (changeBtn) {
+                                    changeBtn.addEventListener('click', function() {
+                                        const newKey = document.getElementById('change_key_column').value;
+                                        console.log('Change mapping column clicked. Current:', data.key_column, 'New:', newKey);
+
+                                        if (newKey && newKey !== data.key_column) {
+                                            // Show loading state
+                                            changeBtn.disabled = true;
+                                            changeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+
+                                            // Trigger re-validation with new key
+                                            const formData = new FormData();
+                                            formData.append('action', 'confirm_key_column');
+                                            formData.append('key_column', newKey);
+
+                                            console.log('Sending confirm_key_column request...');
+
+                                            fetch('/chemalize/visualize', {
+                                                method: 'POST',
+                                                body: formData,
+                                                headers: {'X-Requested-With': 'XMLHttpRequest'}
+                                            })
+                                            .then(response => {
+                                                console.log('Response received:', response.status);
+                                                return safelyParseResponse(response);
+                                            })
+                                            .then(changeData => {
+                                                console.log('Change data:', changeData);
+
+                                                if (changeData && changeData.status === 'success') {
+                                                    // Update colorFileData
+                                                    colorFileData.key_column = newKey;
+                                                    colorFileData.available_columns = changeData.available_color_columns || [];
+                                                    colorFileData.column_info = changeData.color_column_info || {};
+                                                    if (changeData.merged_data) {
+                                                        colorFileData.merged_data = changeData.merged_data;
+                                                    }
+
+                                                    // Update the displayed mapping column name
+                                                    const keyColNameSpan = document.querySelector('.modern-alert.alert-success p span[style*="color: #28a745"]');
+                                                    if (keyColNameSpan) {
+                                                        // Get uniqueness % for the new column
+                                                        const newCandidateInfo = candidateOptions.find(c => c.column === newKey);
+                                                        const uniquenessText = newCandidateInfo ? ` (${newCandidateInfo.uniqueness}% unique)` : '';
+                                                        keyColNameSpan.innerHTML = newKey + (uniquenessText ? `<small style="color: #666;"> ${uniquenessText}</small>` : '');
+                                                    }
+
+                                                    // Update the dropdown selection to reflect the change
+                                                    const selectEl = document.getElementById('change_key_column');
+                                                    if (selectEl) {
+                                                        // Update which option is selected
+                                                        Array.from(selectEl.options).forEach(option => {
+                                                            option.selected = (option.value === newKey);
+                                                        });
+                                                    }
+
+                                                    // Update data.key_column for future comparisons
+                                                    data.key_column = newKey;
+
+                                                    // Collapse the details element
+                                                    const detailsEl = document.querySelector('details');
+                                                    if (detailsEl) {
+                                                        detailsEl.open = false;
+                                                    }
+
+                                                    // Update color column selection
+                                                    showExternalColumnSelection(changeData.available_color_columns, changeData.color_column_info);
+
+                                                    showFlashMessage(`Mapping column changed to: ${newKey}`, 'success');
+                                                } else {
+                                                    console.error('Error in response:', changeData);
+                                                    showFlashMessage(changeData?.message || 'Error changing mapping column', 'danger');
+                                                }
+                                            })
+                                            .catch(error => {
+                                                console.error('Fetch error:', error);
+                                                showFlashMessage('Error: ' + error.message, 'danger');
+                                            })
+                                            .finally(() => {
+                                                // Always re-enable button
+                                                changeBtn.disabled = false;
+                                                changeBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Update Mapping Column';
+                                                console.log('Button reset');
+                                            });
+                                        } else {
+                                            console.log('Same column selected, no change needed');
+                                        }
+                                    });
+                                }
+
                                 // Pokaż wybór kolumn do kolorowania i filtrowania
                                 showExternalColumnSelection(data.available_color_columns, data.color_column_info);
 
-                            } else if (data.common_columns && data.common_columns.length > 0) {
-                                // Użytkownik musi wybrać kolumnę klucza
+                            } else if (data.pca_key_candidates && data.pca_key_candidates.length > 0) {
+                                // User must select which PCA column to use for mapping/joining
                                 colorFileStatus.innerHTML = `
                             <div class="modern-alert alert-info">
                                 <i class="fas fa-info-circle"></i>
                                 <div>
-                                    <strong>File Uploaded - Key Column Required</strong>
-                                    <p class="mb-0">${data.message}</p>
+                                    <strong>File Uploaded - Key Column Selection Required</strong>
+                                    <p class="mb-0">Please select which column from your PCA data should be used to map/join with the external file.</p>
+                                    <p class="mt-2 mb-0 text-muted"><small>Tip: Choose a unique identifier column (e.g., Sample ID, Compound Name, etc.)</small></p>
                                 </div>
                             </div>
                         `;
 
-                                // Wypełnij opcje wyboru kolumny klucza
+                                // Populate key column options with ALL available PCA columns
                                 keyColumnSelect.innerHTML = '';
-                                data.common_columns.forEach(col => {
+
+                                // Add a helpful placeholder option
+                                const placeholderOption = document.createElement('option');
+                                placeholderOption.value = '';
+                                placeholderOption.textContent = '-- Select a mapping column --';
+                                placeholderOption.disabled = true;
+                                placeholderOption.selected = true;
+                                keyColumnSelect.appendChild(placeholderOption);
+
+                                // Add all available PCA columns as options with scoring info
+                                const candidateScores = data.candidates_with_scores || [];
+                                const scoreMap = {};
+                                candidateScores.forEach(c => {
+                                    scoreMap[c.column] = c;
+                                });
+
+                                data.pca_key_candidates.forEach(col => {
                                     const option = document.createElement('option');
                                     option.value = col;
-                                    option.textContent = col;
+
+                                    const scoreInfo = scoreMap[col];
+                                    if (scoreInfo) {
+                                        const badge = scoreInfo.is_common ? ' (common)' : '';
+                                        option.textContent = `${col}${badge} - ${scoreInfo.uniqueness}% unique`;
+                                    } else {
+                                        const isCommon = data.common_columns && data.common_columns.includes(col);
+                                        const badge = isCommon ? ' (common)' : '';
+                                        option.textContent = `${col}${badge}`;
+                                    }
+
                                     keyColumnSelect.appendChild(option);
                                 });
 
                                 keyColumnSelection.style.display = 'block';
-                                colorFileData.common_columns = data.common_columns;
+                                colorFileData.pca_key_candidates = data.pca_key_candidates;
+                                colorFileData.common_columns = data.common_columns || [];
 
                             } else {
-                                // Brak wspólnych kolumn
+                                // No columns available for mapping
                                 colorFileStatus.innerHTML = `
                             <div class="modern-alert alert-danger">
                                 <i class="fas fa-exclamation-triangle"></i>
                                 <div>
-                                    <strong>No Common Columns Found</strong>
-                                    <p class="mb-0">${data.message}</p>
-                                    <p class="mt-2 mb-0">Please ensure your file has a column matching one in your PCA data.</p>
+                                    <strong>No Mapping Columns Available</strong>
+                                    <p class="mb-2">No identifier columns found in your PCA components file.</p>
+                                    <p class="mb-0"><strong>Solution:</strong> Please re-run your PCA analysis to include identifier columns (Sample ID, Compound Name, etc.) in the components file.</p>
                                 </div>
                             </div>
                         `;

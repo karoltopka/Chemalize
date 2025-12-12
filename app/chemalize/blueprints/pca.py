@@ -133,6 +133,10 @@ def perform_pca():
     clean_path = get_clean_path(session["csv_name"])
     df = read_dataset(clean_path)
 
+    # Store identifier columns to add back after PCA
+    identifier_cols = df.select_dtypes(exclude=['number']).columns.tolist()
+    print(f"\n🔍 PCA: Found {len(identifier_cols)} identifier columns: {identifier_cols}")
+
     try:
         os.makedirs(ensure_temp_dir(), exist_ok=True)
 
@@ -159,6 +163,24 @@ def perform_pca():
 
         session['pca_performed'] = True
         session['pca_summary'] = results.get('summary', [])
+
+        # ✨ ADD IDENTIFIER COLUMNS TO PCA COMPONENTS FILE ✨
+        pca_components_path = os.path.join(ensure_temp_dir(), 'pca_components.csv')
+        if os.path.exists(pca_components_path) and identifier_cols:
+            print(f"\n✨ Adding identifier columns to PCA file...")
+            pca_df = pd.read_csv(pca_components_path)
+            print(f"   Before: {list(pca_df.columns)}")
+
+            # Add each identifier column
+            for col in identifier_cols:
+                if col in df.columns and col not in pca_df.columns:
+                    pca_df[col] = df[col].reset_index(drop=True)
+                    print(f"   ✓ Added: {col}")
+
+            # Save back
+            pca_df.to_csv(pca_components_path, index=False)
+            print(f"   After: {list(pca_df.columns)}")
+            print(f"✅ Saved PCA file with {len(pca_df.columns)} total columns\n")
 
         # Add timestamp to prevent browser caching of images
         timestamp = int(time.time() * 1000)  # milliseconds for better uniqueness

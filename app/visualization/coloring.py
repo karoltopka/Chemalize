@@ -158,46 +158,69 @@ def check_column_overlap(df_main: pd.DataFrame, df_color: pd.DataFrame, key_colu
 
 
 def detect_key_column(df_main: pd.DataFrame, df_color: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Detect the best key column for joining, prioritizing uniqueness.
+    Returns the column with highest uniqueness score among all PCA columns.
+    """
+    # Get ALL non-PC columns from PCA data (not just common ones)
+    pca_candidates = [c for c in df_main.columns if not str(c).startswith("PC")]
     common_columns = [c for c in (set(df_main.columns) & set(df_color.columns)) if not str(c).startswith("PC")]
-    if not common_columns:
-        return {'found': False, 'key_column': None, 'common_columns': [], 'confidence': 'none'}
 
-    if len(common_columns) == 1:
-        key_column = common_columns[0]
-        overlap = check_column_overlap(df_main, df_color, key_column)
-        return {
-            'found': overlap >= 0.5,
-            'key_column': key_column if overlap >= 0.5 else None,
-            'common_columns': common_columns,
-            'confidence': 'high' if overlap > 0.8 else ('medium' if overlap >= 0.5 else 'low'),
-            'overlap_ratio': overlap
-        }
+    if not pca_candidates:
+        return {'found': False, 'key_column': None, 'pca_candidates': [], 'common_columns': [], 'confidence': 'none'}
 
-    best_column = None
-    best_score = 0.0
-    best_overlap = 0.0
-    for col in common_columns:
-        overlap = check_column_overlap(df_main, df_color, col)
+    # Score all PCA columns by uniqueness and overlap
+    candidates_info = []
+    for col in pca_candidates:
         try:
             uniq = df_main[col].nunique(dropna=True)
             uniqueness = uniq / max(len(df_main), 1)
-        except Exception:
-            uniqueness = 0.0
-        score = overlap * (0.7 + 0.3 * uniqueness)
-        if score > best_score:
-            best_score = score
-            best_column = col
-            best_overlap = overlap
 
-    if best_column and best_score > 0.5:
-        return {
-            'found': True,
-            'key_column': best_column,
-            'common_columns': common_columns,
-            'confidence': 'high' if best_score > 0.8 else 'medium',
-            'overlap_ratio': best_overlap
-        }
-    return {'found': False, 'key_column': None, 'common_columns': common_columns, 'confidence': 'low'}
+            # Check overlap if column exists in both files
+            if col in df_color.columns:
+                overlap = check_column_overlap(df_main, df_color, col)
+            else:
+                overlap = 0.0
+
+            # Prioritize uniqueness heavily (80%), overlap is secondary (20%)
+            # High uniqueness = likely an ID column
+            score = uniqueness * 0.8 + overlap * 0.2
+
+            candidates_info.append({
+                'column': col,
+                'uniqueness': uniqueness,
+                'overlap': overlap,
+                'score': score,
+                'is_common': col in common_columns
+            })
+        except Exception:
+            continue
+
+    # Sort by score (highest first)
+    candidates_info.sort(key=lambda x: x['score'], reverse=True)
+
+    if not candidates_info:
+        return {'found': False, 'key_column': None, 'pca_candidates': pca_candidates, 'common_columns': common_columns, 'confidence': 'none'}
+
+    # Best candidate
+    best = candidates_info[0]
+
+    # Auto-select if uniqueness is high (>80%) or if it's the only common column with good overlap
+    auto_select = (
+        best['uniqueness'] > 0.8 or  # Very unique column
+        (best['is_common'] and best['overlap'] > 0.7)  # Good overlap on common column
+    )
+
+    return {
+        'found': auto_select,
+        'key_column': best['column'] if auto_select else None,
+        'pca_candidates': pca_candidates,
+        'common_columns': common_columns,
+        'candidates_info': candidates_info,  # All candidates with scores
+        'confidence': 'high' if best['score'] > 0.8 else ('medium' if best['score'] > 0.5 else 'low'),
+        'uniqueness': best['uniqueness'],
+        'overlap_ratio': best['overlap']
+    }
 
 
 # ===========================

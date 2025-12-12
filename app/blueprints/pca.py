@@ -60,6 +60,9 @@ def pca_analysis():
 def perform_pca():
     # DEBUG: Write immediately to confirm endpoint is hit
     import datetime
+    print("\n" + "="*50)
+    print("PCA ENDPOINT HIT!")
+    print("="*50 + "\n")
     with open('debug_pca.txt', 'a') as f:
         f.write(f"{datetime.datetime.now()}: ENDPOINT HIT!\n")
 
@@ -146,13 +149,22 @@ def perform_pca():
 
     # --- Wykonanie PCA ---
     clean_path = get_clean_path(session["csv_name"])
-    df = read_dataset(clean_path)
+    print(f"\n=== PCA LOADING FILE ===")
+    print(f"File path: {clean_path}")
+    print(f"File exists: {os.path.exists(clean_path)}")
+    df_original = read_dataset(clean_path)
+    print(f"Loaded dataframe shape: {df_original.shape}")
+    print(f"Columns: {df_original.columns.tolist()[:10]}... (first 10)")
+
+    # Store non-numeric identifier columns to add back later
+    identifier_cols = df_original.select_dtypes(exclude=['number']).columns.tolist()
+    print(f"Identifier columns found: {identifier_cols}")
 
     try:
         os.makedirs(ensure_temp_dir(), exist_ok=True)
 
         results = pca.perform_enhanced_pca(
-            df,
+            df_original,
             n_components=n_components,
             scale_data=scale_data,
             show_variance=show_variance,
@@ -174,6 +186,24 @@ def perform_pca():
 
         session['pca_performed'] = True
         session['pca_summary'] = results.get('summary', [])
+
+        # MANUAL FIX: Add identifier columns to PCA components file
+        pca_components_path = os.path.join(ensure_temp_dir(), 'pca_components.csv')
+        if os.path.exists(pca_components_path) and identifier_cols:
+            print(f"\n=== ADDING IDENTIFIER COLUMNS TO PCA FILE ===")
+            pca_df = pd.read_csv(pca_components_path)
+            print(f"PCA file before: {pca_df.columns.tolist()}")
+
+            # Add each identifier column
+            for col in identifier_cols:
+                if col in df_original.columns and col not in pca_df.columns:
+                    pca_df[col] = df_original[col].reset_index(drop=True)
+                    print(f"  Added column: {col}")
+
+            # Save back
+            pca_df.to_csv(pca_components_path, index=False)
+            print(f"PCA file after: {pca_df.columns.tolist()}")
+            print(f"Saved updated PCA components file with {len(pca_df.columns)} columns")
 
         # Add timestamp to prevent browser caching of images
         timestamp = int(time.time() * 1000)  # milliseconds for better uniqueness
