@@ -1,0 +1,66 @@
+1. Constitutional indices
+
+Name
+MW
+AMW
+nAT
+nSK
+nBT
+nBO
+nH
+nC
+nN
+nO
+
+2. Topological indices
+
+Name
+W
+WA
+Wv
+We
+Wp
+Wi
+J
+IDE
+IDET
+
+3. Connectivity indices
+
+Name
+X0
+X1
+X2
+X3
+X4
+X5
+Xv0
+Xv1
+Xv2
+
+4. Information indices
+
+Name
+IC0
+IC1
+IC2
+IC3
+SIC0
+SIC1
+SIC2
+CIC0
+CIC1
+
+5. Ring descriptors
+
+Name
+nCIC
+nBnz
+nR03
+nR04
+nR05
+nR06
+nR07
+nR08
+nR09
+nR10

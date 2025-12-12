@@ -58,7 +58,65 @@
             </div>
         </div>
     </div>
-    
+
+    <!-- Custom Descriptor Groups Upload (Optional) -->
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="fas fa-layer-group mr-2"></i>Custom Descriptor Groups (Optional)</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">
+                Upload a file defining custom descriptor groups. PCA will be performed only on descriptors from selected groups.
+            </p>
+
+            <div class="alert alert-info mb-3">
+                <i class="fas fa-info-circle"></i>
+                <strong>Need an example?</strong>
+                <a href="{{ url_for('static', filename='example_descriptor_groups.txt') }}" download class="alert-link">
+                    <i class="fas fa-download"></i> Download example file
+                </a> to see the correct format.
+            </div>
+
+            <form id="descriptor-groups-upload-form" enctype="multipart/form-data" class="mb-3">
+                <div class="form-row align-items-end">
+                    <div class="col-md-8">
+                        <label for="descriptor_groups_file"><i class="fas fa-file-upload"></i> Descriptor Groups File (.txt)</label>
+                        <input type="file" class="form-control-file" id="descriptor_groups_file" name="descriptor_groups_file" accept=".txt">
+                        <small class="form-text text-muted">
+                            Format: Group header (e.g., "1. Group Name"), then "Name", then descriptor names (one per line)
+                        </small>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-info btn-block">
+                            <i class="fas fa-upload"></i> Upload & Parse Groups
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Status message -->
+            <div id="groups-upload-status"></div>
+
+            <!-- Group selection (shown after upload) -->
+            <div id="groups-selection-container" style="display: none;">
+                <hr>
+                <h6><i class="fas fa-check-square"></i> Select Descriptor Groups for PCA:</h6>
+                <div class="mb-3">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="select-all-groups">Select All</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="deselect-all-groups">Deselect All</button>
+                </div>
+                <div id="groups-checkboxes" class="row">
+                    <!-- Checkboxes will be populated dynamically -->
+                </div>
+                <div class="mt-3">
+                    <div class="alert alert-info" id="groups-summary">
+                        <!-- Summary will be shown here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- PCA Configuration Form -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
@@ -264,8 +322,11 @@
                         </div>
                     </div>
                 </div>
-                
-                <button type="submit" class="btn btn-primary mt-3">
+
+                <!-- Hidden input for selected descriptor groups -->
+                <input type="hidden" id="selected_descriptor_groups" name="selected_descriptor_groups" value="">
+
+                <button type="submit" class="btn btn-primary mt-3" id="run-pca-btn">
                     <i class="fas fa-play mr-2"></i>Run PCA Analysis
                 </button>
             </form>
@@ -502,6 +563,148 @@
             const method = checkedMethod.value;
             document.getElementById('top_n_features').disabled = method !== 'top_n';
             document.getElementById('loading_threshold').disabled = method !== 'threshold';
+        }
+
+        // ==================================
+        // Descriptor Groups Upload Handler
+        // ==================================
+        const groupsForm = document.getElementById('descriptor-groups-upload-form');
+        const groupsStatus = document.getElementById('groups-upload-status');
+        const groupsContainer = document.getElementById('groups-selection-container');
+        const groupsCheckboxes = document.getElementById('groups-checkboxes');
+        const groupsSummary = document.getElementById('groups-summary');
+        const selectAllBtn = document.getElementById('select-all-groups');
+        const deselectAllBtn = document.getElementById('deselect-all-groups');
+
+        let descriptorGroups = null;
+
+        if (groupsForm) {
+            groupsForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const fileInput = document.getElementById('descriptor_groups_file');
+                const file = fileInput.files[0];
+
+                if (!file) {
+                    groupsStatus.innerHTML = '<div class="alert alert-warning">Please select a file first</div>';
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('descriptor_groups_file', file);
+
+                groupsStatus.innerHTML = '<div class="alert alert-info"><i class="fas fa-spinner fa-spin"></i> Uploading and parsing groups...</div>';
+
+                fetch('{{ url_for("pca.upload_descriptor_groups") }}', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        descriptorGroups = data.groups;
+                        displayGroups(data.groups);
+                        groupsStatus.innerHTML = `<div class="alert alert-success"><i class="fas fa-check-circle"></i> Successfully loaded ${data.num_groups} descriptor groups with ${data.total_descriptors} total descriptors</div>`;
+                        groupsContainer.style.display = 'block';
+                    } else {
+                        groupsStatus.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Error: ${data.message}</div>`;
+                        groupsContainer.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    groupsStatus.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Upload failed: ${error.message}</div>`;
+                    groupsContainer.style.display = 'none';
+                });
+            });
+        }
+
+        // Select/Deselect all buttons
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', function() {
+                document.querySelectorAll('.group-checkbox').forEach(cb => cb.checked = true);
+                updateGroupsSummary();
+            });
+        }
+
+        if (deselectAllBtn) {
+            deselectAllBtn.addEventListener('click', function() {
+                document.querySelectorAll('.group-checkbox').forEach(cb => cb.checked = false);
+                updateGroupsSummary();
+            });
+        }
+
+        function displayGroups(groups) {
+            groupsCheckboxes.innerHTML = '';
+
+            Object.keys(groups).sort((a, b) => parseInt(a) - parseInt(b)).forEach(groupId => {
+                const group = groups[groupId];
+                const col = document.createElement('div');
+                col.className = 'col-md-6 col-lg-4';
+
+                const checkbox = document.createElement('div');
+                checkbox.className = 'custom-control custom-checkbox mb-2';
+                checkbox.innerHTML = `
+                    <input type="checkbox" class="custom-control-input group-checkbox"
+                           id="group_${groupId}" value="${groupId}" checked>
+                    <label class="custom-control-label" for="group_${groupId}">
+                        <strong>${group.full_name}</strong>
+                        <small class="text-muted d-block">${group.descriptors.length} descriptors</small>
+                    </label>
+                `;
+
+                col.appendChild(checkbox);
+                groupsCheckboxes.appendChild(col);
+            });
+
+            // Add change listeners to update summary
+            document.querySelectorAll('.group-checkbox').forEach(cb => {
+                cb.addEventListener('change', updateGroupsSummary);
+            });
+
+            updateGroupsSummary();
+        }
+
+        function updateGroupsSummary() {
+            const checked = document.querySelectorAll('.group-checkbox:checked');
+            const selectedIds = Array.from(checked).map(cb => cb.value);
+
+            let totalDescriptors = 0;
+            let groupNames = [];
+
+            selectedIds.forEach(id => {
+                if (descriptorGroups && descriptorGroups[id]) {
+                    totalDescriptors += descriptorGroups[id].descriptors.length;
+                    groupNames.push(descriptorGroups[id].name);
+                }
+            });
+
+            if (selectedIds.length === 0) {
+                groupsSummary.innerHTML = '<strong>No groups selected</strong> - PCA will use all descriptors';
+                groupsSummary.className = 'alert alert-warning';
+            } else {
+                groupsSummary.innerHTML = `
+                    <strong>${selectedIds.length} groups selected</strong> with <strong>${totalDescriptors} total descriptors</strong>
+                    <div class="mt-2"><small>Groups: ${groupNames.join(', ')}</small></div>
+                `;
+                groupsSummary.className = 'alert alert-info';
+            }
+        }
+
+        // Submit handler for PCA form - add selected groups
+        const pcaForm = document.querySelector('form[action*="perform_pca"]');
+        if (pcaForm) {
+            pcaForm.addEventListener('submit', function(e) {
+                const selectedGroupsInput = document.getElementById('selected_descriptor_groups');
+                const checkedGroups = document.querySelectorAll('.group-checkbox:checked');
+                const selectedIds = Array.from(checkedGroups).map(cb => cb.value);
+
+                if (selectedIds.length > 0) {
+                    selectedGroupsInput.value = selectedIds.join(',');
+                    console.log('Selected descriptor groups:', selectedIds);
+                } else {
+                    selectedGroupsInput.value = '';
+                }
+            });
         }
     });
 

@@ -134,8 +134,10 @@ def filter_dataframe_by_groups(df, groups_dict: Dict[str, Dict], selected_group_
             columns_to_keep.append(col)
             descriptor_columns_kept.append(col)
         elif keep_non_descriptors and col not in all_descriptors_set:
-            # This column is not a descriptor at all (e.g., Name, ID, target variable)
-            columns_to_keep.append(col)
+            # Only keep if it's a non-numeric column (identifier like Sample ID, Name, etc.)
+            # This ensures numeric descriptors NOT in groups file are excluded
+            if not pd.api.types.is_numeric_dtype(df[col]):
+                columns_to_keep.append(col)
 
     filtered_df = df[columns_to_keep].copy()
 

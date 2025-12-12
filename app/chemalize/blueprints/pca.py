@@ -137,6 +137,57 @@ def perform_pca():
     identifier_cols = df.select_dtypes(exclude=['number']).columns.tolist()
     print(f"\n🔍 PCA: Found {len(identifier_cols)} identifier columns: {identifier_cols}")
 
+    # ===========================
+    # Custom Descriptor Groups Filtering
+    # ===========================
+    selected_groups_str = request.form.get('selected_descriptor_groups', '')
+    descriptor_groups_used = False
+
+    if selected_groups_str:
+        selected_group_ids = selected_groups_str.split(',')
+        custom_groups = session.get('custom_descriptor_groups')
+
+        if custom_groups and selected_group_ids:
+            from app.chemalize.utils.descriptor_groups import filter_dataframe_by_groups, get_group_summary
+
+            try:
+                # Filter dataframe to only include descriptors from selected groups
+                df_filtered, descriptor_columns_kept = filter_dataframe_by_groups(
+                    df, custom_groups, selected_group_ids, keep_non_descriptors=True
+                )
+
+                # Get summary for logging
+                summary = get_group_summary(custom_groups, selected_group_ids)
+
+                print(f"\n📊 DESCRIPTOR GROUPS FILTERING:")
+                print(f"   Selected groups: {summary['num_groups']}")
+                print(f"   Group names: {', '.join(summary['group_names'])}")
+                print(f"   Descriptors used: {summary['total_descriptors']}")
+                print(f"   Descriptor columns kept: {len(descriptor_columns_kept)}")
+                print(f"   Original DataFrame shape: {df.shape}")
+                print(f"   Filtered DataFrame shape: {df_filtered.shape}")
+
+                # Use filtered dataframe for PCA
+                df = df_filtered
+                descriptor_groups_used = True
+
+                # Save info to session
+                session['pca_descriptor_groups_used'] = True
+                session['pca_selected_groups'] = selected_group_ids
+                session['pca_groups_summary'] = summary
+
+                flash(f"PCA performed on {summary['num_groups']} descriptor groups ({summary['total_descriptors']} descriptors)", 'info')
+
+            except Exception as e:
+                print(f"❌ Error filtering by descriptor groups: {e}")
+                flash(f"Warning: Could not apply descriptor groups filter: {str(e)}", 'warning')
+                descriptor_groups_used = False
+        else:
+            print("⚠️  Selected groups provided but no custom groups found in session")
+
+    if not descriptor_groups_used:
+        session['pca_descriptor_groups_used'] = False
+
     try:
         os.makedirs(ensure_temp_dir(), exist_ok=True)
 
@@ -256,6 +307,75 @@ def download_pca_report():
     except Exception as e:
         flash(f'Error generating report: {str(e)}', 'danger')
         return redirect(url_for('pca.pca_analysis'))
+
+
+@pca_bp.route("/upload_descriptor_groups", methods=["POST"])
+def upload_descriptor_groups():
+    """
+    Upload and parse a custom descriptor groups file.
+    Returns parsed groups information.
+    """
+    try:
+        from app.chemalize.utils.descriptor_groups import parse_descriptor_groups, get_group_summary
+
+        if 'descriptor_groups_file' not in request.files:
+            return jsonify({
+                "status": "error",
+                "message": "No file uploaded"
+            })
+
+        file = request.files['descriptor_groups_file']
+
+        if file.filename == '':
+            return jsonify({
+                "status": "error",
+                "message": "No file selected"
+            })
+
+        # Save file temporarily
+        temp_dir = ensure_temp_dir()
+        groups_file_path = os.path.join(temp_dir, 'custom_descriptor_groups.txt')
+        file.save(groups_file_path)
+
+        # Parse the file
+        try:
+            groups_dict = parse_descriptor_groups(groups_file_path)
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": f"Failed to parse file: {str(e)}"
+            })
+
+        if not groups_dict:
+            return jsonify({
+                "status": "error",
+                "message": "No groups found in file. Please check the file format."
+            })
+
+        # Save groups to session
+        session['custom_descriptor_groups'] = groups_dict
+        session['custom_groups_file_path'] = groups_file_path
+
+        # Calculate summary
+        all_group_ids = list(groups_dict.keys())
+        summary = get_group_summary(groups_dict, all_group_ids)
+
+        return jsonify({
+            "status": "success",
+            "groups": groups_dict,
+            "num_groups": summary['num_groups'],
+            "total_descriptors": summary['total_descriptors'],
+            "message": f"Successfully loaded {summary['num_groups']} descriptor groups"
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": f"Upload error: {str(e)}"
+        })
+
 
 # PCR Analysis Routes
 
