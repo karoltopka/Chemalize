@@ -23,11 +23,12 @@ _selected_features = None
 _feature_importance = None
 _df_clean = None
 
-def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True, 
-                        show_scatter=True, show_loading=True, show_biplot=True, 
+def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True,
+                        show_scatter=True, show_loading=True, show_biplot=True,
                         color_by=None, pc_x_axis=1, pc_y_axis=2, pc_loadings_select=[1, 2],
                         feature_selection_method='all', top_n_features=5, loading_threshold=0.3,
                         show_top_features_plot=False, show_feature_importance=False,
+                        top_n_arrows=None,
                         temp_path='temp/'):
     """
     Perform Enhanced Principal Component Analysis with advanced feature selection.
@@ -227,8 +228,8 @@ def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True
     
     if show_biplot and pca_model.n_components >= max(pc_x_axis, pc_y_axis):
         result['biplot'] = create_enhanced_biplot(
-            principal_components, loadings_raw, df_clean.columns, 
-            pc_x_axis, pc_y_axis, temp_path
+            principal_components, loadings_raw, df_clean.columns,
+            pc_x_axis, pc_y_axis, temp_path, top_n_arrows=top_n_arrows
         )
     
     if show_feature_importance:
@@ -459,24 +460,56 @@ def create_enhanced_loading_plot(loadings_df, pc_loadings_select, temp_path, top
     
     return plot_path
 
-def create_enhanced_biplot(pc_scores, loadings, feature_names, pc_x_axis, pc_y_axis, temp_path):
-    """Create and save an enhanced biplot showing both samples and feature vectors."""
+def create_enhanced_biplot(pc_scores, loadings, feature_names, pc_x_axis, pc_y_axis, temp_path, top_n_arrows=None):
+    """Create and save an enhanced biplot showing both samples and feature vectors.
+
+    Parameters:
+    -----------
+    pc_scores : array
+        Principal component scores (samples).
+    loadings : array
+        Loading matrix.
+    feature_names : list
+        Names of features.
+    pc_x_axis : int
+        Principal component for X-axis.
+    pc_y_axis : int
+        Principal component for Y-axis.
+    temp_path : str
+        Path to save the plot.
+    top_n_arrows : int, optional
+        Number of top features (by loading magnitude) to show as arrows.
+        If None, all features are shown.
+    """
     plt.figure(figsize=(12, 10))
-    
+
     # Adjust indices for 0-based indexing
     x_idx = pc_x_axis - 1
     y_idx = pc_y_axis - 1
-    
+
     # Plot the scores (samples)
     plt.scatter(pc_scores[:, x_idx], pc_scores[:, y_idx], alpha=0.7)
-    
+
     # Plot feature vectors
     max_x = max(abs(pc_scores[:, x_idx]))
     max_y = max(abs(pc_scores[:, y_idx]))
-    
-    for i, (feature, loading_x, loading_y) in enumerate(zip(
-        feature_names, loadings[x_idx, :], loadings[y_idx, :]
-    )):
+
+    # Calculate loading magnitude for each feature (Euclidean distance from origin)
+    loading_magnitudes = np.sqrt(loadings[x_idx, :]**2 + loadings[y_idx, :]**2)
+
+    # Select top N features if specified
+    if top_n_arrows is not None and top_n_arrows > 0:
+        # Get indices of top N features by loading magnitude
+        top_indices = np.argsort(loading_magnitudes)[::-1][:top_n_arrows]
+        selected_features = [(i, feature_names[i], loadings[x_idx, i], loadings[y_idx, i])
+                           for i in top_indices]
+    else:
+        # Use all features
+        selected_features = [(i, feature_names[i], loadings[x_idx, i], loadings[y_idx, i])
+                           for i in range(len(feature_names))]
+
+    # Draw arrows for selected features
+    for i, feature, loading_x, loading_y in selected_features:
         plt.arrow(
             0, 0,  # Start at origin
             loading_x * max_x * 0.8,  # Scale to match scores
@@ -488,21 +521,24 @@ def create_enhanced_biplot(pc_scores, loadings, feature_names, pc_x_axis, pc_y_a
             loading_y * max_y * 0.85,
             feature, color='red', ha='center', va='center', fontsize=8
         )
-    
+
     plt.xlabel(f'Principal Component {pc_x_axis}')
     plt.ylabel(f'Principal Component {pc_y_axis}')
-    plt.title(f'PCA Biplot (PC{pc_x_axis} vs PC{pc_y_axis})')
+    if top_n_arrows is not None and top_n_arrows > 0:
+        plt.title(f'PCA Biplot (PC{pc_x_axis} vs PC{pc_y_axis}) — Top {top_n_arrows} features')
+    else:
+        plt.title(f'PCA Biplot (PC{pc_x_axis} vs PC{pc_y_axis})')
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.axhline(y=0, color='k', linestyle='-', alpha=0.3)
     plt.axvline(x=0, color='k', linestyle='-', alpha=0.3)
     plt.tight_layout()
-    
+
     # Add watermark and save the plot
     add_watermark_matplotlib_after_plot(plt.gcf())
     plot_path = os.path.join(temp_path, f'pca_biplot_pc{pc_x_axis}_pc{pc_y_axis}.png')
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close()
-    
+
     return plot_path
 
 def create_feature_importance_plot(feature_importance, temp_path):

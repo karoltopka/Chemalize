@@ -225,29 +225,37 @@
                                 <div class="form-group">
                                     <label>Additional Visualization Options:</label>
                                     <div class="custom-control custom-checkbox">
-                                        <input type="checkbox" class="custom-control-input" id="show_top_features_plot" name="show_top_features_plot" 
+                                        <input type="checkbox" class="custom-control-input" id="show_top_features_plot" name="show_top_features_plot"
                                                {% if show_top_features_plot %}checked{% endif %}>
                                         <label class="custom-control-label" for="show_top_features_plot">Create plots with selected features only</label>
                                     </div>
-                                    
+
                                     <div class="custom-control custom-checkbox mt-2">
-                                        <input type="checkbox" class="custom-control-input" id="show_feature_importance" name="show_feature_importance" 
+                                        <input type="checkbox" class="custom-control-input" id="show_feature_importance" name="show_feature_importance"
                                                {% if show_feature_importance %}checked{% endif %}>
                                         <label class="custom-control-label" for="show_feature_importance">Feature importance plot</label>
                                     </div>
+                                </div>
+
+                                <div class="form-group mt-3">
+                                    <label for="top_n_arrows">Number of arrows in biplot:</label>
+                                    <input type="number" class="form-control" id="top_n_arrows" name="top_n_arrows"
+                                           value="{% if top_n_arrows %}{{ top_n_arrows }}{% endif %}"
+                                           min="1" placeholder="All features">
+                                    <small class="form-text text-muted">Show only top N features by loading magnitude (leave empty for all features)</small>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label>Export Options:</label>
                                     <div class="custom-control custom-checkbox">
-                                        <input type="checkbox" class="custom-control-input" id="export_feature_importance" name="export_feature_importance" 
+                                        <input type="checkbox" class="custom-control-input" id="export_feature_importance" name="export_feature_importance"
                                                {% if export_feature_importance %}checked{% endif %}>
                                         <label class="custom-control-label" for="export_feature_importance">Export feature importance table</label>
                                     </div>
-                                    
+
                                     <div class="custom-control custom-checkbox mt-2">
-                                        <input type="checkbox" class="custom-control-input" id="export_selected_features" name="export_selected_features" 
+                                        <input type="checkbox" class="custom-control-input" id="export_selected_features" name="export_selected_features"
                                                {% if export_selected_features %}checked{% endif %}>
                                         <label class="custom-control-label" for="export_selected_features">Export selected features data</label>
                                     </div>
@@ -466,57 +474,68 @@
 
 <script>
     // JavaScript to control tab behavior and form interactions
-    $(document).ready(function(){
-        $('#pcaResultTabs a').on('click', function (e) {
-            e.preventDefault();
-            $(this).tab('show');
-        });
-        
+    document.addEventListener('DOMContentLoaded', function() {
+        // Tab behavior is handled by Bootstrap 5 automatically
+
         // Update PC options when n_components changes
-        $('#n_components').on('change', function() {
-            var nComponents = parseInt($(this).val());
-            updatePCOptions(nComponents);
-        });
-        
+        const nComponentsInput = document.getElementById('n_components');
+        if (nComponentsInput) {
+            nComponentsInput.addEventListener('change', function() {
+                const nComponents = parseInt(this.value);
+                updatePCOptions(nComponents);
+            });
+        }
+
         // Enable/disable feature selection inputs based on radio selection
-        $('input[name="feature_selection_method"]').on('change', function() {
-            var method = $(this).val();
-            $('#top_n_features').prop('disabled', method !== 'top_n');
-            $('#loading_threshold').prop('disabled', method !== 'threshold');
+        const featureMethodRadios = document.querySelectorAll('input[name="feature_selection_method"]');
+        featureMethodRadios.forEach(function(radio) {
+            radio.addEventListener('change', function() {
+                const method = this.value;
+                document.getElementById('top_n_features').disabled = method !== 'top_n';
+                document.getElementById('loading_threshold').disabled = method !== 'threshold';
+            });
         });
-        
+
         // Initial setup
-        var method = $('input[name="feature_selection_method"]:checked').val();
-        $('#top_n_features').prop('disabled', method !== 'top_n');
-        $('#loading_threshold').prop('disabled', method !== 'threshold');
+        const checkedMethod = document.querySelector('input[name="feature_selection_method"]:checked');
+        if (checkedMethod) {
+            const method = checkedMethod.value;
+            document.getElementById('top_n_features').disabled = method !== 'top_n';
+            document.getElementById('loading_threshold').disabled = method !== 'threshold';
+        }
     });
-    
+
     function updatePCOptions(nComponents) {
-        var pcXAxis = $('#pc_x_axis');
-        var pcYAxis = $('#pc_y_axis');
-        var pcLoadings = $('#pc_loadings_select');
-        
+        const pcXAxis = document.getElementById('pc_x_axis');
+        const pcYAxis = document.getElementById('pc_y_axis');
+        const pcLoadings = document.getElementById('pc_loadings_select');
+
         // Clear existing options
-        pcXAxis.empty();
-        pcYAxis.empty();
-        pcLoadings.empty();
-        
+        pcXAxis.innerHTML = '';
+        pcYAxis.innerHTML = '';
+        pcLoadings.innerHTML = '';
+
         // Add new options
-        for (var i = 1; i <= nComponents; i++) {
-            pcXAxis.append($('<option>', {
-                value: i,
-                text: 'PC' + i,
-                selected: i === 1
-            }));
-            pcYAxis.append($('<option>', {
-                value: i,
-                text: 'PC' + i,
-                selected: i === 2
-            }));
-            pcLoadings.append($('<option>', {
-                value: i,
-                text: 'PC' + i
-            }));
+        for (let i = 1; i <= nComponents; i++) {
+            // X-axis options
+            const optionX = document.createElement('option');
+            optionX.value = i;
+            optionX.text = 'PC' + i;
+            optionX.selected = i === 1;
+            pcXAxis.appendChild(optionX);
+
+            // Y-axis options
+            const optionY = document.createElement('option');
+            optionY.value = i;
+            optionY.text = 'PC' + i;
+            optionY.selected = i === 2;
+            pcYAxis.appendChild(optionY);
+
+            // Loadings options
+            const optionL = document.createElement('option');
+            optionL.value = i;
+            optionL.text = 'PC' + i;
+            pcLoadings.appendChild(optionL);
         }
     }
 </script>

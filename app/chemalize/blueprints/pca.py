@@ -31,7 +31,8 @@ def pca_analysis():
         'show_loading', 'show_biplot', 'pc_color_by', 'pca_performed',
         'pc_x_axis', 'pc_y_axis', 'pc_loadings_select', 'feature_selection_method',
         'top_n_features', 'loading_threshold', 'show_top_features_plot',
-        'show_feature_importance', 'export_feature_importance', 'export_selected_features'
+        'show_feature_importance', 'export_feature_importance', 'export_selected_features',
+        'top_n_arrows'
     ]}
     
     if session.get('pca_performed'):
@@ -91,6 +92,10 @@ def perform_pca():
     export_feature_importance = 'export_feature_importance' in request.form
     export_selected_features = 'export_selected_features' in request.form
 
+    # Liczba strzałek na biplocie (top N features by loading magnitude)
+    top_n_arrows_str = request.form.get('top_n_arrows', '')
+    top_n_arrows = int(top_n_arrows_str) if top_n_arrows_str and top_n_arrows_str.strip() else None
+
     # --- Walidacja i korekty osi PC (NIE rysujemy PC1 x PC1) ---
     # zbij w zakres 1..n_components
     pc_x_axis = min(max(1, pc_x_axis), n_components)
@@ -122,6 +127,7 @@ def perform_pca():
     session['show_feature_importance'] = show_feature_importance
     session['export_feature_importance'] = export_feature_importance
     session['export_selected_features'] = export_selected_features
+    session['top_n_arrows'] = top_n_arrows
 
     # --- Wykonanie PCA ---
     clean_path = get_clean_path(session["csv_name"])
@@ -147,6 +153,7 @@ def perform_pca():
             loading_threshold=loading_threshold,
             show_top_features_plot=show_top_features_plot,
             show_feature_importance=show_feature_importance,
+            top_n_arrows=top_n_arrows,
             temp_path=ensure_temp_dir()
         )
 

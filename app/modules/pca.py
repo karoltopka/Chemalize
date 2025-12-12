@@ -23,11 +23,12 @@ _selected_features = None
 _feature_importance = None
 _df_clean = None
 
-def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True, 
-                        show_scatter=True, show_loading=True, show_biplot=True, 
+def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True,
+                        show_scatter=True, show_loading=True, show_biplot=True,
                         color_by=None, pc_x_axis=1, pc_y_axis=2, pc_loadings_select=[1, 2],
                         feature_selection_method='all', top_n_features=5, loading_threshold=0.3,
                         show_top_features_plot=False, show_feature_importance=False,
+                        top_n_arrows=None,
                         temp_path='temp/'):
     """
     Perform Enhanced Principal Component Analysis with advanced feature selection.
@@ -66,6 +67,9 @@ def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True
         Whether to create plots with selected features only.
     show_feature_importance : bool, default=False
         Whether to create feature importance plot.
+    top_n_arrows : int, default=None
+        Number of top features (by loading magnitude) to show as arrows in biplot.
+        If None, all features are shown.
     temp_path : str, default='temp/'
         Path to temporary directory for saving plots.
         
@@ -227,8 +231,8 @@ def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True
     
     if show_biplot and pca_model.n_components >= max(pc_x_axis, pc_y_axis):
         result['biplot'] = create_enhanced_biplot(
-            principal_components, loadings_raw, df_clean.columns, 
-            pc_x_axis, pc_y_axis, temp_path
+            principal_components, loadings_raw, df_clean.columns,
+            pc_x_axis, pc_y_axis, temp_path, top_n_arrows=top_n_arrows
         )
     
     if show_feature_importance:
@@ -318,13 +322,29 @@ def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True
             plt.scatter(pc_scores_sel[:, xi], pc_scores_sel[:, yi], alpha=0.7)
             max_x = max(abs(pc_scores_sel[:, xi]))
             max_y = max(abs(pc_scores_sel[:, yi]))
-            for i, feat in enumerate(df_sel.columns):
-                lx, ly = loadings_sel_raw[xi, i], loadings_sel_raw[yi, i]
-                plt.arrow(0,0, lx*max_x*0.8, ly*max_y*0.8, head_width=max_x*0.02, head_length=max_y*0.02, fc='red', ec='red')
+
+            # Calculate loading magnitudes for selected features
+            loading_mags_sel = np.sqrt(loadings_sel_raw[xi, :]**2 + loadings_sel_raw[yi, :]**2)
+
+            # Select top N features if specified
+            if top_n_arrows is not None and top_n_arrows > 0 and top_n_arrows < len(df_sel.columns):
+                top_idx_sel = np.argsort(loading_mags_sel)[::-1][:top_n_arrows]
+                features_to_plot = [(i, df_sel.columns[i], loadings_sel_raw[xi, i], loadings_sel_raw[yi, i])
+                                  for i in top_idx_sel]
+            else:
+                features_to_plot = [(i, feat, loadings_sel_raw[xi, i], loadings_sel_raw[yi, i])
+                                  for i, feat in enumerate(df_sel.columns)]
+
+            for i, feat, lx, ly in features_to_plot:
+                plt.arrow(0, 0, lx*max_x*0.8, ly*max_y*0.8, head_width=max_x*0.02, head_length=max_y*0.02, fc='red', ec='red')
                 plt.text(lx*max_x*0.85, ly*max_y*0.85, feat, color='red', ha='center', va='center', fontsize=8)
+
             plt.xlabel(f'Principal Component {pc_x_axis_sel}')
             plt.ylabel(f'Principal Component {pc_y_axis_sel}')
-            plt.title(f'Biplot (REFIT) — {len(selected_features)} selected features')
+            if top_n_arrows is not None and top_n_arrows > 0 and top_n_arrows < len(df_sel.columns):
+                plt.title(f'Biplot (REFIT) — {len(selected_features)} selected features, top {top_n_arrows} arrows')
+            else:
+                plt.title(f'Biplot (REFIT) — {len(selected_features)} selected features')
             plt.grid(True, linestyle='--', alpha=0.5)
             plt.axhline(0, color='k', linestyle='-', alpha=0.3)
             plt.axvline(0, color='k', linestyle='-', alpha=0.3)
@@ -459,24 +479,59 @@ def create_enhanced_loading_plot(loadings_df, pc_loadings_select, temp_path, top
     
     return plot_path
 
-def create_enhanced_biplot(pc_scores, loadings, feature_names, pc_x_axis, pc_y_axis, temp_path):
-    """Create and save an enhanced biplot showing both samples and feature vectors."""
+def create_enhanced_biplot(pc_scores, loadings, feature_names, pc_x_axis, pc_y_axis, temp_path, top_n_arrows=None):
+    """Create and save an enhanced biplot showing both samples and feature vectors.
+
+    Parameters:
+    -----------
+    pc_scores : array
+        Principal component scores (samples).
+    loadings : array
+        Loading matrix.
+    feature_names : list
+        Names of features.
+    pc_x_axis : int
+        Principal component for X-axis.
+    pc_y_axis : int
+        Principal component for Y-axis.
+    temp_path : str
+        Path to save the plot.
+    top_n_arrows : int, optional
+        Number of top features (by loading magnitude) to show as arrows.
+        If None, all features are shown.
+    """
     plt.figure(figsize=(12, 10))
-    
+
     # Adjust indices for 0-based indexing
     x_idx = pc_x_axis - 1
     y_idx = pc_y_axis - 1
-    
+
     # Plot the scores (samples)
     plt.scatter(pc_scores[:, x_idx], pc_scores[:, y_idx], alpha=0.7)
-    
+
     # Plot feature vectors
     max_x = max(abs(pc_scores[:, x_idx]))
     max_y = max(abs(pc_scores[:, y_idx]))
-    
-    for i, (feature, loading_x, loading_y) in enumerate(zip(
-        feature_names, loadings[x_idx, :], loadings[y_idx, :]
-    )):
+
+    # Calculate loading magnitude for each feature (Euclidean distance from origin)
+    loading_magnitudes = np.sqrt(loadings[x_idx, :]**2 + loadings[y_idx, :]**2)
+
+    # DEBUG: Print information about arrow selection
+    print(f"DEBUG create_enhanced_biplot: top_n_arrows={top_n_arrows}, total features={len(feature_names)}")
+
+    # Select top N features if specified
+    if top_n_arrows is not None and top_n_arrows > 0:
+        # Get indices of top N features by loading magnitude
+        top_indices = np.argsort(loading_magnitudes)[::-1][:top_n_arrows]
+        selected_features = [(i, feature_names[i], loadings[x_idx, i], loadings[y_idx, i])
+                           for i in top_indices]
+    else:
+        # Use all features
+        selected_features = [(i, feature_names[i], loadings[x_idx, i], loadings[y_idx, i])
+                           for i in range(len(feature_names))]
+
+    # Draw arrows for selected features
+    for i, feature, loading_x, loading_y in selected_features:
         plt.arrow(
             0, 0,  # Start at origin
             loading_x * max_x * 0.8,  # Scale to match scores
@@ -491,7 +546,10 @@ def create_enhanced_biplot(pc_scores, loadings, feature_names, pc_x_axis, pc_y_a
     
     plt.xlabel(f'Principal Component {pc_x_axis}')
     plt.ylabel(f'Principal Component {pc_y_axis}')
-    plt.title(f'PCA Biplot (PC{pc_x_axis} vs PC{pc_y_axis})')
+    if top_n_arrows is not None and top_n_arrows > 0:
+        plt.title(f'PCA Biplot (PC{pc_x_axis} vs PC{pc_y_axis}) — Top {top_n_arrows} features')
+    else:
+        plt.title(f'PCA Biplot (PC{pc_x_axis} vs PC{pc_y_axis})')
     plt.grid(True, linestyle='--', alpha=0.5)
     plt.axhline(y=0, color='k', linestyle='-', alpha=0.3)
     plt.axvline(x=0, color='k', linestyle='-', alpha=0.3)
@@ -796,9 +854,9 @@ def create_loading_plot(loadings, feature_names, temp_path):
     )
     return create_enhanced_loading_plot(loadings_df, [1, 2], temp_path)
 
-def create_biplot(pc_scores, loadings, feature_names, temp_path):
+def create_biplot(pc_scores, loadings, feature_names, temp_path, top_n_arrows=None):
     """Legacy function for backward compatibility."""
-    return create_enhanced_biplot(pc_scores, loadings, feature_names, 1, 2, temp_path)
+    return create_enhanced_biplot(pc_scores, loadings, feature_names, 1, 2, temp_path, top_n_arrows=top_n_arrows)
 
 def generate_report(dataset_path, temp_path='temp/'):
     """Legacy function for backward compatibility."""
