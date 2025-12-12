@@ -290,6 +290,36 @@
             </div>
         </div>
 
+        <!-- Upload New Compounds Section -->
+        <div class="mb-4">
+            <h5><i class="fas fa-plus-circle"></i> Overlay New Compounds (Optional)</h5>
+            <p class="text-muted mb-3">Upload new compounds to project them onto the existing PCA space</p>
+
+            <form id="new-compounds-upload-form" enctype="multipart/form-data" class="mb-3">
+                <div class="form-row">
+                    <div class="form-group flex-grow-1">
+                        <label class="form-label">
+                            <i class="fas fa-file-upload"></i> Upload New Compounds (CSV, XLSX, XLS)
+                        </label>
+                        <input type="file" name="new_compounds_file" id="new_compounds_file" class="form-control"
+                            accept=".csv,.xlsx,.xls" />
+                        <small class="form-text text-muted">
+                            File must contain the same descriptors/features as your original PCA data
+                        </small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="modern-btn btn-success-modern w-100">
+                            <i class="fas fa-upload"></i> Project & Overlay
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- New Compounds Status -->
+            <div id="new-compounds-status"></div>
+        </div>
+
         <form id="pca-visualization-form" class="visualization-form">
             <div class="form-row">
                 <div class="form-group">
@@ -1474,8 +1504,35 @@
             traces.push(trace);
         }
 
+        // Add new compounds overlay if available
+        if (pcaData.new_compounds) {
+            console.log('Adding new compounds overlay:', pcaData.new_compounds);
+            const newTrace = {
+                x: pcaData.new_compounds.x,
+                y: pcaData.new_compounds.y,
+                mode: 'markers',
+                type: 'scatter',
+                name: 'New Compounds',
+                marker: {
+                    size: 10,
+                    color: 'rgba(220, 38, 38, 0.8)',  // Red color
+                    symbol: 'diamond',  // Different symbol
+                    line: {
+                        width: 2,
+                        color: 'rgba(127, 29, 29, 1)'  // Darker red border
+                    }
+                },
+                text: pcaData.new_compounds.labels || null,
+                hovertemplate: pcaData.new_compounds.labels
+                    ? '<b>%{text}</b><br>PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
+                    : 'PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
+            };
+            traces.push(newTrace);
+            console.log(`Added ${pcaData.new_compounds.x.length} new compounds to visualization`);
+        }
+
         // LEGEND: tylko dla kategorycznego
-        const showLegend = !!(pcaData.color_categories && pcaData.color_categories.length <= 50);
+        const showLegend = !!(pcaData.color_categories && pcaData.color_categories.length <= 50) || pcaData.new_compounds;
 
         // Build title with filter info
         let titleText = `PCA: PC${pcaData.pc_x} vs PC${pcaData.pc_y}`;
@@ -1542,8 +1599,8 @@
                 yref: 'paper',
                 x: 0.5,
                 y: 0.5,
-                sizex: 0.9,
-                sizey: 0.9,
+                sizex: 0.75,
+                sizey: 0.75,
                 sizing: 'contain',
                 xanchor: 'center',
                 yanchor: 'middle',
@@ -1691,6 +1748,14 @@
         const colorColumnSelect = document.getElementById('color_column_select');
         const filterColumnSelect = document.getElementById('filter_column_select');
         const confirmKeyButton = document.getElementById('confirm-key-column');
+
+        // Elementy nowych związków
+        const newCompoundsForm = document.getElementById('new-compounds-upload-form');
+        const newCompoundsInput = document.getElementById('new_compounds_file');
+        const newCompoundsStatus = document.getElementById('new-compounds-status');
+
+        // Store new compounds data globally
+        let newCompoundsData = null;
 
         // Flash message function
         function showFlashMessage(message, category) {
@@ -2036,6 +2101,84 @@
                     </div>
                 `;
                         colorFileData.uploaded = false;
+                    });
+            });
+        }
+
+        // Obsługa wgrywania nowych związków do projekcji PCA
+        if (newCompoundsForm) {
+            newCompoundsForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                const file = newCompoundsInput.files[0];
+                if (!file) {
+                    showFlashMessage('Please select a file first', 'warning');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('new_compounds_file', file);
+                formData.append('action', 'upload_new_compounds');
+
+                // Show loading
+                newCompoundsStatus.innerHTML = `
+                    <div class="loading-container">
+                        <div class="spinner"></div>
+                        <p class="loading-text">Projecting new compounds onto PCA space...</p>
+                    </div>
+                `;
+
+                fetch('/chemalize/visualize', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                    .then(response => safelyParseResponse(response))
+                    .then(data => {
+                        if (data && data.status === 'success') {
+                            // Store new compounds data globally
+                            newCompoundsData = data.new_compounds_data;
+
+                            newCompoundsStatus.innerHTML = `
+                                <div class="modern-alert alert-success">
+                                    <i class="fas fa-check-circle"></i>
+                                    <div>
+                                        <strong>New Compounds Loaded!</strong>
+                                        <p class="mb-0">Successfully projected ${data.n_compounds} new compounds onto PCA space.</p>
+                                        <p class="mb-0 mt-2"><small>Click "Generate PCA Plot" below to visualize them overlaid on your existing data.</small></p>
+                                    </div>
+                                </div>
+                            `;
+
+                            showFlashMessage(`${data.n_compounds} new compounds ready to visualize!`, 'success');
+
+                            // Auto-trigger PCA visualization if already configured
+                            // (optional - user can also click manually)
+                        } else {
+                            newCompoundsStatus.innerHTML = `
+                                <div class="modern-alert alert-danger">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <div>
+                                        <strong>Projection Failed</strong>
+                                        <p class="mb-0">${data.message || 'Unknown error'}</p>
+                                    </div>
+                                </div>
+                            `;
+                            newCompoundsData = null;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        newCompoundsStatus.innerHTML = `
+                            <div class="modern-alert alert-danger">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <div>
+                                    <strong>Upload Failed</strong>
+                                    <p class="mb-0">An error occurred: ${error.message}</p>
+                                </div>
+                            </div>
+                        `;
+                        newCompoundsData = null;
                     });
             });
         }

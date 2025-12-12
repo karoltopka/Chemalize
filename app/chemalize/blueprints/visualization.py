@@ -248,6 +248,117 @@ def visualize():
                     })
 
             # ===========================
+            # UPLOAD NEW COMPOUNDS FOR PCA PROJECTION
+            # ===========================
+            elif request.form.get('action') == 'upload_new_compounds':
+                try:
+                    from app.chemalize.modules import pca as pca_module
+
+                    if 'new_compounds_file' not in request.files:
+                        return jsonify({
+                            "status": "error",
+                            "message": "No file uploaded"
+                        })
+
+                    file = request.files['new_compounds_file']
+
+                    if file.filename == '':
+                        return jsonify({
+                            "status": "error",
+                            "message": "No file selected"
+                        })
+
+                    # Check if PCA has been performed
+                    if not session.get('pca_performed'):
+                        return jsonify({
+                            "status": "error",
+                            "message": "PCA analysis not found. Please run PCA first."
+                        })
+
+                    # Save file temporarily
+                    temp_path = ensure_temp_dir()
+                    new_compounds_path = os.path.join(temp_path, 'new_compounds_' + secure_filename(file.filename))
+                    file.save(new_compounds_path)
+
+                    # Load new compounds data with proper encoding handling
+                    try:
+                        # Try to use read_dataset utility first
+                        new_df = read_dataset(new_compounds_path)
+                    except Exception as e:
+                        # Fallback: try different encodings for CSV
+                        encodings = ['utf-8', 'latin1', 'cp1252', 'iso-8859-1']
+                        new_df = None
+
+                        for encoding in encodings:
+                            try:
+                                new_df = pd.read_csv(new_compounds_path, encoding=encoding)
+                                print(f"Successfully loaded file with {encoding} encoding")
+                                break
+                            except:
+                                continue
+
+                        if new_df is None:
+                            return jsonify({
+                                "status": "error",
+                                "message": f"Failed to read file with any encoding. Please ensure the file is a valid CSV/Excel file. Error: {str(e)}"
+                            })
+
+                    # Load PCA model and project new compounds
+                    pca_model_path = os.path.join(temp_path, 'pca_model.pkl')
+
+                    if not os.path.exists(pca_model_path):
+                        return jsonify({
+                            "status": "error",
+                            "message": "PCA model not found. Please run PCA analysis again."
+                        })
+
+                    try:
+                        # Project new compounds onto existing PCA space
+                        pc_df_new = pca_module.project_new_compounds(new_df, pca_model_path)
+
+                        # Save projected compounds
+                        new_pc_path = os.path.join(temp_path, 'pca_new_compounds.csv')
+                        pc_df_new.to_csv(new_pc_path, index=False)
+
+                        # Store in session
+                        session['new_compounds_loaded'] = True
+                        session['new_compounds_count'] = len(pc_df_new)
+
+                        # Get PC column names and identifier columns
+                        pc_columns = [col for col in pc_df_new.columns if col.startswith('PC')]
+                        identifier_columns = [col for col in pc_df_new.columns if not col.startswith('PC')]
+
+                        return jsonify({
+                            "status": "success",
+                            "message": f"Successfully projected {len(pc_df_new)} new compounds onto PCA space",
+                            "n_compounds": len(pc_df_new),
+                            "pc_columns": pc_columns,
+                            "identifier_columns": identifier_columns,
+                            "new_compounds_data": pc_df_new.to_dict('list')
+                        })
+
+                    except ValueError as e:
+                        return jsonify({
+                            "status": "error",
+                            "message": f"Projection error: {str(e)}"
+                        })
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
+                        return jsonify({
+                            "status": "error",
+                            "message": f"Unexpected error during projection: {str(e)}"
+                        })
+
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    return jsonify({
+                        "status": "error",
+                        "message": f"Error processing new compounds file: {str(e)}"
+                    })
+
+            # ===========================
             # PCA VISUALIZE
             # ===========================
             if "Submit" in request.form and request.form["Submit"] == "PCAVisualize":
@@ -444,7 +555,29 @@ def visualize():
                         if external_data:
                             response_data["external_data"] = external_data
                             print(f"DEBUG: Sending external_data with {len(external_data)} columns")
-                        
+
+                        # Add new compounds data if available
+                        if session.get('new_compounds_loaded'):
+                            new_pc_path = os.path.join(temp_path, 'pca_new_compounds.csv')
+                            if os.path.exists(new_pc_path):
+                                try:
+                                    pc_df_new = pd.read_csv(new_pc_path)
+                                    # Extract selected PCs for new compounds
+                                    if pc_x_col in pc_df_new.columns and pc_y_col in pc_df_new.columns:
+                                        new_compounds_plot_data = {
+                                            'x': pc_df_new[pc_x_col].tolist(),
+                                            'y': pc_df_new[pc_y_col].tolist()
+                                        }
+                                        # Add identifier columns if available
+                                        identifier_cols = [col for col in pc_df_new.columns if not col.startswith('PC')]
+                                        if identifier_cols and identifier_cols[0] in pc_df_new.columns:
+                                            new_compounds_plot_data['labels'] = pc_df_new[identifier_cols[0]].tolist()
+
+                                        response_data["new_compounds"] = new_compounds_plot_data
+                                        print(f"DEBUG: Added {len(pc_df_new)} new compounds to visualization")
+                                except Exception as e:
+                                    print(f"Warning: Could not load new compounds data: {e}")
+
                         return jsonify(response_data)
                     
                     flash(success_msg, "success")
@@ -801,8 +934,8 @@ def pairplot1():
 @nocache
 def tree():
     return send_file(
-        "static/img/tree.png", 
-        mimetype="image/png", 
+        "static/img/tree.png",
+        mimetype="image/png",
         as_attachment=True
     )
 

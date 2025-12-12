@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import pickle
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from reportlab.lib.pagesizes import letter
@@ -211,6 +212,19 @@ def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True
     # Save the components and loadings to files
     pc_df.to_csv(os.path.join(temp_path, 'pca_components.csv'), index=False)
     loadings_df.to_csv(os.path.join(temp_path, 'pca_loadings.csv'))
+
+    # Save PCA model and scaler for projecting new compounds
+    pca_model_path = os.path.join(temp_path, 'pca_model.pkl')
+    pca_model_data = {
+        'pca_model': pca_model,
+        'scaler': scaler,
+        'feature_names': df_clean.columns.tolist(),
+        'scale_data': scale_data,
+        'n_components': pca_model.n_components_
+    }
+    with open(pca_model_path, 'wb') as f:
+        pickle.dump(pca_model_data, f)
+    result['pca_model_path'] = pca_model_path
     
     # Generate plots
     if show_variance:
@@ -280,7 +294,7 @@ def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True
             if color_by and color_by in pc_df_sel.columns:
                 if pc_df_sel[color_by].dtype == 'object' or pd.api.types.is_categorical_dtype(pc_df_sel[color_by]):
                     categories = pc_df_sel[color_by].unique()
-                    
+
                     # Plot scatter points for each category
                     for cat in categories:
                         sub = pc_df_sel[pc_df_sel[color_by] == cat]
@@ -337,6 +351,80 @@ def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True
     
     return result
 
+
+def project_new_compounds(new_df, pca_model_path, identifier_columns=None):
+    """
+    Project new compounds onto existing PCA space.
+
+    Parameters:
+    -----------
+    new_df : pandas.DataFrame
+        DataFrame with new compounds (must have same features as original PCA)
+    pca_model_path : str
+        Path to saved PCA model pickle file
+    identifier_columns : list, optional
+        List of column names to preserve as identifiers (e.g., Sample ID, Compound Name)
+        If None, will auto-detect non-numeric columns
+
+    Returns:
+    --------
+    pandas.DataFrame
+        DataFrame with PC scores for new compounds plus identifier columns
+    """
+    # Load PCA model
+    if not os.path.exists(pca_model_path):
+        raise FileNotFoundError(f"PCA model not found at {pca_model_path}. Please run PCA analysis first.")
+
+    with open(pca_model_path, 'rb') as f:
+        pca_data = pickle.load(f)
+
+    pca_model = pca_data['pca_model']
+    scaler = pca_data['scaler']
+    feature_names = pca_data['feature_names']
+    scale_data = pca_data['scale_data']
+
+    # Preserve identifier columns
+    if identifier_columns is None:
+        # Auto-detect non-numeric columns
+        identifier_columns = new_df.select_dtypes(exclude=['number']).columns.tolist()
+
+    identifier_data = {}
+    for col in identifier_columns:
+        if col in new_df.columns:
+            identifier_data[col] = new_df[col].values
+
+    # Check if all required features are present
+    missing_features = [f for f in feature_names if f not in new_df.columns]
+    if missing_features:
+        raise ValueError(f"Missing required features in new data: {missing_features}")
+
+    # Extract features in the same order as original PCA
+    X_new = new_df[feature_names].values
+
+    # Check for missing values
+    if np.any(pd.isna(X_new)):
+        raise ValueError("New data contains missing values. Please handle missing values before projection.")
+
+    # Scale if necessary
+    if scale_data and scaler is not None:
+        X_new = scaler.transform(X_new)
+
+    # Project onto PCA space
+    pc_scores_new = pca_model.transform(X_new)
+
+    # Create DataFrame with PC scores
+    pc_df_new = pd.DataFrame(
+        data=pc_scores_new,
+        columns=[f'PC{i+1}' for i in range(pca_model.n_components_)]
+    )
+
+    # Add identifier columns
+    for col, values in identifier_data.items():
+        pc_df_new[col] = values
+
+    return pc_df_new
+
+
 def create_variance_plot(pca_model, temp_path):
     """Create and save a plot showing explained variance by principal components."""
     plt.figure(figsize=(12, 6))
@@ -385,7 +473,7 @@ def create_enhanced_scatter_plot(pc_df, color_by, pc_x_axis, pc_y_axis, temp_pat
         # If color column is categorical
         if pc_df[color_by].dtype == 'object' or pd.api.types.is_categorical_dtype(pc_df[color_by]):
             categories = pc_df[color_by].unique()
-            
+
             # Plot scatter points for each category
             for category in categories:
                 subset = pc_df[pc_df[color_by] == category]
