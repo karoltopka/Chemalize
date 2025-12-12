@@ -2236,6 +2236,10 @@ body.dark-theme .modal-info {
     background: linear-gradient(135deg, #4facfe, #00f2fe);
 }
 
+.mlr-ga-header {
+    background: linear-gradient(135deg, #b91c1c, #8b0000);
+}
+
 .clustering-header {
     background: linear-gradient(135deg, var(--warning-color), #f97316);
 }
