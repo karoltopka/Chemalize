@@ -1464,6 +1464,20 @@
                 (v === null || !isFinite(v)) ? 'NA' : (+v).toFixed(4)
             );
 
+            // Calculate combined min/max if new compounds will be added
+            const showOverlay = document.getElementById('show-overlay-checkbox')?.checked ?? true;
+            let cmin = undefined;
+            let cmax = undefined;
+            if (showOverlay && pcaData.new_compounds && pcaData.new_compounds.color_data && pcaData.new_compounds.is_numeric) {
+                const originalValid = pcaData.color_data.filter(v => v !== null && isFinite(v));
+                const newValid = pcaData.new_compounds.color_data.filter(v => v !== null && isFinite(v));
+                const allValues = [...originalValid, ...newValid];
+                if (allValues.length > 0) {
+                    cmin = Math.min(...allValues);
+                    cmax = Math.max(...allValues);
+                }
+            }
+
             const trace = {
                 x: base.x,
                 y: base.y,
@@ -1481,6 +1495,8 @@
                         thickness: 15,
                         len: 0.7
                     },
+                    cmin: cmin,  // Use combined range if new compounds present
+                    cmax: cmax,
                     opacity: 0.7
                 },
                 text: base.hover_text || null,
@@ -1524,6 +1540,14 @@
             if (pcaData.new_compounds.color_categories) {
                 console.log('New compounds with categorical coloring');
 
+                // Build a map of category -> color from existing traces
+                const categoryColorMap = {};
+                traces.forEach(trace => {
+                    if (trace.name && trace.marker && trace.marker.color) {
+                        categoryColorMap[trace.name] = trace.marker.color;
+                    }
+                });
+
                 // Group new compounds by category
                 const categoryGroups = {};
                 pcaData.new_compounds.x.forEach((x, idx) => {
@@ -1538,7 +1562,7 @@
                     }
                 });
 
-                // Create a trace for each category with diamond symbols
+                // Create a trace for each category with diamond symbols and same colors
                 Object.keys(categoryGroups).forEach(category => {
                     const group = categoryGroups[category];
                     const newTrace = {
@@ -1560,20 +1584,41 @@
                             pcy: pcaData.pc_y,
                             colorBy: pcaData.new_compounds.color_column,
                             hoverColumn: null
-                        })
+                        }),
+                        showlegend: true,
+                        legendgroup: category  // Group with original category in legend
                     };
+
+                    // Use the same color as the original category if available
+                    if (categoryColorMap[category]) {
+                        newTrace.marker.color = categoryColorMap[category];
+                    }
+
                     traces.push(newTrace);
                 });
 
                 console.log(`Added ${pcaData.new_compounds.x.length} new compounds with categorical coloring`);
 
             } else if (pcaData.new_compounds.color_data && pcaData.new_compounds.is_numeric) {
-                // Numeric coloring with colorscale
+                // Numeric coloring with same colorscale as original data
                 console.log('New compounds with numeric coloring');
 
                 const colorDisplay = (pcaData.new_compounds.color_data || []).map(v =>
                     (v === null || !isFinite(v)) ? 'NA' : (+v).toFixed(4)
                 );
+
+                // Calculate combined min/max for consistent color scale
+                let cmin = null;
+                let cmax = null;
+                if (pcaData.color_data && pcaData.color_data.length > 0) {
+                    const originalValid = pcaData.color_data.filter(v => v !== null && isFinite(v));
+                    const newValid = pcaData.new_compounds.color_data.filter(v => v !== null && isFinite(v));
+                    const allValues = [...originalValid, ...newValid];
+                    if (allValues.length > 0) {
+                        cmin = Math.min(...allValues);
+                        cmax = Math.max(...allValues);
+                    }
+                }
 
                 const newTrace = {
                     x: pcaData.new_compounds.x,
@@ -1584,16 +1629,10 @@
                     marker: {
                         size: 10,
                         color: pcaData.new_compounds.color_data,
-                        colorscale: 'Plasma',  // Different colorscale to distinguish from original
-                        showscale: true,
-                        colorbar: {
-                            title: pcaData.new_compounds.color_column || 'Value',
-                            titleside: 'right',
-                            thickness: 15,
-                            len: 0.5,
-                            y: 0.25,  // Position lower to not overlap with original colorbar
-                            yanchor: 'middle'
-                        },
+                        colorscale: 'Viridis',  // Same colorscale as original data
+                        showscale: false,  // Don't show separate colorbar
+                        cmin: cmin,  // Use combined range
+                        cmax: cmax,
                         symbol: 'diamond',
                         line: { width: 1, color: 'rgba(0, 0, 0, 0.3)' },
                         opacity: 0.8

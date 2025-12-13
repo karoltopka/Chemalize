@@ -121,6 +121,11 @@ def visualize():
                     session['color_column_info'] = color_column_info
                     session['color_merged_data'] = merged_data  # NOWE!
 
+                    # Clear new compounds flag when uploading color file
+                    # (user is starting fresh visualization, old overlays should be cleared)
+                    session.pop('new_compounds_loaded', None)
+                    session.pop('new_compounds_count', None)
+
                     # Prepare candidate info for frontend with scores
                     candidates_with_scores = []
                     if 'candidates_info' in detection:
@@ -573,6 +578,25 @@ def visualize():
                                         if identifier_cols and identifier_cols[0] in pc_df_new.columns:
                                             new_compounds_plot_data['labels'] = pc_df_new[identifier_cols[0]].tolist()
 
+                                        # Add coloring data for new compounds if external coloring is used
+                                        if use_external_coloring and color_column and key_column:
+                                            # Try to map new compounds to external color data
+                                            if key_column in pc_df_new.columns:
+                                                color_result_new = coloring.prepare_color_data(pc_df_new, df_color, key_column, color_column)
+                                                if color_result_new['success']:
+                                                    color_series_new = color_result_new['data']
+                                                    is_numeric_new = color_result_new['is_numeric']
+
+                                                    if is_numeric_new:
+                                                        new_compounds_plot_data['color_data'] = color_series_new.tolist()
+                                                        new_compounds_plot_data['is_numeric'] = True
+                                                    else:
+                                                        new_compounds_plot_data['color_categories'] = color_series_new.tolist()
+                                                        new_compounds_plot_data['is_numeric'] = False
+
+                                                    new_compounds_plot_data['color_column'] = color_column
+                                                    print(f"DEBUG: Added coloring data for new compounds (column: {color_column})")
+
                                         response_data["new_compounds"] = new_compounds_plot_data
                                         print(f"DEBUG: Added {len(pc_df_new)} new compounds to visualization")
                                 except Exception as e:
@@ -669,7 +693,6 @@ def visualize():
                         
                         # Store histogram data in session as JSON
                         session["histogram_data"] = json.dumps(histogram_data)
-                        posted = 1
                         success_msg = f"Interactive visualization created for column: {x_col}"
                         print(success_msg)
                         
