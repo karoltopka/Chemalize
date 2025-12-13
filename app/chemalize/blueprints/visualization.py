@@ -612,6 +612,13 @@ def visualize():
                                                     new_compounds_plot_data['color_column'] = color_column
                                                     print(f"DEBUG: Added coloring data for new compounds (column: {color_column})")
 
+                                        # Add shape data for new compounds if shape encoding is active
+                                        if shape_by and shape_by in pc_df_new.columns:
+                                            if pc_df_new[shape_by].dtype == 'object' or pd.api.types.is_categorical_dtype(pc_df_new[shape_by]):
+                                                new_compounds_plot_data['shape_categories'] = pc_df_new[shape_by].tolist()
+                                                new_compounds_plot_data['shape_by'] = shape_by
+                                                print(f"DEBUG: Added shape data for new compounds (column: {shape_by})")
+
                                         response_data["new_compounds"] = new_compounds_plot_data
                                         print(f"DEBUG: Added {len(pc_df_new)} new compounds to visualization")
                                 except Exception as e:

@@ -1393,12 +1393,24 @@
         // Create shape mapping if shape encoding is enabled
         let shapeMap = {};
         if (pcaData.shape_categories && pcaData.shape_by) {
-            const uniqueShapes = [...new Set(pcaData.shape_categories)];
-            uniqueShapes.forEach((shape, idx) => {
+            // Collect ALL unique shape values from both original data AND new compounds
+            let allShapeValues = [...new Set(pcaData.shape_categories)];
+
+            // Also include shape values from new compounds if available
+            const showOverlay = document.getElementById('show-overlay-checkbox')?.checked ?? true;
+            if (showOverlay && pcaData.new_compounds && pcaData.new_compounds.shape_categories) {
+                const newShapeValues = [...new Set(pcaData.new_compounds.shape_categories)];
+                // Merge and deduplicate
+                allShapeValues = [...new Set([...allShapeValues, ...newShapeValues])];
+            }
+
+            // Create consistent mapping for all shape values
+            allShapeValues.forEach((shape, idx) => {
                 shapeMap[shape] = MARKER_SYMBOLS[idx % MARKER_SYMBOLS.length];
             });
+
             console.log('Shape encoding enabled for:', pcaData.shape_by);
-            console.log('Shape mapping:', shapeMap);
+            console.log('Shape mapping (including new compounds):', shapeMap);
         }
 
         console.log('Building traces...');
@@ -1723,54 +1735,113 @@
                     }
                 });
 
-                // Group new compounds by category
-                const categoryGroups = {};
-                pcaData.new_compounds.x.forEach((x, idx) => {
-                    const category = pcaData.new_compounds.color_categories[idx];
-                    if (!categoryGroups[category]) {
-                        categoryGroups[category] = { x: [], y: [], labels: [] };
-                    }
-                    categoryGroups[category].x.push(x);
-                    categoryGroups[category].y.push(pcaData.new_compounds.y[idx]);
-                    if (pcaData.new_compounds.labels) {
-                        categoryGroups[category].labels.push(pcaData.new_compounds.labels[idx]);
-                    }
-                });
+                // Check if shape encoding is active for new compounds
+                const hasShapeEncoding = !!(pcaData.new_compounds.shape_categories && pcaData.new_compounds.shape_by);
 
-                // Create a trace for each category with diamond symbols and same colors
-                Object.keys(categoryGroups).forEach(category => {
-                    const group = categoryGroups[category];
-                    const newTrace = {
-                        x: group.x,
-                        y: group.y,
-                        mode: 'markers',
-                        type: 'scatter',
-                        name: `${category} (New)`,
-                        marker: {
-                            size: 10,
-                            symbol: 'diamond',
-                            line: { width: 1 },
-                            opacity: 0.8
-                        },
-                        text: group.labels.length ? group.labels : null,
-                        customdata: new Array(group.x.length).fill(category),
-                        hovertemplate: buildHoverTemplate({
-                            pcx: pcaData.pc_x,
-                            pcy: pcaData.pc_y,
-                            colorBy: pcaData.new_compounds.color_column,
-                            hoverColumn: null
-                        }),
-                        showlegend: true,
-                        legendgroup: category  // Group with original category in legend
-                    };
+                if (hasShapeEncoding) {
+                    // Group by BOTH color and shape
+                    const comboGroups = {};
+                    pcaData.new_compounds.x.forEach((x, idx) => {
+                        const colorCat = pcaData.new_compounds.color_categories[idx];
+                        const shapeCat = pcaData.new_compounds.shape_categories[idx];
+                        const comboKey = `${colorCat}|${shapeCat}`;
 
-                    // Use the same color as the original category if available
-                    if (categoryColorMap[category]) {
-                        newTrace.marker.color = categoryColorMap[category];
-                    }
+                        if (!comboGroups[comboKey]) {
+                            comboGroups[comboKey] = {
+                                x: [], y: [], labels: [],
+                                colorCat: colorCat, shapeCat: shapeCat
+                            };
+                        }
+                        comboGroups[comboKey].x.push(x);
+                        comboGroups[comboKey].y.push(pcaData.new_compounds.y[idx]);
+                        if (pcaData.new_compounds.labels) {
+                            comboGroups[comboKey].labels.push(pcaData.new_compounds.labels[idx]);
+                        }
+                    });
 
-                    traces.push(newTrace);
-                });
+                    // Create trace for each color+shape combination
+                    Object.values(comboGroups).forEach(group => {
+                        const newTrace = {
+                            x: group.x,
+                            y: group.y,
+                            mode: 'markers',
+                            type: 'scatter',
+                            name: `${group.colorCat} / ${group.shapeCat} (New)`,
+                            marker: {
+                                size: 10,
+                                symbol: shapeMap[group.shapeCat] || 'circle',  // Same shapes as original
+                                line: { width: 1 },
+                                opacity: 0.8
+                            },
+                            text: group.labels.length ? group.labels : null,
+                            customdata: new Array(group.x.length).fill(group.colorCat),
+                            hovertemplate: buildHoverTemplate({
+                                pcx: pcaData.pc_x,
+                                pcy: pcaData.pc_y,
+                                colorBy: pcaData.new_compounds.color_column,
+                                hoverColumn: null
+                            }),
+                            showlegend: true,
+                            legendgroup: group.colorCat
+                        };
+
+                        // Use the same color as the original category
+                        if (categoryColorMap[group.colorCat]) {
+                            newTrace.marker.color = categoryColorMap[group.colorCat];
+                        }
+
+                        traces.push(newTrace);
+                    });
+                } else {
+                    // Only color, no shape - group by category only
+                    const categoryGroups = {};
+                    pcaData.new_compounds.x.forEach((x, idx) => {
+                        const category = pcaData.new_compounds.color_categories[idx];
+                        if (!categoryGroups[category]) {
+                            categoryGroups[category] = { x: [], y: [], labels: [] };
+                        }
+                        categoryGroups[category].x.push(x);
+                        categoryGroups[category].y.push(pcaData.new_compounds.y[idx]);
+                        if (pcaData.new_compounds.labels) {
+                            categoryGroups[category].labels.push(pcaData.new_compounds.labels[idx]);
+                        }
+                    });
+
+                    // Create a trace for each category with diamond symbols (different from original)
+                    Object.keys(categoryGroups).forEach(category => {
+                        const group = categoryGroups[category];
+                        const newTrace = {
+                            x: group.x,
+                            y: group.y,
+                            mode: 'markers',
+                            type: 'scatter',
+                            name: `${category} (New)`,
+                            marker: {
+                                size: 10,
+                                symbol: 'diamond',  // Different shape from original circles
+                                line: { width: 1 },
+                                opacity: 0.8
+                            },
+                            text: group.labels.length ? group.labels : null,
+                            customdata: new Array(group.x.length).fill(category),
+                            hovertemplate: buildHoverTemplate({
+                                pcx: pcaData.pc_x,
+                                pcy: pcaData.pc_y,
+                                colorBy: pcaData.new_compounds.color_column,
+                                hoverColumn: null
+                            }),
+                            showlegend: true,
+                            legendgroup: category
+                        };
+
+                        // Use the same color as the original category
+                        if (categoryColorMap[category]) {
+                            newTrace.marker.color = categoryColorMap[category];
+                        }
+
+                        traces.push(newTrace);
+                    });
+                }
 
                 console.log(`Added ${pcaData.new_compounds.x.length} new compounds with categorical coloring`);
 
@@ -1795,61 +1866,156 @@
                     }
                 }
 
-                const newTrace = {
-                    x: pcaData.new_compounds.x,
-                    y: pcaData.new_compounds.y,
-                    mode: 'markers',
-                    type: 'scatter',
-                    name: 'New Compounds',
-                    marker: {
-                        size: 10,
-                        color: pcaData.new_compounds.color_data,
-                        colorscale: 'Viridis',  // Same colorscale as original data
-                        showscale: false,  // Don't show separate colorbar
-                        cmin: cmin,  // Use combined range
-                        cmax: cmax,
-                        symbol: 'diamond',
-                        line: { width: 1, color: 'rgba(0, 0, 0, 0.3)' },
-                        opacity: 0.8
-                    },
-                    text: pcaData.new_compounds.labels || null,
-                    customdata: colorDisplay,
-                    hovertemplate: buildHoverTemplate({
-                        pcx: pcaData.pc_x,
-                        pcy: pcaData.pc_y,
-                        colorBy: pcaData.new_compounds.color_column,
-                        hoverColumn: null
-                    })
-                };
-                traces.push(newTrace);
+                // Check if shape encoding is active
+                const hasShapeEncoding = !!(pcaData.new_compounds.shape_categories && pcaData.new_compounds.shape_by);
+
+                if (hasShapeEncoding) {
+                    // Group by shape and create traces with numeric coloring
+                    const shapeGroups = {};
+                    pcaData.new_compounds.x.forEach((x, idx) => {
+                        const shapeCat = pcaData.new_compounds.shape_categories[idx];
+                        if (!shapeGroups[shapeCat]) {
+                            shapeGroups[shapeCat] = { x: [], y: [], colors: [], labels: [], customdata: [] };
+                        }
+                        shapeGroups[shapeCat].x.push(x);
+                        shapeGroups[shapeCat].y.push(pcaData.new_compounds.y[idx]);
+                        shapeGroups[shapeCat].colors.push(pcaData.new_compounds.color_data[idx]);
+                        shapeGroups[shapeCat].customdata.push(colorDisplay[idx]);
+                        if (pcaData.new_compounds.labels && pcaData.new_compounds.labels[idx]) {
+                            shapeGroups[shapeCat].labels.push(pcaData.new_compounds.labels[idx]);
+                        }
+                    });
+
+                    Object.keys(shapeGroups).forEach(shapeCat => {
+                        const group = shapeGroups[shapeCat];
+                        const newTrace = {
+                            x: group.x,
+                            y: group.y,
+                            mode: 'markers',
+                            type: 'scatter',
+                            name: `${shapeCat} (New)`,
+                            marker: {
+                                size: 10,
+                                color: group.colors,
+                                colorscale: 'Viridis',
+                                showscale: false,
+                                cmin: cmin,
+                                cmax: cmax,
+                                symbol: shapeMap[shapeCat] || 'circle',  // Same shapes as original
+                                line: { width: 1, color: 'rgba(0, 0, 0, 0.3)' },
+                                opacity: 0.8
+                            },
+                            text: group.labels.length ? group.labels : null,
+                            customdata: group.customdata,
+                            hovertemplate: buildHoverTemplate({
+                                pcx: pcaData.pc_x,
+                                pcy: pcaData.pc_y,
+                                colorBy: pcaData.new_compounds.color_column,
+                                hoverColumn: null
+                            })
+                        };
+                        traces.push(newTrace);
+                    });
+                } else {
+                    // No shape - use different symbol to distinguish
+                    const newTrace = {
+                        x: pcaData.new_compounds.x,
+                        y: pcaData.new_compounds.y,
+                        mode: 'markers',
+                        type: 'scatter',
+                        name: 'New Compounds',
+                        marker: {
+                            size: 10,
+                            color: pcaData.new_compounds.color_data,
+                            colorscale: 'Viridis',
+                            showscale: false,
+                            cmin: cmin,
+                            cmax: cmax,
+                            symbol: 'diamond',  // Different shape from original circles
+                            line: { width: 1, color: 'rgba(0, 0, 0, 0.3)' },
+                            opacity: 0.8
+                        },
+                        text: pcaData.new_compounds.labels || null,
+                        customdata: colorDisplay,
+                        hovertemplate: buildHoverTemplate({
+                            pcx: pcaData.pc_x,
+                            pcy: pcaData.pc_y,
+                            colorBy: pcaData.new_compounds.color_column,
+                            hoverColumn: null
+                        })
+                    };
+                    traces.push(newTrace);
+                }
 
                 console.log(`Added ${pcaData.new_compounds.x.length} new compounds with numeric coloring`);
 
             } else {
-                // No coloring data - use default red diamonds
-                console.log('New compounds without coloring (red diamonds)');
+                // No coloring data
+                console.log('New compounds without coloring');
 
-                const newTrace = {
-                    x: pcaData.new_compounds.x,
-                    y: pcaData.new_compounds.y,
-                    mode: 'markers',
-                    type: 'scatter',
-                    name: 'New Compounds',
-                    marker: {
-                        size: 10,
-                        color: 'rgba(220, 38, 38, 0.8)',  // Red color
-                        symbol: 'diamond',
-                        line: {
-                            width: 2,
-                            color: 'rgba(127, 29, 29, 1)'  // Darker red border
+                // Check if shape encoding is active
+                const hasShapeEncoding = !!(pcaData.new_compounds.shape_categories && pcaData.new_compounds.shape_by);
+
+                if (hasShapeEncoding) {
+                    // Group by shape
+                    const shapeGroups = {};
+                    pcaData.new_compounds.x.forEach((x, idx) => {
+                        const shapeCat = pcaData.new_compounds.shape_categories[idx];
+                        if (!shapeGroups[shapeCat]) {
+                            shapeGroups[shapeCat] = { x: [], y: [], labels: [] };
                         }
-                    },
-                    text: pcaData.new_compounds.labels || null,
-                    hovertemplate: pcaData.new_compounds.labels
-                        ? '<b>%{text}</b><br>PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
-                        : 'PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
-                };
-                traces.push(newTrace);
+                        shapeGroups[shapeCat].x.push(x);
+                        shapeGroups[shapeCat].y.push(pcaData.new_compounds.y[idx]);
+                        if (pcaData.new_compounds.labels && pcaData.new_compounds.labels[idx]) {
+                            shapeGroups[shapeCat].labels.push(pcaData.new_compounds.labels[idx]);
+                        }
+                    });
+
+                    Object.keys(shapeGroups).forEach(shapeCat => {
+                        const group = shapeGroups[shapeCat];
+                        const newTrace = {
+                            x: group.x,
+                            y: group.y,
+                            mode: 'markers',
+                            type: 'scatter',
+                            name: `${shapeCat} (New)`,
+                            marker: {
+                                size: 10,
+                                symbol: shapeMap[shapeCat] || 'circle',  // Same shapes as original
+                                line: { width: 1 },
+                                opacity: 0.8
+                            },
+                            text: group.labels.length ? group.labels : null,
+                            hovertemplate: group.labels.length
+                                ? '<b>%{text}</b><br>PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
+                                : 'PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
+                        };
+                        traces.push(newTrace);
+                    });
+                } else {
+                    // No shape, no color - use different shape (red diamonds)
+                    const newTrace = {
+                        x: pcaData.new_compounds.x,
+                        y: pcaData.new_compounds.y,
+                        mode: 'markers',
+                        type: 'scatter',
+                        name: 'New Compounds',
+                        marker: {
+                            size: 10,
+                            color: 'rgba(220, 38, 38, 0.8)',
+                            symbol: 'diamond',  // Different shape from original circles
+                            line: {
+                                width: 1,
+                                color: 'rgba(127, 29, 29, 1)'
+                            }
+                        },
+                        text: pcaData.new_compounds.labels || null,
+                        hovertemplate: pcaData.new_compounds.labels
+                            ? '<b>%{text}</b><br>PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
+                            : 'PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
+                    };
+                    traces.push(newTrace);
+                }
 
                 console.log(`Added ${pcaData.new_compounds.x.length} new compounds to visualization`);
             }
