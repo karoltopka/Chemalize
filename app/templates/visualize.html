@@ -318,6 +318,17 @@
 
             <!-- New Compounds Status -->
             <div id="new-compounds-status"></div>
+
+            <!-- Toggle Overlay Checkbox -->
+            <div class="form-check mt-3" id="overlay-toggle-container" style="display: none;">
+                <input type="checkbox" class="form-check-input" id="show-overlay-checkbox" checked>
+                <label class="form-check-label" for="show-overlay-checkbox">
+                    <i class="fas fa-eye"></i> Show overlay on plot
+                </label>
+                <small class="form-text text-muted d-block ml-4">
+                    Uncheck to hide new compounds from visualization
+                </small>
+            </div>
         </div>
 
         <form id="pca-visualization-form" class="visualization-form">
@@ -1504,31 +1515,130 @@
             traces.push(trace);
         }
 
-        // Add new compounds overlay if available
-        if (pcaData.new_compounds) {
+        // Add new compounds overlay if available and checkbox is checked
+        const showOverlay = document.getElementById('show-overlay-checkbox')?.checked ?? true;
+        if (pcaData.new_compounds && showOverlay) {
             console.log('Adding new compounds overlay:', pcaData.new_compounds);
-            const newTrace = {
-                x: pcaData.new_compounds.x,
-                y: pcaData.new_compounds.y,
-                mode: 'markers',
-                type: 'scatter',
-                name: 'New Compounds',
-                marker: {
-                    size: 10,
-                    color: 'rgba(220, 38, 38, 0.8)',  // Red color
-                    symbol: 'diamond',  // Different symbol
-                    line: {
-                        width: 2,
-                        color: 'rgba(127, 29, 29, 1)'  // Darker red border
+
+            // Check if new compounds have categorical coloring data
+            if (pcaData.new_compounds.color_categories) {
+                console.log('New compounds with categorical coloring');
+
+                // Group new compounds by category
+                const categoryGroups = {};
+                pcaData.new_compounds.x.forEach((x, idx) => {
+                    const category = pcaData.new_compounds.color_categories[idx];
+                    if (!categoryGroups[category]) {
+                        categoryGroups[category] = { x: [], y: [], labels: [] };
                     }
-                },
-                text: pcaData.new_compounds.labels || null,
-                hovertemplate: pcaData.new_compounds.labels
-                    ? '<b>%{text}</b><br>PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
-                    : 'PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
-            };
-            traces.push(newTrace);
-            console.log(`Added ${pcaData.new_compounds.x.length} new compounds to visualization`);
+                    categoryGroups[category].x.push(x);
+                    categoryGroups[category].y.push(pcaData.new_compounds.y[idx]);
+                    if (pcaData.new_compounds.labels) {
+                        categoryGroups[category].labels.push(pcaData.new_compounds.labels[idx]);
+                    }
+                });
+
+                // Create a trace for each category with diamond symbols
+                Object.keys(categoryGroups).forEach(category => {
+                    const group = categoryGroups[category];
+                    const newTrace = {
+                        x: group.x,
+                        y: group.y,
+                        mode: 'markers',
+                        type: 'scatter',
+                        name: `${category} (New)`,
+                        marker: {
+                            size: 10,
+                            symbol: 'diamond',
+                            line: { width: 1 },
+                            opacity: 0.8
+                        },
+                        text: group.labels.length ? group.labels : null,
+                        customdata: new Array(group.x.length).fill(category),
+                        hovertemplate: buildHoverTemplate({
+                            pcx: pcaData.pc_x,
+                            pcy: pcaData.pc_y,
+                            colorBy: pcaData.new_compounds.color_column,
+                            hoverColumn: null
+                        })
+                    };
+                    traces.push(newTrace);
+                });
+
+                console.log(`Added ${pcaData.new_compounds.x.length} new compounds with categorical coloring`);
+
+            } else if (pcaData.new_compounds.color_data && pcaData.new_compounds.is_numeric) {
+                // Numeric coloring with colorscale
+                console.log('New compounds with numeric coloring');
+
+                const colorDisplay = (pcaData.new_compounds.color_data || []).map(v =>
+                    (v === null || !isFinite(v)) ? 'NA' : (+v).toFixed(4)
+                );
+
+                const newTrace = {
+                    x: pcaData.new_compounds.x,
+                    y: pcaData.new_compounds.y,
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: 'New Compounds',
+                    marker: {
+                        size: 10,
+                        color: pcaData.new_compounds.color_data,
+                        colorscale: 'Plasma',  // Different colorscale to distinguish from original
+                        showscale: true,
+                        colorbar: {
+                            title: pcaData.new_compounds.color_column || 'Value',
+                            titleside: 'right',
+                            thickness: 15,
+                            len: 0.5,
+                            y: 0.25,  // Position lower to not overlap with original colorbar
+                            yanchor: 'middle'
+                        },
+                        symbol: 'diamond',
+                        line: { width: 1, color: 'rgba(0, 0, 0, 0.3)' },
+                        opacity: 0.8
+                    },
+                    text: pcaData.new_compounds.labels || null,
+                    customdata: colorDisplay,
+                    hovertemplate: buildHoverTemplate({
+                        pcx: pcaData.pc_x,
+                        pcy: pcaData.pc_y,
+                        colorBy: pcaData.new_compounds.color_column,
+                        hoverColumn: null
+                    })
+                };
+                traces.push(newTrace);
+
+                console.log(`Added ${pcaData.new_compounds.x.length} new compounds with numeric coloring`);
+
+            } else {
+                // No coloring data - use default red diamonds
+                console.log('New compounds without coloring (red diamonds)');
+
+                const newTrace = {
+                    x: pcaData.new_compounds.x,
+                    y: pcaData.new_compounds.y,
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: 'New Compounds',
+                    marker: {
+                        size: 10,
+                        color: 'rgba(220, 38, 38, 0.8)',  // Red color
+                        symbol: 'diamond',
+                        line: {
+                            width: 2,
+                            color: 'rgba(127, 29, 29, 1)'  // Darker red border
+                        }
+                    },
+                    text: pcaData.new_compounds.labels || null,
+                    hovertemplate: pcaData.new_compounds.labels
+                        ? '<b>%{text}</b><br>PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
+                        : 'PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
+                };
+                traces.push(newTrace);
+
+                console.log(`Added ${pcaData.new_compounds.x.length} new compounds to visualization`);
+            }
         }
 
         // LEGEND: tylko dla kategorycznego
@@ -2150,6 +2260,10 @@
                                 </div>
                             `;
 
+                            // Show overlay toggle checkbox
+                            document.getElementById('overlay-toggle-container').style.display = 'block';
+                            document.getElementById('show-overlay-checkbox').checked = true;
+
                             showFlashMessage(`${data.n_compounds} new compounds ready to visualize!`, 'success');
 
                             // Auto-trigger PCA visualization if already configured
@@ -2180,6 +2294,23 @@
                         `;
                         newCompoundsData = null;
                     });
+            });
+        }
+
+        // Toggle overlay checkbox - re-render plot when changed
+        const overlayCheckbox = document.getElementById('show-overlay-checkbox');
+        if (overlayCheckbox) {
+            overlayCheckbox.addEventListener('change', function() {
+                // Re-render the current plot with or without overlay
+                const currentPlotContainer = document.getElementById('pca-plot');
+                if (currentPlotContainer && currentPlotContainer.style.display !== 'none') {
+                    // Trigger re-submission of the PCA visualization form
+                    const pcaForm = document.getElementById('pca-visualization-form');
+                    if (pcaForm) {
+                        const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+                        pcaForm.dispatchEvent(submitEvent);
+                    }
+                }
             });
         }
 
