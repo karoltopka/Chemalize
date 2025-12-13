@@ -35,6 +35,10 @@ def pca_analysis():
         'top_n_arrows'
     ]}
     
+    # Custom descriptor groups data
+    custom_groups = session.get('custom_descriptor_groups', None)
+    selected_group_ids = session.get('pca_selected_groups', [])
+
     if session.get('pca_performed'):
         # Add PCA results if analysis was performed
         pca_results = {
@@ -51,9 +55,13 @@ def pca_analysis():
             'features_per_pc': session.get('features_per_pc'),
             'feature_selection_method_display': session.get('feature_selection_method_display')
         }
-        return render_template('pca_analysis.html', title='PCA Analysis', active="analyze", **info, **pca_params, **pca_results)
-    
-    return render_template('pca_analysis.html', title='PCA Analysis', active="analyze", **info, **pca_params)
+        return render_template('pca_analysis.html', title='PCA Analysis', active="analyze",
+                             custom_groups=custom_groups, selected_group_ids=selected_group_ids,
+                             **info, **pca_params, **pca_results)
+
+    return render_template('pca_analysis.html', title='PCA Analysis', active="analyze",
+                         custom_groups=custom_groups, selected_group_ids=selected_group_ids,
+                         **info, **pca_params)
 
 
 @pca_bp.route("/perform_pca", methods=['POST'])

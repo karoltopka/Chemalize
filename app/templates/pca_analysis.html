@@ -706,6 +706,40 @@
                 }
             });
         }
+
+        // ===========================
+        // Restore groups from session
+        // ===========================
+        {% if custom_groups %}
+        // Groups exist in session - restore them
+        const savedGroups = {{ custom_groups | tojson }};
+        const savedSelectedIds = {{ selected_group_ids | tojson }};
+
+        if (savedGroups && Object.keys(savedGroups).length > 0) {
+            console.log('Restoring descriptor groups from session:', savedGroups);
+            descriptorGroups = savedGroups;
+            displayGroups(savedGroups);
+
+            // Restore selection
+            if (savedSelectedIds && savedSelectedIds.length > 0) {
+                // Uncheck all first
+                document.querySelectorAll('.group-checkbox').forEach(cb => cb.checked = false);
+
+                // Check only previously selected
+                savedSelectedIds.forEach(id => {
+                    const checkbox = document.getElementById('group_' + id);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+
+                updateGroupsSummary();
+            }
+
+            groupsContainer.style.display = 'block';
+            groupsStatus.innerHTML = `<div class="alert alert-success"><i class="fas fa-check-circle"></i> Using ${Object.keys(savedGroups).length} descriptor groups from previous upload</div>`;
+        }
+        {% endif %}
     });
 
     function updatePCOptions(nComponents) {
