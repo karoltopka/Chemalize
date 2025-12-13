@@ -117,6 +117,106 @@
         </div>
     </div>
 
+    <!-- Endpoint Correlation Helper -->
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="fas fa-link mr-2"></i>Endpoint Correlation (PCA)</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-3">
+                Find variables most correlated with a chosen endpoint, then push them directly into the PCA configuration.
+            </p>
+
+            <div class="row align-items-end">
+                <div class="col-md-7">
+                    <label for="correlation_target"><i class="fas fa-bullseye"></i> Endpoint variable</label>
+                    <select class="form-control" id="correlation_target">
+                        <option value="">Select endpoint</option>
+                        {% set corr_cols = numeric_columns if numeric_columns else columns %}
+                        {% if corr_cols %}
+                            {% for col in corr_cols %}
+                                <option value="{{ col }}" {% if correlation_target == col %}selected{% endif %}>{{ col }}</option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                    <small class="form-text text-muted">Only numeric columns are eligible for correlation.</small>
+                </div>
+                <div class="col-md-3">
+                    <label for="max_corr_features">Max results to keep</label>
+                    <input type="number" class="form-control" id="max_corr_features" value="150" min="10" max="500">
+                    <small class="form-text text-muted">Trim long lists for quicker browsing.</small>
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-warning btn-block mt-1" id="run-correlation-btn">
+                        <i class="fas fa-chart-line mr-1"></i>Analyze
+                    </button>
+                </div>
+            </div>
+
+            <div id="correlation-status" class="mt-3"></div>
+
+            <div id="correlation-results-container" class="mt-3" style="display: none;">
+                <div class="d-flex flex-wrap align-items-center mb-2">
+                    <span class="mr-2"><strong>Select variables:</strong></span>
+                    <div class="btn-group btn-group-sm mr-2 mb-2">
+                        <button type="button" class="btn btn-outline-primary corr-select-btn" data-top="5">Top 5</button>
+                        <button type="button" class="btn btn-outline-primary corr-select-btn" data-top="10">Top 10</button>
+                        <button type="button" class="btn btn-outline-primary corr-select-btn" data-top="20">Top 20</button>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary mr-2 mb-2" id="corr-clear-btn">Clear</button>
+                    <button type="button" class="btn btn-sm btn-success mb-2" id="apply-correlation-selection">
+                        <i class="fas fa-play mr-1"></i>Use selection in PCA
+                    </button>
+                    <span class="text-muted small ml-3" id="correlation-target-label"></span>
+                </div>
+                <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Select</th>
+                                <th>Variable</th>
+                                <th>r</th>
+                                <th>|r|</th>
+                                <th>N</th>
+                            </tr>
+                        </thead>
+                        <tbody id="correlation-table-body">
+                            <!-- Filled dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex flex-wrap align-items-center mt-2">
+                    <div id="correlated-selection-status" class="text-success small mr-3" style="display: none;"></div>
+                    <div id="corr-selection-preview" class="text-muted small" style="display: none;">
+                        Kombinacja: <span id="corr-selection-list"></span>
+                    </div>
+                </div>
+
+                <div id="correlation-combo-status" class="mt-3"></div>
+                <div id="correlation-combo-container" class="mt-2" style="display: none;">
+                    <h6 class="mb-2"><i class="fas fa-object-group"></i> Najlepsze kombinacje (korelacja z endpointem)</h6>
+                    <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Kombinacja</th>
+                                    <th>r</th>
+                                    <th>|r|</th>
+                                    <th>N</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="correlation-combo-body">
+                                <!-- Filled dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- PCA Configuration Form -->
     <div class="card mb-4">
         <div class="card-header bg-primary text-white">
@@ -324,6 +424,9 @@
                 </div>
 
                 <!-- Hidden input for selected descriptor groups -->
+                <input type="hidden" id="use_correlated_features" name="use_correlated_features" value="0">
+                <input type="hidden" id="correlated_features_selected" name="correlated_features_selected" value="">
+                <input type="hidden" id="correlation_target_var" name="correlation_target_var" value="{{ correlation_target if correlation_target else '' }}">
                 <input type="hidden" id="selected_descriptor_groups" name="selected_descriptor_groups" value="">
 
                 <button type="submit" class="btn btn-primary mt-3" id="run-pca-btn">
@@ -366,6 +469,17 @@
                     </table>
                 </div>
             </div>
+
+            {% if correlated_features_used %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="alert alert-secondary">
+                        <i class="fas fa-link mr-2"></i>
+                        PCA computed using {{ correlated_features_used|length }} variables selected by endpoint correlation{% if correlated_target_used %} (endpoint: {{ correlated_target_used }}){% endif %}.
+                    </div>
+                </div>
+            </div>
+            {% endif %}
             
             <!-- Feature Importance Summary -->
             {% if selected_features_summary %}
@@ -690,6 +804,330 @@
             }
         }
 
+        // ===========================
+        // Endpoint Correlation Analysis
+        // ===========================
+        const correlationStatus = document.getElementById('correlation-status');
+        const correlationResultsContainer = document.getElementById('correlation-results-container');
+        const correlationTableBody = document.getElementById('correlation-table-body');
+        const correlationTargetSelect = document.getElementById('correlation_target');
+        const correlationTargetLabel = document.getElementById('correlation-target-label');
+        const correlationMaxInput = document.getElementById('max_corr_features');
+        const correlationSelectButtons = document.querySelectorAll('.corr-select-btn');
+        const correlationApplyBtn = document.getElementById('apply-correlation-selection');
+        const correlationClearBtn = document.getElementById('corr-clear-btn');
+        const correlationTopNInput = document.getElementById('corr-top-n-input');
+        const correlationTopNBtn = document.getElementById('corr-top-n-btn');
+        const correlationComboSizeInput = document.getElementById('corr-combo-size');
+        const correlationComboApplyBtn = document.getElementById('corr-combo-apply');
+        const correlationSelectionPreview = document.getElementById('corr-selection-preview');
+        const correlationSelectionList = document.getElementById('corr-selection-list');
+        const correlationComboStatus = document.getElementById('correlation-combo-status');
+        const correlationComboContainer = document.getElementById('correlation-combo-container');
+        const correlationComboBody = document.getElementById('correlation-combo-body');
+        const correlationSelectionStatus = document.getElementById('correlated-selection-status');
+        const hiddenUseCorrelated = document.getElementById('use_correlated_features');
+        const hiddenCorrelatedFeatures = document.getElementById('correlated_features_selected');
+        const hiddenCorrelationTarget = document.getElementById('correlation_target_var');
+        const runCorrelationBtn = document.getElementById('run-correlation-btn');
+
+        const correlationResultsFromServer = {{ correlation_results | default([]) | tojson }};
+        const correlatedFeaturesUsed = {{ correlated_features_used | default([]) | tojson }};
+        const preloadedCorrelationTarget = {{ correlation_target | default(None) | tojson }};
+        let correlationResults = Array.isArray(correlationResultsFromServer) ? correlationResultsFromServer : [];
+        let preferredCorrelationSelection = Array.isArray(correlatedFeaturesUsed) ? correlatedFeaturesUsed : [];
+        let maxCombinationSize = null;
+        let comboResults = [];
+
+        function renderCorrelationResults(targetName) {
+            if (!correlationResults || correlationResults.length === 0) {
+                correlationResultsContainer.style.display = 'none';
+                return;
+            }
+
+            correlationTableBody.innerHTML = '';
+            correlationResults.forEach((row, idx) => {
+                const corrVal = Number(row.correlation);
+                const absCorr = Number(row.abs_correlation);
+                const samples = Number(row.n || row.samples || 0);
+                const checked = preferredCorrelationSelection.length > 0
+                    ? preferredCorrelationSelection.includes(row.feature)
+                    : idx < 10;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="checkbox" class="correlation-feature-checkbox" data-feature="${row.feature}" ${checked ? 'checked' : ''}></td>
+                    <td>${row.feature}</td>
+                    <td>${isFinite(corrVal) ? corrVal.toFixed(3) : ''}</td>
+                    <td>${isFinite(absCorr) ? absCorr.toFixed(3) : ''}</td>
+                    <td>${samples}</td>
+                `;
+                correlationTableBody.appendChild(tr);
+            });
+
+            correlationResultsContainer.style.display = 'block';
+            correlationTargetLabel.textContent = targetName ? `Endpoint: ${targetName}` : '';
+        }
+
+        function getSelectedCorrelationFeatures() {
+            const checkboxes = correlationTableBody ? correlationTableBody.querySelectorAll('.correlation-feature-checkbox') : [];
+            return Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.getAttribute('data-feature'));
+        }
+
+        function selectTopCorrelated(n) {
+            if (!correlationTableBody) return;
+            const boxes = correlationTableBody.querySelectorAll('.correlation-feature-checkbox');
+            boxes.forEach((cb, idx) => cb.checked = idx < n);
+            enforceCombinationLimit();
+            correlationSelectionStatus.style.display = 'none';
+            updateCombinationPreview(getSelectedCorrelationFeatures());
+        }
+
+        function clearCorrelationSelection() {
+            if (!correlationTableBody) return;
+            correlationTableBody.querySelectorAll('.correlation-feature-checkbox').forEach(cb => cb.checked = false);
+            hiddenUseCorrelated.value = '0';
+            hiddenCorrelatedFeatures.value = '';
+            correlationSelectionStatus.style.display = 'none';
+            updateCombinationPreview([]);
+        }
+
+        function getComboSizeValue() {
+            const size = parseInt(correlationComboSizeInput ? correlationComboSizeInput.value : null, 10);
+            return isNaN(size) ? null : size;
+        }
+
+        async function runCorrelationAnalysis() {
+            const target = correlationTargetSelect ? correlationTargetSelect.value : '';
+            if (!target) {
+                correlationStatus.innerHTML = '<div class="alert alert-warning">Please choose an endpoint first.</div>';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('target_var', target);
+            if (correlationMaxInput && correlationMaxInput.value) {
+                formData.append('max_results', correlationMaxInput.value);
+            }
+
+            correlationStatus.innerHTML = '<div class="alert alert-info"><i class="fas fa-spinner fa-spin"></i> Calculating correlations...</div>';
+            correlationResultsContainer.style.display = 'none';
+            correlationSelectionStatus.style.display = 'none';
+            preferredCorrelationSelection = [];
+            hiddenUseCorrelated.value = '0';
+            hiddenCorrelatedFeatures.value = '';
+
+            try {
+                const response = await fetch('{{ url_for("pca.pca_correlations") }}', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    correlationResults = data.results || [];
+                    correlationStatus.innerHTML = `<div class="alert alert-success"><i class="fas fa-check-circle"></i> Found ${data.total_features} correlations</div>`;
+                    hiddenCorrelationTarget.value = target;
+                    const comboSize = getComboSizeValue();
+                    if (comboSize && comboSize > 1) {
+                        maxCombinationSize = comboSize;
+                        applyCombinationSize({ auto: true });
+                    } else {
+                        renderCorrelationResults(data.target);
+                    }
+                } else {
+                    correlationStatus.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${data.message || 'Error running correlation analysis'}</div>`;
+                }
+            } catch (err) {
+                correlationStatus.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${err.message}</div>`;
+            }
+        }
+
+        function applyCorrelationSelection() {
+            if (!correlationResults || correlationResults.length === 0) {
+                correlationSelectionStatus.innerHTML = 'Run correlation analysis first.';
+                correlationSelectionStatus.className = 'text-danger small';
+                correlationSelectionStatus.style.display = 'block';
+                return;
+            }
+
+            const selected = getSelectedCorrelationFeatures();
+            if (selected.length < 2) {
+                correlationSelectionStatus.innerHTML = 'Select at least two variables to build PCA.';
+                correlationSelectionStatus.className = 'text-danger small';
+                correlationSelectionStatus.style.display = 'block';
+                return;
+            }
+
+            hiddenUseCorrelated.value = '1';
+            hiddenCorrelatedFeatures.value = selected.join(',');
+            if (correlationTargetSelect) {
+                hiddenCorrelationTarget.value = correlationTargetSelect.value;
+            }
+            preferredCorrelationSelection = selected;
+            updateCombinationPreview(selected);
+
+            correlationSelectionStatus.innerHTML = `Selected ${selected.length} variables will be used in the next PCA run.`;
+            correlationSelectionStatus.className = 'text-success small';
+            correlationSelectionStatus.style.display = 'block';
+            document.getElementById('run-pca-btn').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function enforceCombinationLimit() {
+            if (!maxCombinationSize || maxCombinationSize < 1 || !correlationTableBody) return;
+            const boxes = Array.from(correlationTableBody.querySelectorAll('.correlation-feature-checkbox'));
+            const checked = boxes.filter(cb => cb.checked);
+            if (checked.length <= maxCombinationSize) {
+                updateCombinationPreview(checked.map(cb => cb.getAttribute('data-feature')));
+                return;
+            }
+            checked.slice(maxCombinationSize).forEach(cb => cb.checked = false);
+            updateCombinationPreview(checked.slice(0, maxCombinationSize).map(cb => cb.getAttribute('data-feature')));
+        }
+
+        function updateCombinationPreview(list) {
+            if (!correlationSelectionPreview || !correlationSelectionList) return;
+            if (list && list.length > 0) {
+                correlationSelectionList.textContent = list.join(' + ');
+                correlationSelectionPreview.style.display = 'block';
+            } else {
+                correlationSelectionPreview.style.display = 'none';
+            }
+        }
+
+        function renderComboResults(results) {
+            if (!correlationComboBody) return;
+            correlationComboBody.innerHTML = '';
+            comboResults = results || [];
+            if (!comboResults.length) {
+                correlationComboContainer.style.display = 'none';
+                return;
+            }
+            comboResults.forEach((row, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${idx + 1}</td>
+                    <td>${row.label || row.features.join(' + ')}</td>
+                    <td>${row.correlation !== undefined ? Number(row.correlation).toFixed(3) : ''}</td>
+                    <td>${row.abs_correlation !== undefined ? Number(row.abs_correlation).toFixed(3) : ''}</td>
+                    <td>${row.n || ''}</td>
+                    <td><button type="button" class="btn btn-sm btn-outline-success use-combo-btn" data-combo-idx="${idx}">Use</button></td>
+                `;
+                correlationComboBody.appendChild(tr);
+            });
+            correlationComboContainer.style.display = 'block';
+        }
+
+        function useComboFeatures(idx) {
+            if (!comboResults || idx < 0 || idx >= comboResults.length) return;
+            const combo = comboResults[idx];
+            const features = combo.features || [];
+            if (!correlationTableBody) return;
+            const boxes = correlationTableBody.querySelectorAll('.correlation-feature-checkbox');
+            boxes.forEach(cb => {
+                const feat = cb.getAttribute('data-feature');
+                cb.checked = features.includes(feat);
+            });
+            maxCombinationSize = features.length;
+            if (correlationComboSizeInput) {
+                correlationComboSizeInput.value = features.length;
+            }
+            enforceCombinationLimit();
+            applyCorrelationSelection();
+        }
+
+        async function applyCombinationSize(options = {}) {
+            const { auto = false } = options;
+            const size = getComboSizeValue();
+            const target = correlationTargetSelect ? correlationTargetSelect.value : '';
+            if (!size || size < 2) return;
+            if (!target && !hiddenCorrelationTarget.value) {
+                if (!auto) correlationComboStatus.innerHTML = '<div class="alert alert-warning">Wybierz endpoint, aby liczyć kombinacje.</div>';
+                return;
+            }
+            if (!correlationResults || correlationResults.length === 0) {
+                if (!auto) correlationComboStatus.innerHTML = '<div class="alert alert-warning">Najpierw uruchom analizę korelacji.</div>';
+                return;
+            }
+
+            maxCombinationSize = size;
+            const featurePool = correlationResults.map(r => r.feature).slice(0, 40).join(',');
+            const formData = new FormData();
+            formData.append('target_var', target || hiddenCorrelationTarget.value);
+            formData.append('combo_size', size);
+            formData.append('pool_limit', 40);
+            formData.append('top_n', 100);
+            formData.append('feature_pool', featurePool);
+
+            correlationComboStatus.innerHTML = '<div class="alert alert-info"><i class="fas fa-spinner fa-spin"></i> Liczę kombinacje...</div>';
+            correlationComboContainer.style.display = 'none';
+
+            try {
+                const response = await fetch('{{ url_for("pca.pca_combo_correlations") }}', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    correlationComboStatus.innerHTML = `<div class="alert alert-success"><i class="fas fa-check-circle"></i> Policzone ${data.total_combinations} kombinacje.</div>`;
+                    renderComboResults(data.results || []);
+                } else {
+                    correlationComboStatus.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${data.message || 'Błąd liczenia kombinacji'}</div>`;
+                }
+            } catch (err) {
+                correlationComboStatus.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${err.message}</div>`;
+            }
+        }
+
+        // Hook up correlation buttons
+        if (runCorrelationBtn) {
+            runCorrelationBtn.addEventListener('click', runCorrelationAnalysis);
+        }
+        correlationSelectButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const top = parseInt(this.getAttribute('data-top'), 10);
+                if (!isNaN(top)) selectTopCorrelated(top);
+            });
+        });
+        if (correlationApplyBtn) {
+            correlationApplyBtn.addEventListener('click', applyCorrelationSelection);
+        }
+        if (correlationClearBtn) {
+            correlationClearBtn.addEventListener('click', clearCorrelationSelection);
+        }
+        if (correlationTopNBtn && correlationTopNInput) {
+            correlationTopNBtn.addEventListener('click', function() {
+                const top = parseInt(correlationTopNInput.value, 10);
+                if (!isNaN(top) && top > 0) {
+                    selectTopCorrelated(top);
+                }
+            });
+        }
+        if (correlationComboApplyBtn) {
+            correlationComboApplyBtn.addEventListener('click', applyCombinationSize);
+        }
+        if (correlationComboBody) {
+            correlationComboBody.addEventListener('click', function(e) {
+                if (e.target && e.target.classList.contains('use-combo-btn')) {
+                    const idx = parseInt(e.target.getAttribute('data-combo-idx'), 10);
+                    if (!isNaN(idx)) useComboFeatures(idx);
+                }
+            });
+        }
+
+        // Restore results from session, if any
+        if (correlationResults && correlationResults.length > 0) {
+            if (preloadedCorrelationTarget) {
+                hiddenCorrelationTarget.value = preloadedCorrelationTarget;
+            }
+            if (preferredCorrelationSelection.length > 0) {
+                hiddenUseCorrelated.value = '1';
+                hiddenCorrelatedFeatures.value = preferredCorrelationSelection.join(',');
+            }
+            renderCorrelationResults(preloadedCorrelationTarget);
+            updateCombinationPreview(preferredCorrelationSelection);
+        }
+
         // Submit handler for PCA form - add selected groups
         const pcaForm = document.querySelector('form[action*="perform_pca"]');
         if (pcaForm) {
@@ -703,6 +1141,11 @@
                     console.log('Selected descriptor groups:', selectedIds);
                 } else {
                     selectedGroupsInput.value = '';
+                }
+
+                // If no correlated features are selected, ensure flag is off
+                if (!hiddenCorrelatedFeatures.value) {
+                    hiddenUseCorrelated.value = '0';
                 }
             });
         }

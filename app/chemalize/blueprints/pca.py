@@ -6,6 +6,9 @@ import os
 import pandas as pd
 import numpy as np
 import time
+from scipy.stats import pearsonr
+import math
+from itertools import combinations
 from werkzeug.utils import secure_filename
 from app.config import get_clean_path, get_temp_path, get_upload_path, get_unified_path, TEMP_DIR, CLEAN_DIR, UPLOAD_DIR, UNIFIED_DIR
 from app.chemalize.utils import read_dataset, clean_temp_folder, check_dataset, get_dataset_info, ensure_temp_dir
@@ -24,6 +27,7 @@ def pca_analysis():
     clean_path = get_clean_path(session["csv_name"])
     df = read_dataset(clean_path)
     info = get_dataset_info(df)
+    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
     
     # Add any additional PCA-specific parameters from session
     pca_params = {k: session.get(k) for k in [
@@ -38,6 +42,10 @@ def pca_analysis():
     # Custom descriptor groups data
     custom_groups = session.get('custom_descriptor_groups', None)
     selected_group_ids = session.get('pca_selected_groups', [])
+    correlation_results = session.get('pca_correlation_results', [])
+    correlation_target = session.get('pca_correlation_target')
+    correlated_features_used = session.get('pca_correlated_features_used', [])
+    correlated_target_used = session.get('pca_correlated_target')
 
     if session.get('pca_performed'):
         # Add PCA results if analysis was performed
@@ -57,10 +65,16 @@ def pca_analysis():
         }
         return render_template('pca_analysis.html', title='PCA Analysis', active="analyze",
                              custom_groups=custom_groups, selected_group_ids=selected_group_ids,
+                             correlation_results=correlation_results, correlation_target=correlation_target,
+                             correlated_features_used=correlated_features_used, correlated_target_used=correlated_target_used,
+                             numeric_columns=numeric_columns,
                              **info, **pca_params, **pca_results)
 
     return render_template('pca_analysis.html', title='PCA Analysis', active="analyze",
                          custom_groups=custom_groups, selected_group_ids=selected_group_ids,
+                         correlation_results=correlation_results, correlation_target=correlation_target,
+                         correlated_features_used=correlated_features_used, correlated_target_used=correlated_target_used,
+                         numeric_columns=numeric_columns,
                          **info, **pca_params)
 
 
@@ -195,6 +209,29 @@ def perform_pca():
 
     if not descriptor_groups_used:
         session['pca_descriptor_groups_used'] = False
+
+    # ===========================
+    # Correlation-based Feature Selection
+    # ===========================
+    correlated_features_raw = request.form.get('correlated_features_selected', '')
+    use_correlated_features = request.form.get('use_correlated_features') == '1'
+    correlation_target_var = request.form.get('correlation_target_var', '')
+    session['pca_correlated_features_used'] = []
+    session['pca_correlated_target'] = correlation_target_var if correlation_target_var else None
+
+    if use_correlated_features and correlated_features_raw:
+        correlated_features = [feat.strip() for feat in correlated_features_raw.split(',') if feat.strip()]
+        numeric_cols_after_filters = df.select_dtypes(include=[np.number]).columns.tolist()
+        correlated_features = [f for f in correlated_features if f in numeric_cols_after_filters]
+
+        if len(correlated_features) >= 2:
+            non_numeric_cols_current = df.select_dtypes(exclude=[np.number]).columns.tolist()
+            df = df[non_numeric_cols_current + correlated_features]
+            session['pca_correlated_features_used'] = correlated_features
+            session['pca_correlated_target'] = correlation_target_var
+            flash(f'Using {len(correlated_features)} correlated features for PCA.', 'info')
+        else:
+            flash('Not enough correlated numeric features available after filtering. Using all features instead.', 'warning')
 
     try:
         os.makedirs(ensure_temp_dir(), exist_ok=True)
@@ -387,3 +424,241 @@ def upload_descriptor_groups():
 
 # PCR Analysis Routes
 
+
+@pca_bp.route("/pca_correlations", methods=['POST'])
+def pca_correlations():
+    """
+    Calculate Pearson correlations between numeric variables and a selected endpoint.
+    Returns a ranked list for interactive selection on the PCA page.
+    """
+    if not check_dataset():
+        return jsonify({
+            "status": "error",
+            "message": "Please upload a dataset first."
+        }), 400
+
+    try:
+        target_var = request.form.get('target_var', '').strip()
+        try:
+            max_results = int(request.form.get('max_results', 300))
+        except (TypeError, ValueError):
+            max_results = 300
+
+        if not target_var:
+            return jsonify({
+                "status": "error",
+                "message": "Please choose an endpoint variable."
+            }), 400
+
+        clean_path = get_clean_path(session["csv_name"])
+        df = read_dataset(clean_path)
+
+        if target_var not in df.columns:
+            return jsonify({
+                "status": "error",
+                "message": f"Column '{target_var}' not found in dataset."
+            }), 400
+
+        if not pd.api.types.is_numeric_dtype(df[target_var]):
+            return jsonify({
+                "status": "error",
+                "message": f"Endpoint '{target_var}' must be numeric to compute correlations."
+            }), 400
+
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        candidate_features = [col for col in numeric_cols if col != target_var]
+
+        results = []
+        for feat in candidate_features:
+            pair_df = df[[feat, target_var]].dropna()
+            if len(pair_df) < 3:
+                continue
+            try:
+                corr, pval = pearsonr(pair_df[feat], pair_df[target_var])
+            except Exception:
+                continue
+            if np.isnan(corr):
+                continue
+            results.append({
+                "feature": feat,
+                "correlation": float(corr),
+                "abs_correlation": float(abs(corr)),
+                "p_value": float(pval),
+                "n": int(len(pair_df))
+            })
+
+        results.sort(key=lambda x: x['abs_correlation'], reverse=True)
+        if max_results and len(results) > max_results:
+            results = results[:max_results]
+
+        session['pca_correlation_results'] = results
+        session['pca_correlation_target'] = target_var
+
+        return jsonify({
+            "status": "success",
+            "results": results,
+            "target": target_var,
+            "total_features": len(results)
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": f"Error computing correlations: {str(e)}"
+        }), 500
+
+
+@pca_bp.route("/pca_combo_correlations", methods=['POST'])
+def pca_combo_correlations():
+    """
+    Calculate correlations for combinations of variables of a chosen size against the endpoint.
+    Composite is built as the mean of z-scored variables in the combination.
+    """
+    if not check_dataset():
+        return jsonify({
+            "status": "error",
+            "message": "Please upload a dataset first."
+        }), 400
+
+    try:
+        target_var = request.form.get('target_var', '').strip()
+        combo_size_raw = request.form.get('combo_size', '2')
+        pool_limit_raw = request.form.get('pool_limit', '25')
+        top_n_raw = request.form.get('top_n', '50')
+        feature_pool_raw = request.form.get('feature_pool', '')
+
+        try:
+            combo_size = int(combo_size_raw)
+        except (TypeError, ValueError):
+            combo_size = 2
+
+        try:
+            pool_limit = int(pool_limit_raw)
+        except (TypeError, ValueError):
+            pool_limit = 25
+
+        try:
+            top_n = int(top_n_raw)
+        except (TypeError, ValueError):
+            top_n = 50
+
+        combo_size = max(2, combo_size)
+        pool_limit = max(5, min(100, pool_limit))
+        top_n = max(1, min(200, top_n))
+
+        if not target_var:
+            return jsonify({
+                "status": "error",
+                "message": "Please choose an endpoint variable first."
+            }), 400
+
+        clean_path = get_clean_path(session["csv_name"])
+        df = read_dataset(clean_path)
+
+        if target_var not in df.columns:
+            return jsonify({
+                "status": "error",
+                "message": f"Column '{target_var}' not found in dataset."
+            }), 400
+
+        if not pd.api.types.is_numeric_dtype(df[target_var]):
+            return jsonify({
+                "status": "error",
+                "message": f"Endpoint '{target_var}' must be numeric to compute correlations."
+            }), 400
+
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        candidate_features = [col for col in numeric_cols if col != target_var]
+
+        # If user passed a pool, respect intersection
+        if feature_pool_raw:
+            pool_from_form = [c.strip() for c in feature_pool_raw.split(',') if c.strip()]
+            candidate_features = [c for c in pool_from_form if c in candidate_features]
+
+        if len(candidate_features) < combo_size:
+            return jsonify({
+                "status": "error",
+                "message": "Not enough numeric features to build combinations."
+            }), 400
+
+        # Pre-filter features by absolute correlation with target (top pool_limit)
+        feature_corrs = []
+        y_full = df[target_var]
+        for feat in candidate_features:
+            pair_df = df[[feat, target_var]].dropna()
+            if len(pair_df) < 3:
+                continue
+            try:
+                corr, _ = pearsonr(pair_df[feat], pair_df[target_var])
+            except Exception:
+                continue
+            if np.isnan(corr):
+                continue
+            feature_corrs.append((feat, abs(corr)))
+
+        feature_corrs.sort(key=lambda x: x[1], reverse=True)
+        filtered_features = [f for f, _ in feature_corrs[:pool_limit]]
+
+        if len(filtered_features) < combo_size:
+            return jsonify({
+                "status": "error",
+                "message": "Not enough numeric features after filtering."
+            }), 400
+
+        total_combos = math.comb(len(filtered_features), combo_size)
+        if total_combos > 5000:
+            return jsonify({
+                "status": "error",
+                "message": f"Too many combinations ({total_combos}). Reduce pool size or combination size."
+            }), 400
+
+        results = []
+        y = df[target_var]
+
+        for combo in combinations(filtered_features, combo_size):
+            combo_df = df[list(combo)].dropna()
+            if combo_df.shape[0] < 3:
+                continue
+            # z-score each feature to balance scales
+            z_scored = (combo_df - combo_df.mean()) / combo_df.std(ddof=0)
+            composite = z_scored.mean(axis=1)
+            aligned_y = y.loc[composite.index]
+            if aligned_y.isna().all():
+                continue
+            try:
+                corr, pval = pearsonr(composite, aligned_y)
+            except Exception:
+                continue
+            if np.isnan(corr):
+                continue
+            results.append({
+                "features": list(combo),
+                "label": " + ".join(combo),
+                "correlation": float(corr),
+                "abs_correlation": float(abs(corr)),
+                "p_value": float(pval),
+                "n": int(len(composite))
+            })
+
+        results.sort(key=lambda x: x['abs_correlation'], reverse=True)
+        results = results[:top_n]
+
+        session['pca_correlation_combos'] = results
+        session['pca_correlation_combos_target'] = target_var
+
+        return jsonify({
+            "status": "success",
+            "results": results,
+            "target": target_var,
+            "total_combinations": len(results)
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": f"Error computing combination correlations: {str(e)}"
+        }), 500
