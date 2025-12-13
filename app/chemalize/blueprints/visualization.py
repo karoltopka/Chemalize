@@ -378,6 +378,7 @@ def visualize():
                     pc_x = int(request.form.get("pc_x", 1))
                     pc_y = int(request.form.get("pc_y", 2))
                     hover_column = request.form.get("pca_hover_column", "")
+                    shape_by_column = request.form.get("pca_shape_by", "")
 
                     use_external_coloring = request.form.get("use_external_coloring") == "1"
                     external_filter_column = request.form.get("external_filter_column", "")  # POPRAWIONE!
@@ -526,14 +527,26 @@ def visualize():
                             if hover_text:
                                 plot_data[0]['hover_text'] = hover_text
 
+                    # Shape encoding data (categorical only)
+                    shape_categories = None
+                    shape_by = None
+                    if shape_by_column and shape_by_column in pc_df.columns:
+                        # Only support categorical/object data for shapes
+                        if pc_df[shape_by_column].dtype == 'object' or pd.api.types.is_categorical_dtype(pc_df[shape_by_column]):
+                            shape_categories = pc_df[shape_by_column].tolist()
+                            shape_by = shape_by_column
+                            print(f"DEBUG: Shape encoding enabled for column '{shape_by}' with {len(set(shape_categories))} unique values")
+
                     # Variance explained
                     pca_summary = session.get('pca_summary', [])
                     variance_x = pca_summary[pc_x-1]['explained_variance'] if pc_x <= len(pca_summary) else 0
                     variance_y = pca_summary[pc_y-1]['explained_variance'] if pc_y <= len(pca_summary) else 0
-                    
+
                     success_msg = f"PCA scatter plot created: PC{pc_x} vs PC{pc_y}"
                     if use_external_coloring and color_by:
                         success_msg += f" with external coloring from column '{color_by}'"
+                    if shape_by:
+                        success_msg += f" with shape encoding from column '{shape_by}'"
 
                     pc_x_raw = pc_df[pc_x_col].tolist()
                     pc_y_raw = pc_df[pc_y_col].tolist()
@@ -550,6 +563,8 @@ def visualize():
                             "color_data": color_data,
                             "color_categories": color_categories,
                             "color_by": color_by,
+                            "shape_categories": shape_categories,
+                            "shape_by": shape_by,
                             "hover_column": hover_column,
                             "pc_x_raw": pc_x_raw,  # NOWE - surowe PC arrays w globalnej kolejności
                             "pc_y_raw": pc_y_raw   # NOWE - surowe PC arrays w globalnej kolejności

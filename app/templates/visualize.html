@@ -372,6 +372,21 @@
 
                 <div class="form-group">
                     <label class="form-label">
+                        <i class="fas fa-shapes"></i> Shape By (Categorical Only)
+                    </label>
+                    <select name="pca_shape_by" id="pca_shape_by_select" class="form-control">
+                        <option value="">None (circles only)</option>
+                        {% for col in pca_color_options %}
+                        <option value="{{ col }}">{{ col }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text text-muted">
+                        Use different marker shapes for categories
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">
                         <i class="fas fa-tag"></i> Hover Label (Optional)
                     </label>
                     <select name="pca_hover_column" class="form-control">
@@ -1371,10 +1386,26 @@
 
         let traces = [];
 
+        // Define marker symbols for shape encoding
+        const MARKER_SYMBOLS = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'triangle-down',
+                                'pentagon', 'hexagon', 'star', 'hourglass', 'bowtie'];
+
+        // Create shape mapping if shape encoding is enabled
+        let shapeMap = {};
+        if (pcaData.shape_categories && pcaData.shape_by) {
+            const uniqueShapes = [...new Set(pcaData.shape_categories)];
+            uniqueShapes.forEach((shape, idx) => {
+                shapeMap[shape] = MARKER_SYMBOLS[idx % MARKER_SYMBOLS.length];
+            });
+            console.log('Shape encoding enabled for:', pcaData.shape_by);
+            console.log('Shape mapping:', shapeMap);
+        }
+
         console.log('Building traces...');
         console.log('pcaData.color_categories:', pcaData.color_categories);
         console.log('pcaData.color_data:', pcaData.color_data ? 'exists (' + pcaData.color_data.length + ' values)' : 'null');
         console.log('pcaData.plot_data:', pcaData.plot_data ? pcaData.plot_data.length + ' datasets' : 'null');
+        console.log('pcaData.shape_categories:', pcaData.shape_categories ? 'exists (' + pcaData.shape_categories.length + ' values)' : 'null');
 
         if (pcaData.plot_data && pcaData.plot_data.length > 0) {
             console.log('First dataset structure:', Object.keys(pcaData.plot_data[0]));
@@ -1396,70 +1427,112 @@
         }
 
         if (pcaData.color_categories) {
-            // Kategoryczne: wiele trace'ów + legenda
-            pcaData.plot_data.forEach((dataset, idx) => {
-                // Obsługa dwóch formatów danych:
-                // 1. dataset.data = [{x: ..., y: ...}] (przed filtrowaniem)
-                // 2. dataset.x = [...], dataset.y = [...] (po filtrowaniu)
-                let xs, ys;
-                if (dataset.data && Array.isArray(dataset.data)) {
-                    // Format 1: array of objects
-                    xs = dataset.data.map(p => p.x);
-                    ys = dataset.data.map(p => p.y);
-                    console.log(`Dataset ${idx} (${dataset.label}): extracted ${xs.length} points from data array`);
-                } else if (dataset.x && dataset.y) {
-                    // Format 2: separate arrays
-                    xs = dataset.x;
-                    ys = dataset.y;
-                    console.log(`Dataset ${idx} (${dataset.label}): using ${xs.length} points from x/y arrays`);
-                } else {
-                    console.error('Invalid dataset format:', dataset);
-                    return; // Skip this dataset
-                }
+            // Kategoryczne kolorowanie - może być z kształtami lub bez
+            if (pcaData.shape_categories && pcaData.shape_by) {
+                // BOTH color and shape encoding - create traces for each combination
+                console.log('Rendering with BOTH color and shape encoding');
 
-                // Skip empty datasets
-                if (!xs || !ys || xs.length === 0) {
-                    console.warn(`Skipping empty dataset ${idx} (${dataset.label})`);
-                    return;
-                }
+                pcaData.plot_data.forEach((dataset, idx) => {
+                    // Extract coordinates
+                    let xs, ys;
+                    if (dataset.data && Array.isArray(dataset.data)) {
+                        xs = dataset.data.map(p => p.x);
+                        ys = dataset.data.map(p => p.y);
+                    } else if (dataset.x && dataset.y) {
+                        xs = dataset.x;
+                        ys = dataset.y;
+                    } else {
+                        return;
+                    }
 
-                // Prepare hover text
-                let hoverText = dataset.hover_text || null;
-                if (hoverText) {
-                    console.log(`Dataset ${idx}: has ${hoverText.length} hover text entries`);
-                    // Ensure hover text length matches points
-                    if (hoverText.length !== xs.length) {
-                        console.warn(`Hover text length mismatch: ${hoverText.length} vs ${xs.length} points`);
+                    if (!xs || !ys || xs.length === 0) return;
+
+                    // Group this color category by shape
+                    const shapeGroups = {};
+                    xs.forEach((x, i) => {
+                        const shapeCategory = pcaData.shape_categories[i];
+                        if (!shapeGroups[shapeCategory]) {
+                            shapeGroups[shapeCategory] = { x: [], y: [], hover: [] };
+                        }
+                        shapeGroups[shapeCategory].x.push(x);
+                        shapeGroups[shapeCategory].y.push(ys[i]);
+                        if (dataset.hover_text && dataset.hover_text[i]) {
+                            shapeGroups[shapeCategory].hover.push(dataset.hover_text[i]);
+                        }
+                    });
+
+                    // Create a trace for each shape group
+                    Object.keys(shapeGroups).forEach(shapeCat => {
+                        const group = shapeGroups[shapeCat];
+                        const trace = {
+                            x: group.x,
+                            y: group.y,
+                            mode: 'markers',
+                            type: 'scatter',
+                            name: `${dataset.label} / ${shapeCat}`,
+                            marker: {
+                                size: 8,
+                                opacity: 0.7,
+                                symbol: shapeMap[shapeCat] || 'circle'
+                            },
+                            text: group.hover.length ? group.hover : null,
+                            customdata: new Array(group.x.length).fill(dataset.label),
+                            hovertemplate: buildHoverTemplate({
+                                pcx: pcaData.pc_x,
+                                pcy: pcaData.pc_y,
+                                colorBy: pcaData.color_by,
+                                hoverColumn: pcaData.hover_column
+                            })
+                        };
+                        if (dataset.color) trace.marker.color = dataset.color;
+                        traces.push(trace);
+                    });
+                });
+            } else {
+                // Only color encoding (existing logic)
+                pcaData.plot_data.forEach((dataset, idx) => {
+                    let xs, ys;
+                    if (dataset.data && Array.isArray(dataset.data)) {
+                        xs = dataset.data.map(p => p.x);
+                        ys = dataset.data.map(p => p.y);
+                    } else if (dataset.x && dataset.y) {
+                        xs = dataset.x;
+                        ys = dataset.y;
+                    } else {
+                        return;
+                    }
+
+                    if (!xs || !ys || xs.length === 0) return;
+
+                    let hoverText = dataset.hover_text || null;
+                    if (hoverText && hoverText.length !== xs.length) {
                         hoverText = hoverText.slice(0, xs.length);
                     }
-                }
 
-                const trace = {
-                    x: xs,
-                    y: ys,
-                    mode: 'markers',
-                    type: 'scatter',
-                    name: dataset.label,
-                    marker: { size: 8, opacity: 0.7 },
-                    text: hoverText,
-                    customdata: new Array(xs.length).fill(dataset.label),
-                    hovertemplate: buildHoverTemplate({
-                        pcx: pcaData.pc_x,
-                        pcy: pcaData.pc_y,
-                        colorBy: pcaData.color_by,
-                        hoverColumn: pcaData.hover_column
-                    })
-                };
-                if (dataset.color) trace.marker.color = dataset.color;
-                traces.push(trace);
-
-                console.log(`Added trace for ${dataset.label}: ${xs.length} points`);
-            });
+                    const trace = {
+                        x: xs,
+                        y: ys,
+                        mode: 'markers',
+                        type: 'scatter',
+                        name: dataset.label,
+                        marker: { size: 8, opacity: 0.7 },
+                        text: hoverText,
+                        customdata: new Array(xs.length).fill(dataset.label),
+                        hovertemplate: buildHoverTemplate({
+                            pcx: pcaData.pc_x,
+                            pcy: pcaData.pc_y,
+                            colorBy: pcaData.color_by,
+                            hoverColumn: pcaData.hover_column
+                        })
+                    };
+                    if (dataset.color) trace.marker.color = dataset.color;
+                    traces.push(trace);
+                });
+            }
         } else if (pcaData.color_data) {
-            // Liczbowe: JEDEN trace z colorbarem
+            // Numeric color encoding
             const base = pcaData.plot_data[0];
 
-            // customdata do hovera: 'NA' dla braków, liczba jako string dla reszty
             const colorDisplay = (pcaData.color_data || []).map(v =>
                 (v === null || !isFinite(v)) ? 'NA' : (+v).toFixed(4)
             );
@@ -1478,39 +1551,141 @@
                 }
             }
 
-            const trace = {
-                x: base.x,
-                y: base.y,
-                mode: 'markers',
-                type: 'scatter',
-                name: 'Samples',
-                marker: {
-                    size: 8,
-                    color: pcaData.color_data,
-                    colorscale: 'Viridis',
-                    showscale: true,
-                    colorbar: {
-                        title: pcaData.color_by || 'Value',
-                        titleside: 'right',
-                        thickness: 15,
-                        len: 0.7
+            if (pcaData.shape_categories && pcaData.shape_by) {
+                // Numeric color + shape encoding - create trace for each shape
+                console.log('Rendering with numeric color and shape encoding');
+                const shapeGroups = {};
+                base.x.forEach((x, i) => {
+                    const shapeCat = pcaData.shape_categories[i];
+                    if (!shapeGroups[shapeCat]) {
+                        shapeGroups[shapeCat] = { x: [], y: [], colors: [], hover: [], customdata: [] };
+                    }
+                    shapeGroups[shapeCat].x.push(x);
+                    shapeGroups[shapeCat].y.push(base.y[i]);
+                    shapeGroups[shapeCat].colors.push(pcaData.color_data[i]);
+                    if (base.hover_text && base.hover_text[i]) {
+                        shapeGroups[shapeCat].hover.push(base.hover_text[i]);
+                    }
+                    shapeGroups[shapeCat].customdata.push(colorDisplay[i]);
+                });
+
+                let isFirstTrace = true;
+                Object.keys(shapeGroups).forEach(shapeCat => {
+                    const group = shapeGroups[shapeCat];
+                    const trace = {
+                        x: group.x,
+                        y: group.y,
+                        mode: 'markers',
+                        type: 'scatter',
+                        name: shapeCat,
+                        marker: {
+                            size: 8,
+                            color: group.colors,
+                            colorscale: 'Viridis',
+                            showscale: isFirstTrace,  // Only show colorbar once
+                            colorbar: isFirstTrace ? {
+                                title: pcaData.color_by || 'Value',
+                                titleside: 'right',
+                                thickness: 15,
+                                len: 0.7,
+                                x: 1.02,  // Position on the right
+                                xanchor: 'left'
+                            } : undefined,
+                            cmin: cmin,
+                            cmax: cmax,
+                            opacity: 0.7,
+                            symbol: shapeMap[shapeCat] || 'circle'
+                        },
+                        text: group.hover.length ? group.hover : null,
+                        customdata: group.customdata,
+                        hovertemplate: buildHoverTemplate({
+                            pcx: pcaData.pc_x,
+                            pcy: pcaData.pc_y,
+                            colorBy: pcaData.color_by,
+                            hoverColumn: pcaData.hover_column
+                        })
+                    };
+                    traces.push(trace);
+                    isFirstTrace = false;  // Only first trace shows colorbar
+                });
+            } else {
+                // Numeric color only
+                const trace = {
+                    x: base.x,
+                    y: base.y,
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: 'Samples',
+                    marker: {
+                        size: 8,
+                        color: pcaData.color_data,
+                        colorscale: 'Viridis',
+                        showscale: true,
+                        colorbar: {
+                            title: pcaData.color_by || 'Value',
+                            titleside: 'right',
+                            thickness: 15,
+                            len: 0.7
+                        },
+                        cmin: cmin,
+                        cmax: cmax,
+                        opacity: 0.7
                     },
-                    cmin: cmin,  // Use combined range if new compounds present
-                    cmax: cmax,
-                    opacity: 0.7
-                },
-                text: base.hover_text || null,
-                customdata: colorDisplay,
-                hovertemplate: buildHoverTemplate({
-                    pcx: pcaData.pc_x,
-                    pcy: pcaData.pc_y,
-                    colorBy: pcaData.color_by,
-                    hoverColumn: pcaData.hover_column
-                })
-            };
-            traces.push(trace);
+                    text: base.hover_text || null,
+                    customdata: colorDisplay,
+                    hovertemplate: buildHoverTemplate({
+                        pcx: pcaData.pc_x,
+                        pcy: pcaData.pc_y,
+                        colorBy: pcaData.color_by,
+                        hoverColumn: pcaData.hover_column
+                    })
+                };
+                traces.push(trace);
+            }
+        } else if (pcaData.shape_categories && pcaData.shape_by) {
+            // Shape encoding only (no color)
+            console.log('Rendering with shape encoding only');
+            const base = pcaData.plot_data[0];
+            const shapeGroups = {};
+
+            base.x.forEach((x, i) => {
+                const shapeCat = pcaData.shape_categories[i];
+                if (!shapeGroups[shapeCat]) {
+                    shapeGroups[shapeCat] = { x: [], y: [], hover: [] };
+                }
+                shapeGroups[shapeCat].x.push(x);
+                shapeGroups[shapeCat].y.push(base.y[i]);
+                if (base.hover_text && base.hover_text[i]) {
+                    shapeGroups[shapeCat].hover.push(base.hover_text[i]);
+                }
+            });
+
+            Object.keys(shapeGroups).forEach(shapeCat => {
+                const group = shapeGroups[shapeCat];
+                const trace = {
+                    x: group.x,
+                    y: group.y,
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: shapeCat,
+                    marker: {
+                        size: 8,
+                        opacity: 0.7,
+                        symbol: shapeMap[shapeCat] || 'circle'
+                    },
+                    text: group.hover.length ? group.hover : null,
+                    customdata: new Array(group.x.length).fill(shapeCat),
+                    hovertemplate: buildHoverTemplate({
+                        pcx: pcaData.pc_x,
+                        pcy: pcaData.pc_y,
+                        colorBy: pcaData.shape_by,
+                        hoverColumn: pcaData.hover_column
+                    })
+                };
+                traces.push(trace);
+            });
         } else {
-            // Bez kolorowania
+            // No color or shape encoding
             const base = pcaData.plot_data[0];
             const trace = {
                 x: base.x,
@@ -1680,8 +1855,16 @@
             }
         }
 
-        // LEGEND: tylko dla kategorycznego
-        const showLegend = !!(pcaData.color_categories && pcaData.color_categories.length <= 50) || pcaData.new_compounds;
+        // LEGEND: tylko dla kategorycznego lub kształtowego
+        const showLegend = !!(pcaData.color_categories && pcaData.color_categories.length <= 50) ||
+                          !!(pcaData.shape_categories && pcaData.shape_by) ||
+                          pcaData.new_compounds;
+
+        // Detect if we have both numeric colorbar AND categorical legend (shape or color)
+        const hasNumericColorbar = !!(pcaData.color_data && pcaData.color_by);
+        const hasCategoricalLegend = !!(pcaData.shape_categories && pcaData.shape_by) ||
+                                     !!(pcaData.color_categories && pcaData.color_categories.length <= 50);
+        const hasBothLegends = hasNumericColorbar && hasCategoricalLegend;
 
         // Build title with filter info
         let titleText = `PCA: PC${pcaData.pc_x} vs PC${pcaData.pc_y}`;
@@ -1722,8 +1905,8 @@
             paper_bgcolor: 'rgba(0, 0, 0, 0)',
             plot_bgcolor: 'rgba(0, 0, 0, 0)',
             margin: {
-                l: 70,
-                r: showLegend ? 150 : 30,
+                l: hasBothLegends ? 180 : 70,  // Extra space on left if legend is there
+                r: hasNumericColorbar ? 120 : (showLegend ? 150 : 30),  // Space for colorbar or legend on right
                 b: 70,
                 t: 80,
                 pad: 4
@@ -1735,8 +1918,8 @@
                 orientation: 'v',
                 yanchor: 'top',
                 y: 1,
-                xanchor: 'left',
-                x: 1.02,
+                xanchor: hasBothLegends ? 'right' : 'left',  // Right-aligned when on left side
+                x: hasBothLegends ? -0.02 : 1.02,  // Left side if both legends, right side otherwise
                 bgcolor: 'rgba(255, 255, 255, 0.8)',
                 bordercolor: 'rgba(0, 0, 0, 0.2)',
                 borderwidth: 1,
