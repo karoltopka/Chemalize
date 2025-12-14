@@ -848,6 +848,40 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Optional color file for new compounds -->
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Opcjonalne kolorowanie:</strong> Jeśli wizualizacja w Step 2 używa kolorowania,
+                        możesz wgrać plik z wartościami kolorowania dla nowych związków.
+                        Plik musi zawierać kolumnę <code id="color-column-hint"></code> (użytą w Step 2)
+                        oraz tyle samo wierszy co plik z nowymi związkami.
+                    </div>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">
+                        <i class="fas fa-palette"></i> Plik z Kolorowaniem (optional):
+                    </label>
+                    <input type="file" class="form-control" id="new-compounds-color-file"
+                           name="new_compounds_color_file" accept=".csv,.xlsx,.xls,.txt">
+                    <small class="text-muted">
+                        Plik CSV/Excel z wartościami do kolorowania. Musi mieć tę samą kolumnę co użyta w Step 2.
+                    </small>
+                </div>
+                <div class="col-md-6">
+                    <div class="alert alert-secondary mt-4" style="font-size: 0.9em;">
+                        <strong>Przykład:</strong> Jeśli Step 2 koloruje według "Activity", plik powinien zawierać:
+                        <ul class="mb-0 mt-2">
+                            <li>Tyle samo wierszy co plik z nowymi związkami</li>
+                            <li>Kolumnę "Activity" z wartościami (np. Active, Inactive)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
         </form>
 
         <!-- Project status -->
@@ -1711,6 +1745,47 @@
         if (data.external_data) {
             alvadeskExternalData = data.external_data;
         }
+
+        // Store visualization state for projection (Step 3)
+        currentVisualizationColorBy = data.color_by || null;
+        currentVisualizationColorType = data.color_categories ? 'categorical' :
+                                        (data.color_data ? 'numeric' : 'none');
+        currentVisualizationColorCategories = data.color_categories || null;
+
+        // Build color map for categorical mode
+        if (currentVisualizationColorType === 'categorical' && data.plot_data) {
+            currentVisualizationColorMap = {};
+            data.plot_data.forEach(cat => {
+                if (cat.label && cat.color && cat.label !== 'N/A') {
+                    currentVisualizationColorMap[cat.label] = cat.color;
+                }
+            });
+        }
+
+        // Store numeric color range for unified scale
+        window.currentColorRange = null;
+        if (currentVisualizationColorType === 'numeric' && data.color_data) {
+            const validColors = data.color_data.filter(c => c !== null && c !== undefined && !isNaN(c));
+            if (validColors.length > 0) {
+                window.currentColorRange = {
+                    min: Math.min(...validColors),
+                    max: Math.max(...validColors)
+                };
+            }
+        }
+
+        // Update color column hint in Step 3
+        const colorColumnHint = document.getElementById('color-column-hint');
+        if (colorColumnHint) {
+            if (currentVisualizationColorBy) {
+                colorColumnHint.textContent = currentVisualizationColorBy;
+                colorColumnHint.style.display = 'inline';
+            } else {
+                colorColumnHint.textContent = '(brak kolorowania)';
+                colorColumnHint.style.display = 'inline';
+            }
+        }
+
         const saveBtn = document.getElementById('alvadesk-save-plot-btn');
         if (saveBtn) {
             saveBtn.disabled = false;
@@ -2908,6 +2983,12 @@
     let projectedCompoundsData = null;
     let showProjectedOnPlot = false;
 
+    // Store current visualization coloring state for projection
+    let currentVisualizationColorBy = null;
+    let currentVisualizationColorType = null;  // 'categorical', 'numeric', or 'none'
+    let currentVisualizationColorCategories = null;
+    let currentVisualizationColorMap = null;
+
     // Project new compounds onto existing PCA
     function projectNewCompounds() {
         const fileInput = document.getElementById('new-compounds-file');
@@ -2935,6 +3016,27 @@
         formData.append('new_compounds_file', fileInput.files[0]);
         formData.append('label_column', labelCol);
 
+        // Add color parameters if visualization has coloring
+        if (currentVisualizationColorBy) {
+            formData.append('color_by', currentVisualizationColorBy);
+
+            // Pass color map for categorical mode to ensure same colors
+            if (currentVisualizationColorMap) {
+                formData.append('color_map', JSON.stringify(currentVisualizationColorMap));
+            }
+
+            // Pass color range for numeric mode to ensure same scale
+            if (window.currentColorRange) {
+                formData.append('color_range', JSON.stringify(window.currentColorRange));
+            }
+        }
+
+        // Add optional color file if provided
+        const colorFileInput = document.getElementById('new-compounds-color-file');
+        if (colorFileInput && colorFileInput.files && colorFileInput.files.length > 0) {
+            formData.append('new_compounds_color_file', colorFileInput.files[0]);
+        }
+
         fetch("{{ url_for('alvadesk_pca.alvadesk_pca_project_new') }}", {
             method: 'POST',
             body: formData
@@ -2943,7 +3045,7 @@
             .then(data => {
                 if (data.status === 'success') {
                     statusDiv.style.display = 'none';
-                    projectedCompoundsData = data.plot_data;
+                    projectedCompoundsData = data;  // Store FULL response data, not just plot_data
 
                     // Show projected compounds info
                     document.getElementById('projected-compounds-info').style.display = 'block';
@@ -2999,9 +3101,44 @@
         }
     }
 
-    // Add projected compounds to the plot
+    // Helper function to compute display labels with overlap pruning
+    function computeDisplayLabels(x, y, labels) {
+        const displayLabels = new Array(labels.length).fill('');
+
+        if (labels.length === 0) return displayLabels;
+
+        const xMin = Math.min(...x);
+        const xMax = Math.max(...x);
+        const yMin = Math.min(...y);
+        const yMax = Math.max(...y);
+        const xRange = xMax - xMin || 1;
+        const yRange = yMax - yMin || 1;
+        const fracThreshold = 0.03;
+        const distThresholdSq = fracThreshold * fracThreshold;
+
+        for (let i = 0; i < labels.length; i++) {
+            let tooClose = false;
+            for (let j = 0; j < i; j++) {
+                if (!displayLabels[j]) continue;
+                const dx = (x[i] - x[j]) / xRange;
+                const dy = (y[i] - y[j]) / yRange;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < distThresholdSq) {
+                    tooClose = true;
+                    break;
+                }
+            }
+            if (!tooClose) {
+                displayLabels[i] = labels[i];
+            }
+        }
+
+        return displayLabels;
+    }
+
+    // Add projected compounds to the plot with unified legend
     function addProjectedToPlot() {
-        if (!projectedCompoundsData || projectedCompoundsData.length === 0) {
+        if (!projectedCompoundsData || !projectedCompoundsData.plot_data) {
             console.log('No projected data to add');
             return;
         }
@@ -3012,7 +3149,13 @@
             return;
         }
 
-        // Get desired marker size (fallback to 12)
+        // Get current PCs
+        const pcX = parseInt(document.getElementById('alvadesk-pc-x').value);
+        const pcY = parseInt(document.getElementById('alvadesk-pc-y').value);
+        const pcXkey = 'PC' + pcX;
+        const pcYkey = 'PC' + pcY;
+
+        // Get desired marker size
         let markerSize = 12;
         const sizeInput = document.getElementById('projected-point-size');
         if (sizeInput) {
@@ -3022,87 +3165,210 @@
             }
         }
 
-        const pcX = parseInt(document.getElementById('alvadesk-pc-x').value);
-        const pcY = parseInt(document.getElementById('alvadesk-pc-y').value);
-
-        // Prepare data for new trace
-        const x = projectedCompoundsData.map(p => p['PC' + pcX]);
-        const y = projectedCompoundsData.map(p => p['PC' + pcY]);
-        const labels = projectedCompoundsData.map(p => p.label || 'New');
-
-        // Compute which labels can be shown without heavy overlap (simple distance-based pruning)
-        // All labels remain available in hover; only a subset is drawn on the plot.
-        const displayLabels = new Array(labels.length).fill('');
-        if (labels.length > 0) {
-            const xMin = Math.min(...x);
-            const xMax = Math.max(...x);
-            const yMin = Math.min(...y);
-            const yMax = Math.max(...y);
-            const xRange = xMax - xMin || 1;
-            const yRange = yMax - yMin || 1;
-            const fracThreshold = 0.03; // fraction of axis range
-            const distThresholdSq = fracThreshold * fracThreshold;
-
-            for (let i = 0; i < labels.length; i++) {
-                let tooClose = false;
-                for (let j = 0; j < i; j++) {
-                    if (!displayLabels[j]) continue;
-                    const dx = (x[i] - x[j]) / xRange;
-                    const dy = (y[i] - y[j]) / yRange;
-                    const distSq = dx * dx + dy * dy;
-                    if (distSq < distThresholdSq) {
-                        tooClose = true;
-                        break;
-                    }
-                }
-                if (!tooClose) {
-                    displayLabels[i] = labels[i];
-                }
-            }
-        }
-
-        // Check if labels should be shown directly on the plot
+        // Check if labels should be shown
         let showLabelsOnPlot = false;
         const showLabelsCheckbox = document.getElementById('projected-show-labels');
         if (showLabelsCheckbox) {
             showLabelsOnPlot = showLabelsCheckbox.checked;
         }
 
-        console.log('Adding projected compounds:', x.length, 'points');
+        const colorType = projectedCompoundsData.color_type || 'none';
+        console.log('Adding projected compounds with color_type:', colorType);
 
-        const newTrace = {
-            x: x,
-            y: y,
-            mode: showLabelsOnPlot ? 'markers+text' : 'markers',
-            type: 'scatter',
-            name: 'New Compounds',
-            text: showLabelsOnPlot ? displayLabels : [],
-            hovertext: labels,
-            textposition: showLabelsOnPlot ? 'top center' : undefined,
-            textfont: showLabelsOnPlot ? {
-                size: 10,
-                color: '#dc3545'
-            } : undefined,
-            marker: {
-                symbol: 'diamond',
-                size: markerSize,
-                color: '#dc3545',
-                line: {
-                    color: '#fff',
-                    width: 2
+        // Remove any existing projected traces
+        removeProjectedFromPlot();
+
+        if (colorType === 'categorical') {
+            // Categorical coloring - add diamond traces for each category
+            projectedCompoundsData.plot_data.forEach(categoryData => {
+                const category = categoryData.category;
+                const points = categoryData.points;
+
+                if (!points || points.length === 0) return;
+
+                const x = points.map(p => p[pcXkey]);
+                const y = points.map(p => p[pcYkey]);
+                const labels = points.map(p => p.label || 'New');
+
+                // Build display labels (with overlap pruning)
+                const displayLabels = computeDisplayLabels(x, y, labels);
+
+                // Create trace name that matches original category
+                const traceName = category;
+
+                // Determine color
+                let markerColor = categoryData.color || '#dc3545';
+                let markerOpacity = categoryData.opacity || 1.0;
+
+                const newTrace = {
+                    x: x,
+                    y: y,
+                    mode: showLabelsOnPlot ? 'markers+text' : 'markers',
+                    type: 'scatter',
+                    name: traceName,
+                    legendgroup: traceName,  // Group with original trace
+                    showlegend: true,
+                    text: showLabelsOnPlot ? displayLabels : [],
+                    hovertext: labels,
+                    textposition: showLabelsOnPlot ? 'top center' : undefined,
+                    textfont: showLabelsOnPlot ? {
+                        size: 10,
+                        color: markerColor
+                    } : undefined,
+                    marker: {
+                        symbol: 'diamond',
+                        size: markerSize,
+                        color: markerColor,
+                        opacity: markerOpacity,
+                        line: {
+                            color: '#fff',
+                            width: 2
+                        }
+                    },
+                    hovertemplate: '<b>%{hovertext}</b><br>PC' + pcX + ': %{x:.4f}<br>PC' + pcY + ': %{y:.4f}' +
+                                   (projectedCompoundsData.color_by ? '<br>' + projectedCompoundsData.color_by + ': ' + category : '') +
+                                   '<extra>New Compound</extra>',
+                    _isProjected: true  // Custom flag for removal
+                };
+
+                Plotly.addTraces(plotDiv, newTrace);
+            });
+
+        } else if (colorType === 'numeric') {
+            // Numeric coloring - add diamond traces with same colorscale
+            projectedCompoundsData.plot_data.forEach(groupData => {
+                const points = groupData.points;
+
+                if (!points || points.length === 0) return;
+
+                const x = points.map(p => p[pcXkey]);
+                const y = points.map(p => p[pcYkey]);
+                const labels = points.map(p => p.label || 'New');
+
+                const displayLabels = computeDisplayLabels(x, y, labels);
+
+                if (groupData.color_values) {
+                    // Numeric trace with colorscale
+                    const colorValues = groupData.color_values;
+
+                    // Build marker config with unified color scale
+                    const markerConfig = {
+                        symbol: 'diamond',
+                        size: markerSize,
+                        color: colorValues,
+                        colorscale: 'Viridis',
+                        showscale: false,  // Don't show separate colorbar
+                        line: {
+                            color: '#fff',
+                            width: 2
+                        }
+                    };
+
+                    // Use same color range as original plot for unified scale
+                    if (projectedCompoundsData.color_range) {
+                        markerConfig.cmin = projectedCompoundsData.color_range.min;
+                        markerConfig.cmax = projectedCompoundsData.color_range.max;
+                    }
+
+                    const newTrace = {
+                        x: x,
+                        y: y,
+                        mode: showLabelsOnPlot ? 'markers+text' : 'markers',
+                        type: 'scatter',
+                        name: 'New Compounds',
+                        text: showLabelsOnPlot ? displayLabels : [],
+                        hovertext: labels,
+                        textposition: showLabelsOnPlot ? 'top center' : undefined,
+                        textfont: showLabelsOnPlot ? {
+                            size: 10,
+                            color: '#000'
+                        } : undefined,
+                        marker: markerConfig,
+                        hovertemplate: '<b>%{hovertext}</b><br>PC' + pcX + ': %{x:.4f}<br>PC' + pcY + ': %{y:.4f}' +
+                                       '<br>' + projectedCompoundsData.color_by + ': %{marker.color:.3f}' +
+                                       '<extra>New Compound</extra>',
+                        _isProjected: true
+                    };
+
+                    Plotly.addTraces(plotDiv, newTrace);
+
+                } else {
+                    // N/A trace (gray with opacity)
+                    const category = groupData.category || 'N/A';
+                    const markerColor = groupData.color || '#CCCCCC';
+                    const markerOpacity = groupData.opacity || 0.4;
+
+                    const newTrace = {
+                        x: x,
+                        y: y,
+                        mode: showLabelsOnPlot ? 'markers+text' : 'markers',
+                        type: 'scatter',
+                        name: category,
+                        text: showLabelsOnPlot ? displayLabels : [],
+                        hovertext: labels,
+                        textposition: showLabelsOnPlot ? 'top center' : undefined,
+                        textfont: showLabelsOnPlot ? {
+                            size: 10,
+                            color: markerColor
+                        } : undefined,
+                        marker: {
+                            symbol: 'diamond',
+                            size: markerSize,
+                            color: markerColor,
+                            opacity: markerOpacity,
+                            line: {
+                                color: '#fff',
+                                width: 2
+                            }
+                        },
+                        hovertemplate: '<b>%{hovertext}</b><br>PC' + pcX + ': %{x:.4f}<br>PC' + pcY + ': %{y:.4f}<extra>New Compound (N/A)</extra>',
+                        _isProjected: true
+                    };
+
+                    Plotly.addTraces(plotDiv, newTrace);
                 }
-            },
-            hovertemplate: '<b>%{hovertext}</b><br>PC' + pcX + ': %{x:.4f}<br>PC' + pcY + ': %{y:.4f}<extra>New Compound</extra>'
-        };
+            });
 
-        // Check if trace already exists and remove it
-        const existingTraceIdx = plotDiv.data.findIndex(t => t.name === 'New Compounds');
-        if (existingTraceIdx >= 0) {
-            Plotly.deleteTraces(plotDiv, existingTraceIdx);
+        } else {
+            // No coloring - single red diamond trace
+            const points = projectedCompoundsData.plot_data[0].points;
+
+            if (!points || points.length === 0) return;
+
+            const x = points.map(p => p[pcXkey]);
+            const y = points.map(p => p[pcYkey]);
+            const labels = points.map(p => p.label || 'New');
+
+            const displayLabels = computeDisplayLabels(x, y, labels);
+
+            const newTrace = {
+                x: x,
+                y: y,
+                mode: showLabelsOnPlot ? 'markers+text' : 'markers',
+                type: 'scatter',
+                name: 'New Compounds',
+                text: showLabelsOnPlot ? displayLabels : [],
+                hovertext: labels,
+                textposition: showLabelsOnPlot ? 'top center' : undefined,
+                textfont: showLabelsOnPlot ? {
+                    size: 10,
+                    color: '#dc3545'
+                } : undefined,
+                marker: {
+                    symbol: 'diamond',
+                    size: markerSize,
+                    color: '#dc3545',
+                    line: {
+                        color: '#fff',
+                        width: 2
+                    }
+                },
+                hovertemplate: '<b>%{hovertext}</b><br>PC' + pcX + ': %{x:.4f}<br>PC' + pcY + ': %{y:.4f}<extra>New Compound</extra>',
+                _isProjected: true
+            };
+
+            Plotly.addTraces(plotDiv, newTrace);
         }
-
-        // Add new trace
-        Plotly.addTraces(plotDiv, newTrace);
     }
 
     // Remove projected compounds from plot
@@ -3110,9 +3376,17 @@
         const plotDiv = document.getElementById('pca-plotly');
         if (!plotDiv || !plotDiv.data) return;
 
-        const traceIdx = plotDiv.data.findIndex(t => t.name === 'New Compounds');
-        if (traceIdx >= 0) {
-            Plotly.deleteTraces(plotDiv, traceIdx);
+        // Find all traces marked as projected
+        const tracesToRemove = [];
+        plotDiv.data.forEach((trace, idx) => {
+            if (trace._isProjected) {
+                tracesToRemove.push(idx);
+            }
+        });
+
+        // Remove in reverse order to maintain indices
+        if (tracesToRemove.length > 0) {
+            Plotly.deleteTraces(plotDiv, tracesToRemove.reverse());
         }
     }
 
@@ -3128,6 +3402,7 @@
                 document.getElementById('projected-compounds-info').style.display = 'none';
                 document.getElementById('project-status').style.display = 'none';
                 document.getElementById('new-compounds-file').value = '';
+                document.getElementById('new-compounds-color-file').value = '';
                 removeProjectedFromPlot();
             });
     }

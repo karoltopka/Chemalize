@@ -1402,6 +1402,24 @@ def alvadesk_pca_project_new():
         # Get filter column (must match the column used for filtering original PCA, if any)
         filter_by = request.form.get('filter_by', '') or ''
 
+        # Get color map from original visualization for unified colors
+        original_color_map = None
+        color_map_json = request.form.get('color_map', '')
+        if color_map_json:
+            try:
+                original_color_map = json.loads(color_map_json)
+            except:
+                pass
+
+        # Get color range from original visualization for unified numeric scale
+        original_color_range = None
+        color_range_json = request.form.get('color_range', '')
+        if color_range_json:
+            try:
+                original_color_range = json.loads(color_range_json)
+            except:
+                pass
+
         # Prepare data for projection
         X_new = new_df[descriptor_columns].select_dtypes(include=[np.number])
 
@@ -1479,6 +1497,37 @@ def alvadesk_pca_project_new():
             elif filter_by in new_df.columns:
                 filter_values = new_df[filter_by].tolist()
 
+        # Determine color type (categorical, numeric, or none)
+        color_type = 'none'
+        color_categories = None
+        color_map = None
+
+        if color_by and color_values is not None:
+            color_series = pd.Series(color_values)
+
+            # Use existing function to check if numeric
+            from app.chemalize.visualization.coloring import _coerce_numeric_series
+            coerced, is_numeric = _coerce_numeric_series(color_series)
+
+            if is_numeric:
+                color_type = 'numeric'
+                # Update color_values to numeric
+                color_values = coerced.tolist()
+            else:
+                color_type = 'categorical'
+                # Get unique categories
+                color_categories = color_series.dropna().unique().tolist()
+
+                # Use original color map if provided, otherwise generate new one
+                if original_color_map:
+                    color_map = original_color_map
+                else:
+                    # Generate color map matching original PCA visualization
+                    from app.chemalize.visualization.coloring import generate_distinct_colors
+                    n_categories = len(color_categories)
+                    color_palette = generate_distinct_colors(n_categories)
+                    color_map = {cat: color_palette[i] for i, cat in enumerate(color_categories)}
+
         # Save projected scores
         new_scores_file = os.path.join(temp_path, 'alvadesk_pca_new_compounds.csv')
         new_pc_df.to_csv(new_scores_file, index=False)
@@ -1488,10 +1537,61 @@ def alvadesk_pca_project_new():
         session['alvadesk_pca_new_label_column'] = label_column if label_column and label_column in new_df.columns else None
         session['alvadesk_pca_new_count'] = len(new_df)
 
-        # Return data for plotting
+        # Return data for plotting - structured by category for unified legend
         plot_data = []
-        if color_values is not None or filter_values is not None:
-            # Use positional index to align values with projected rows
+
+        if color_type == 'categorical':
+            # Group by category for unified legend
+            for category in color_categories:
+                category_points = []
+                for i, (idx, row) in enumerate(new_pc_df.iterrows()):
+                    if color_values[i] == category:
+                        point = {col: float(row[col]) for col in pc_columns}
+                        if 'label' in new_pc_df.columns:
+                            point['label'] = str(row['label'])
+                        else:
+                            point['label'] = f'New_{idx}'
+
+                        if filter_values is not None:
+                            point['filter_value'] = filter_values[i]
+
+                        category_points.append(point)
+
+                if category_points:
+                    plot_data.append({
+                        'category': category,
+                        'color': color_map[category],
+                        'points': category_points
+                    })
+
+            # Add N/A category if present
+            na_points = []
+            for i, (idx, row) in enumerate(new_pc_df.iterrows()):
+                if pd.isna(color_values[i]):
+                    point = {col: float(row[col]) for col in pc_columns}
+                    if 'label' in new_pc_df.columns:
+                        point['label'] = str(row['label'])
+                    else:
+                        point['label'] = f'New_{idx}'
+
+                    if filter_values is not None:
+                        point['filter_value'] = filter_values[i]
+
+                    na_points.append(point)
+
+            if na_points:
+                plot_data.append({
+                    'category': 'N/A',
+                    'color': '#CCCCCC',
+                    'opacity': 0.4,
+                    'points': na_points
+                })
+
+        elif color_type == 'numeric':
+            # Single group with color values
+            points = []
+            numeric_colors = []
+
             for i, (idx, row) in enumerate(new_pc_df.iterrows()):
                 point = {col: float(row[col]) for col in pc_columns}
                 if 'label' in new_pc_df.columns:
@@ -1499,21 +1599,63 @@ def alvadesk_pca_project_new():
                 else:
                     point['label'] = f'New_{idx}'
 
-                # Attach color and/or filter values
-                if color_values is not None:
-                    point['color_value'] = color_values[i]
                 if filter_values is not None:
                     point['filter_value'] = filter_values[i]
 
-                plot_data.append(point)
-        else:
-            for idx, row in new_pc_df.iterrows():
+                # Only add if not N/A
+                if not pd.isna(color_values[i]):
+                    points.append(point)
+                    numeric_colors.append(color_values[i])
+
+            if points:
+                plot_data.append({
+                    'category': None,
+                    'points': points,
+                    'color_values': numeric_colors
+                })
+
+            # Handle N/A values separately
+            na_points = []
+            for i, (idx, row) in enumerate(new_pc_df.iterrows()):
+                if pd.isna(color_values[i]):
+                    point = {col: float(row[col]) for col in pc_columns}
+                    if 'label' in new_pc_df.columns:
+                        point['label'] = str(row['label'])
+                    else:
+                        point['label'] = f'New_{idx}'
+
+                    if filter_values is not None:
+                        point['filter_value'] = filter_values[i]
+
+                    na_points.append(point)
+
+            if na_points:
+                plot_data.append({
+                    'category': 'N/A',
+                    'color': '#CCCCCC',
+                    'opacity': 0.4,
+                    'points': na_points
+                })
+
+        else:  # color_type == 'none'
+            # No coloring - all points in single group
+            points = []
+            for i, (idx, row) in enumerate(new_pc_df.iterrows()):
                 point = {col: float(row[col]) for col in pc_columns}
                 if 'label' in new_pc_df.columns:
                     point['label'] = str(row['label'])
                 else:
                     point['label'] = f'New_{idx}'
-                plot_data.append(point)
+
+                if filter_values is not None:
+                    point['filter_value'] = filter_values[i]
+
+                points.append(point)
+
+            plot_data.append({
+                'category': None,
+                'points': points
+            })
 
         return jsonify({
             "status": "success",
@@ -1523,6 +1665,10 @@ def alvadesk_pca_project_new():
             "pc_columns": pc_columns,
             "label_column": label_column if label_column and label_column in new_df.columns else None,
             "color_by": color_by or None,
+            "color_type": color_type,           # 'categorical', 'numeric', or 'none'
+            "color_categories": color_categories,  # list of category names (categorical only)
+            "color_map": color_map,             # {category: hex_color} (categorical only)
+            "color_range": original_color_range,  # {min: float, max: float} (numeric only)
             "filter_by": filter_by or None
         })
 
