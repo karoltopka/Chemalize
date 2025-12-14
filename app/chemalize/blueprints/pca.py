@@ -9,6 +9,7 @@ import time
 from scipy.stats import pearsonr
 import math
 from itertools import combinations
+import json
 from werkzeug.utils import secure_filename
 from app.config import get_clean_path, get_temp_path, get_upload_path, get_unified_path, TEMP_DIR, CLEAN_DIR, UPLOAD_DIR, UNIFIED_DIR
 from app.chemalize.utils import read_dataset, clean_temp_folder, check_dataset, get_dataset_info, ensure_temp_dir
@@ -46,6 +47,7 @@ def pca_analysis():
     correlation_target = session.get('pca_correlation_target')
     correlated_features_used = session.get('pca_correlated_features_used', [])
     correlated_target_used = session.get('pca_correlated_target')
+    feature_mode = session.get('pca_feature_mode', 'none')
 
     if session.get('pca_performed'):
         # Add PCA results if analysis was performed
@@ -67,6 +69,7 @@ def pca_analysis():
                              custom_groups=custom_groups, selected_group_ids=selected_group_ids,
                              correlation_results=correlation_results, correlation_target=correlation_target,
                              correlated_features_used=correlated_features_used, correlated_target_used=correlated_target_used,
+                             feature_mode=feature_mode,
                              numeric_columns=numeric_columns,
                              **info, **pca_params, **pca_results)
 
@@ -74,6 +77,7 @@ def pca_analysis():
                          custom_groups=custom_groups, selected_group_ids=selected_group_ids,
                          correlation_results=correlation_results, correlation_target=correlation_target,
                          correlated_features_used=correlated_features_used, correlated_target_used=correlated_target_used,
+                         feature_mode=feature_mode,
                          numeric_columns=numeric_columns,
                          **info, **pca_params)
 
@@ -160,12 +164,24 @@ def perform_pca():
     print(f"\n🔍 PCA: Found {len(identifier_cols)} identifier columns: {identifier_cols}")
 
     # ===========================
+    # Check for Correlation-based Feature Selection FIRST
+    # ===========================
+    # We need to check this BEFORE descriptor groups filtering
+    # because correlation features should take precedence
+    correlated_features_raw = request.form.get('correlated_features_selected', '')
+    use_correlated_features = request.form.get('use_correlated_features') == '1'
+
+    # ===========================
     # Custom Descriptor Groups Filtering
     # ===========================
     selected_groups_str = request.form.get('selected_descriptor_groups', '')
     descriptor_groups_used = False
 
-    if selected_groups_str:
+    # Skip descriptor groups if using correlation features
+    if selected_groups_str and use_correlated_features:
+        flash('Note: Descriptor groups are ignored when using Endpoint Correlation features.', 'info')
+
+    if selected_groups_str and not use_correlated_features:
         selected_group_ids = selected_groups_str.split(',')
         custom_groups = session.get('custom_descriptor_groups')
 
@@ -213,25 +229,51 @@ def perform_pca():
     # ===========================
     # Correlation-based Feature Selection
     # ===========================
-    correlated_features_raw = request.form.get('correlated_features_selected', '')
-    use_correlated_features = request.form.get('use_correlated_features') == '1'
+    # (correlated_features_raw and use_correlated_features already read above)
     correlation_target_var = request.form.get('correlation_target_var', '')
     session['pca_correlated_features_used'] = []
     session['pca_correlated_target'] = correlation_target_var if correlation_target_var else None
 
     if use_correlated_features and correlated_features_raw:
-        correlated_features = [feat.strip() for feat in correlated_features_raw.split(',') if feat.strip()]
+        # Try to load JSON list first (handles names with commas), fallback to CSV split
+        correlated_features = []
+        try:
+            parsed = json.loads(correlated_features_raw)
+            if isinstance(parsed, list):
+                correlated_features = [str(feat).strip() for feat in parsed if str(feat).strip()]
+        except Exception:
+            correlated_features = [feat.strip() for feat in correlated_features_raw.split(',') if feat.strip()]
         numeric_cols_after_filters = df.select_dtypes(include=[np.number]).columns.tolist()
-        correlated_features = [f for f in correlated_features if f in numeric_cols_after_filters]
+        missing_features = [f for f in correlated_features if f not in df.columns]
+        non_numeric_features = [f for f in correlated_features if (f in df.columns and f not in numeric_cols_after_filters)]
+        usable_correlated_features = [f for f in correlated_features if f in numeric_cols_after_filters]
 
-        if len(correlated_features) >= 2:
+        if len(usable_correlated_features) >= 2:
             non_numeric_cols_current = df.select_dtypes(exclude=[np.number]).columns.tolist()
-            df = df[non_numeric_cols_current + correlated_features]
-            session['pca_correlated_features_used'] = correlated_features
+            df = df[non_numeric_cols_current + usable_correlated_features]
+            session['pca_correlated_features_used'] = usable_correlated_features
             session['pca_correlated_target'] = correlation_target_var
-            flash(f'Using {len(correlated_features)} correlated features for PCA.', 'info')
+            # Override feature_selection_method to use ALL correlated features
+            feature_selection_method = 'all'
+            session['feature_selection_method'] = 'all'
+            session['pca_feature_mode'] = 'correlation'
+
+            if missing_features or non_numeric_features:
+                info_chunks = []
+                if missing_features:
+                    info_chunks.append(f"brak: {', '.join(missing_features)}")
+                if non_numeric_features:
+                    info_chunks.append(f"nienumeryczne: {', '.join(non_numeric_features)}")
+                flash(f'Using {len(usable_correlated_features)}/{len(correlated_features)} correlated features after filters ({"; ".join(info_chunks)}).', 'warning')
+            else:
+                flash(f'Using {len(usable_correlated_features)} correlated features for PCA.', 'info')
         else:
             flash('Not enough correlated numeric features available after filtering. Using all features instead.', 'warning')
+            session['pca_feature_mode'] = 'none'
+    elif descriptor_groups_used:
+        session['pca_feature_mode'] = 'groups'
+    else:
+        session['pca_feature_mode'] = 'none'
 
     try:
         os.makedirs(ensure_temp_dir(), exist_ok=True)
