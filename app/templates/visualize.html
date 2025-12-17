@@ -426,6 +426,19 @@
             </div>
         </div>
 
+        <!-- Label Controls (shown after plot is generated) -->
+        <div id="pca-label-controls" style="display: none;" class="mt-2 mb-3">
+            <button id="show-all-labels" class="modern-btn btn-sm btn-primary-modern">
+                <i class="fas fa-tags"></i> Show All Labels
+            </button>
+            <button id="clear-pca-labels" class="modern-btn btn-sm btn-outline-secondary">
+                <i class="fas fa-eraser"></i> Clear All Labels
+            </button>
+            <small class="text-muted ml-2">
+                <i class="fas fa-info-circle"></i> Click on points to show/hide individual labels
+            </small>
+        </div>
+
         <div id="pca-plot-container" class="plot-container"></div>
     </div>
     {% else %}
@@ -505,6 +518,7 @@
     let currentFilterColumn = null;
     let currentFilterValues = null;
     let pcaResizeHandler = null;
+    let clickedPoints = new Set(); // Persistent labels on click
 
     // Global chart rendering functions
     function renderScatterPlot(data, xLabel, yLabel) {
@@ -2025,6 +2039,20 @@
             titleText += `<br><sub>Filtered by ${filterInfo.column} ${sourceLabel}: ${filterInfo.filtered_points}/${filterInfo.total_points} points</sub>`;
         }
 
+        // Calculate square dimensions based on container width
+        const wrapper = document.getElementById('pca-plotly-wrapper');
+        const containerWidth = wrapper ? wrapper.offsetWidth : 600;
+
+        // Use equal margins to simplify square calculation
+        const baseMargin = 100;  // Equal margin on all sides
+        const plotSize = containerWidth;
+
+        // Calculate domain to force square plot area
+        // Domain is in normalized coordinates [0, 1]
+        const domainSize = 0.8;  // Use 80% of available space for plot area
+        const domainStart = (1 - domainSize) / 2;
+        const domainEnd = domainStart + domainSize;
+
         const layout = {
             title: {
                 text: titleText,
@@ -2042,7 +2070,8 @@
                 zerolinecolor: 'rgba(0, 0, 0, 0.3)',
                 zerolinewidth: 1,
                 scaleanchor: 'y',
-                scaleratio: 1
+                scaleratio: 1,
+                domain: [domainStart, domainEnd]  // Force equal domain
             },
             yaxis: {
                 title: `PC${pcaData.pc_y} (${pcaData.variance_y}% variance)`,
@@ -2051,28 +2080,29 @@
                 zeroline: true,
                 zerolinecolor: 'rgba(0, 0, 0, 0.3)',
                 zerolinewidth: 1,
-                constrain: 'domain'
+                domain: [domainStart, domainEnd]  // Force equal domain (same as x)
             },
+            width: plotSize,
+            height: plotSize,  // Square container
             paper_bgcolor: 'rgba(0, 0, 0, 0)',
             plot_bgcolor: 'rgba(0, 0, 0, 0)',
             margin: {
-                l: hasBothLegends ? 180 : 70,  // Extra space on left if legend is there
-                r: hasNumericColorbar ? 120 : (showLegend ? 150 : 30),  // Space for colorbar or legend on right
-                b: 70,
-                t: 80,
+                l: baseMargin,
+                r: baseMargin,
+                b: baseMargin,
+                t: baseMargin,
                 pad: 4
             },
-            autosize: true,
             hovermode: 'closest',
             showlegend: showLegend,
             legend: {
                 orientation: 'v',
                 yanchor: 'top',
-                y: 1,
-                xanchor: hasBothLegends ? 'right' : 'left',  // Right-aligned when on left side
-                x: hasBothLegends ? -0.02 : 1.02,  // Left side if both legends, right side otherwise
-                bgcolor: 'rgba(255, 255, 255, 0.8)',
-                bordercolor: 'rgba(0, 0, 0, 0.2)',
+                y: 1.0,
+                xanchor: 'left',
+                x: 1.02,  // Position outside plot area on the right
+                bgcolor: 'rgba(255, 255, 255, 0.9)',
+                bordercolor: 'rgba(0, 0, 0, 0.3)',
                 borderwidth: 1,
                 font: { size: 10 }
             }
@@ -2140,13 +2170,105 @@
         }];
 
         Plotly.newPlot('pca-plotly', traces, layout, {
-            responsive: true,
+            responsive: false,  // Disable responsive to maintain square shape
             displayModeBar: true,
             modeBarButtonsToRemove: ['lasso2d', 'select2d'],
             displaylogo: false
+        }).then(() => {
+            // Restore labels for previously clicked points (after plot redraw)
+            const initialAnnotations = [];
+            clickedPoints.forEach(key => {
+                const [traceIdx, ptIdx] = key.split('-').map(Number);
+                const trace = traces[traceIdx];
+                if (trace && trace.x && trace.y && ptIdx < trace.x.length) {
+                    const label = (trace.text && trace.text[ptIdx]) || `Point ${ptIdx}`;
+                    initialAnnotations.push({
+                        x: trace.x[ptIdx],
+                        y: trace.y[ptIdx],
+                        text: label,
+                        showarrow: true,
+                        arrowhead: 2,
+                        arrowsize: 1,
+                        arrowwidth: 1.5,
+                        arrowcolor: '#333',
+                        ax: 20,
+                        ay: -30,
+                        bgcolor: 'rgba(255, 255, 255, 0.9)',
+                        bordercolor: '#333',
+                        borderwidth: 1,
+                        borderpad: 4,
+                        font: {
+                            size: 11,
+                            color: '#000'
+                        }
+                    });
+                }
+            });
+
+            if (initialAnnotations.length > 0) {
+                Plotly.relayout('pca-plotly', { 'annotations': initialAnnotations });
+            }
         });
 
-        // Resize handler
+        // Persistent labels on click handler
+        const plotElement = document.getElementById('pca-plotly');
+
+        // Remove old event listener if exists (prevent duplicates)
+        plotElement.removeAllListeners && plotElement.removeAllListeners('plotly_click');
+
+        plotElement.on('plotly_click', function(eventData) {
+            if (!eventData.points || eventData.points.length === 0) return;
+
+            const point = eventData.points[0];
+            const pointKey = `${point.curveNumber}-${point.pointIndex}`;
+            const labelText = point.text || `Point ${point.pointIndex}`;
+
+            // Toggle point selection
+            if (clickedPoints.has(pointKey)) {
+                // Remove label
+                clickedPoints.delete(pointKey);
+            } else {
+                // Add label
+                clickedPoints.add(pointKey);
+            }
+
+            // Rebuild annotations from all clicked points
+            const newAnnotations = [];
+            clickedPoints.forEach(key => {
+                const [traceIdx, ptIdx] = key.split('-').map(Number);
+                const trace = traces[traceIdx];
+                if (trace && trace.x && trace.y && ptIdx < trace.x.length) {
+                    const label = (trace.text && trace.text[ptIdx]) || `Point ${ptIdx}`;
+                    newAnnotations.push({
+                        x: trace.x[ptIdx],
+                        y: trace.y[ptIdx],
+                        text: label,
+                        showarrow: true,
+                        arrowhead: 2,
+                        arrowsize: 1,
+                        arrowwidth: 1.5,
+                        arrowcolor: '#333',
+                        ax: 20,
+                        ay: -30,
+                        bgcolor: 'rgba(255, 255, 255, 0.9)',
+                        bordercolor: '#333',
+                        borderwidth: 1,
+                        borderpad: 4,
+                        font: {
+                            size: 11,
+                            color: '#000'
+                        }
+                    });
+                }
+            });
+
+            // Update plot with new annotations
+            Plotly.relayout('pca-plotly', {
+                'annotations': newAnnotations
+            });
+        });
+
+        // Resize handler - maintain square shape
         if (pcaResizeHandler) {
             window.removeEventListener('resize', pcaResizeHandler);
         }
@@ -2154,11 +2276,20 @@
         pcaResizeHandler = function () {
             clearTimeout(resizeTimer);
             resizeTimer = setTimeout(function () {
-                setSquareHeight();
-                Plotly.Plots.resize('pca-plotly');
+                const wrapper = document.getElementById('pca-plotly-wrapper');
+                if (wrapper) {
+                    const newSize = wrapper.offsetWidth;
+                    Plotly.relayout('pca-plotly', {
+                        width: newSize,
+                        height: newSize
+                    });
+                }
             }, 250);
         };
         window.addEventListener('resize', pcaResizeHandler);
+
+        // Show label controls after plot is rendered
+        document.getElementById('pca-label-controls').style.display = 'block';
 
         // Setup filter controls if filter_column is selected
         // Show controls both on initial render AND after applying filter
@@ -3142,6 +3273,86 @@
             currentFilterValues = null;
             renderPCAPlot(originalPCAData, false);
             showFlashMessage('Filter cleared', 'info');
+        });
+
+        // Show all labels button
+        document.getElementById('show-all-labels')?.addEventListener('click', function () {
+            if (!originalPCAData || !originalPCAData.plot_data) {
+                showFlashMessage('No PCA data available', 'warning');
+                return;
+            }
+
+            const plotElement = document.getElementById('pca-plotly');
+            const plotData = plotElement.data;
+
+            if (!plotData || plotData.length === 0) {
+                showFlashMessage('No plot data available', 'warning');
+                return;
+            }
+
+            // Clear existing clicked points
+            clickedPoints.clear();
+
+            // Generate annotations for ALL points in ALL traces
+            const allAnnotations = [];
+            let totalPoints = 0;
+
+            // Count total points first
+            plotData.forEach(trace => {
+                if (trace.x && trace.y) totalPoints += trace.x.length;
+            });
+
+            // Determine if we should sample (only if REALLY too many points)
+            const shouldSample = totalPoints > 200;
+            const maxTotalLabels = 200;
+
+            // Create compact annotations for all points
+            console.log(`Total points: ${totalPoints}, showing ${shouldSample ? 'sampled' : 'all'} labels`);
+            const samplingRate = shouldSample ? (maxTotalLabels / totalPoints) : 1.0;
+
+            plotData.forEach((trace, traceIdx) => {
+                if (!trace.x || !trace.y) return;
+
+                trace.x.forEach((x, ptIdx) => {
+                    // Sample if needed
+                    if (shouldSample && Math.random() > samplingRate) return;
+
+                    const pointKey = `${traceIdx}-${ptIdx}`;
+                    clickedPoints.add(pointKey);
+
+                    const label = (trace.text && trace.text[ptIdx]) || `${ptIdx}`;
+
+                    // Compact style: no arrow, no box, small text positioned above point
+                    allAnnotations.push({
+                        x: x,
+                        y: trace.y[ptIdx],
+                        text: label,
+                        showarrow: false,  // No arrow for compact display
+                        xanchor: 'center',
+                        yanchor: 'bottom',
+                        xshift: 0,
+                        yshift: 5,  // Just 5px above the point
+                        bgcolor: 'rgba(255, 255, 255, 0.7)',  // Semi-transparent background
+                        borderpad: 1,  // Minimal padding
+                        font: {
+                            size: 8,  // Small font
+                            color: '#000',
+                            family: 'Arial, sans-serif'
+                        }
+                    });
+                });
+            });
+
+            // Update plot with all annotations
+            Plotly.relayout('pca-plotly', { 'annotations': allAnnotations });
+            showFlashMessage(`Showing labels for ${allAnnotations.length} points`, 'success');
+        });
+
+        // Clear all labels button
+        document.getElementById('clear-pca-labels')?.addEventListener('click', function () {
+            clickedPoints.clear();
+            Plotly.relayout('pca-plotly', { 'annotations': [] });
+            showFlashMessage('All labels cleared', 'info');
         });
     });
 </script>
