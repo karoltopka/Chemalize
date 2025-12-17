@@ -6,11 +6,13 @@ import pickle
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
+from reportlab.lib.utils import ImageReader
 import seaborn as sns
 import io
+from PIL import Image as PILImage
 from app.utils.watermark import add_watermark_matplotlib_after_plot
 
 # Set the Seaborn style for better looking plots
@@ -868,12 +870,38 @@ def generate_enhanced_report(dataset_path, temp_path='temp/'):
         ('pca_loadings_pc1_pc2.png', 'Feature Loadings'),
         ('pca_biplot_pc1_pc2.png', 'PCA Biplot')
     ]
-    
+
+    # Maximum dimensions for plots in the PDF (in points, safe area within letter page margins)
+    max_width = 450   # Safe width for letter size with margins
+    max_height = 550  # Safe height to fit on page with headers/text
+
     for plot_file, plot_title in plot_files:
         plot_path = os.path.join(temp_path, plot_file)
         if os.path.exists(plot_path):
-            elements.append(Paragraph(plot_title, styles['Heading2']))
-            elements.append(Image(plot_path, width=400, height=300))
+            # Get actual image dimensions to preserve aspect ratio
+            with PILImage.open(plot_path) as img:
+                img_width, img_height = img.size
+                aspect_ratio = img_height / img_width
+
+                # Calculate scaling to fit both width and height constraints
+                # Scale by width
+                scale_by_width = max_width / img_width if img_width > max_width else 1.0
+                # Scale by height
+                scale_by_height = max_height / img_height if img_height > max_height else 1.0
+
+                # Use the more restrictive (smaller) scale factor to ensure it fits both constraints
+                scale_factor = min(scale_by_width, scale_by_height, 1.0)
+
+                display_width = img_width * scale_factor
+                display_height = img_height * scale_factor
+
+            # Keep title and image together on the same page
+            plot_elements = [
+                Paragraph(plot_title, styles['Heading2']),
+                Spacer(1, 6),
+                Image(plot_path, width=display_width, height=display_height)
+            ]
+            elements.append(KeepTogether(plot_elements))
             elements.append(Spacer(1, 12))
     
     # Feature Importance Table
