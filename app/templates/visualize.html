@@ -2043,13 +2043,16 @@
         const wrapper = document.getElementById('pca-plotly-wrapper');
         const containerWidth = wrapper ? wrapper.offsetWidth : 600;
 
-        // Use equal margins to simplify square calculation
-        const baseMargin = 100;  // Equal margin on all sides
+        // Use minimal margins for compact plot
+        const marginLeft = 70;     // Left margin (space for Y-axis labels)
+        const marginRight = 30;    // Right margin (minimal)
+        const marginTop = 60;      // Top margin (title)
+        const marginBottom = 60;   // Bottom margin (X-axis labels)
         const plotSize = containerWidth;
 
         // Calculate domain to force square plot area
         // Domain is in normalized coordinates [0, 1]
-        const domainSize = 0.8;  // Use 80% of available space for plot area
+        const domainSize = 0.90;  // Use 90% of available space for plot area
         const domainStart = (1 - domainSize) / 2;
         const domainEnd = domainStart + domainSize;
 
@@ -2087,10 +2090,10 @@
             paper_bgcolor: 'rgba(0, 0, 0, 0)',
             plot_bgcolor: 'rgba(0, 0, 0, 0)',
             margin: {
-                l: baseMargin,
-                r: baseMargin,
-                b: baseMargin,
-                t: baseMargin,
+                l: marginLeft,
+                r: marginRight,
+                b: marginBottom,
+                t: marginTop,
                 pad: 4
             },
             hovermode: 'closest',
