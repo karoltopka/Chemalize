@@ -2176,7 +2176,14 @@
             responsive: false,  // Disable responsive to maintain square shape
             displayModeBar: true,
             modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-            displaylogo: false
+            displaylogo: false,
+            toImageButtonOptions: {
+                format: 'png',           // Format: 'png', 'svg', 'jpeg', 'webp'
+                filename: 'pca_plot',    // Default filename
+                height: 1600,            // High resolution height
+                width: 1600,             // High resolution width (square)
+                scale: 2                 // 2x scaling for extra sharpness
+            }
         }).then(() => {
             // Restore labels for previously clicked points (after plot redraw)
             const initialAnnotations = [];
