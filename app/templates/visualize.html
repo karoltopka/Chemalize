@@ -1458,51 +1458,65 @@
                 // BOTH color and shape encoding - create traces for each combination
                 console.log('Rendering with BOTH color and shape encoding');
 
-                pcaData.plot_data.forEach((dataset, idx) => {
-                    // Extract coordinates
-                    let xs, ys;
-                    if (dataset.data && Array.isArray(dataset.data)) {
-                        xs = dataset.data.map(p => p.x);
-                        ys = dataset.data.map(p => p.y);
-                    } else if (dataset.x && dataset.y) {
-                        xs = dataset.x;
-                        ys = dataset.y;
-                    } else {
-                        return;
-                    }
+                // Check if we have flat format (new backend style) or grouped format (old style)
+                const isFlatFormat = pcaData.plot_data.length === 1 &&
+                                     pcaData.plot_data[0].x &&
+                                     Array.isArray(pcaData.color_categories) &&
+                                     pcaData.color_categories.length === pcaData.plot_data[0].x.length;
 
-                    if (!xs || !ys || xs.length === 0) return;
+                if (isFlatFormat) {
+                    // NEW: Flat format - color_categories and shape_categories are parallel arrays
+                    console.log('Using flat format for color+shape encoding');
+                    const base = pcaData.plot_data[0];
 
-                    // Group this color category by shape
-                    const shapeGroups = {};
-                    xs.forEach((x, i) => {
-                        const shapeCategory = pcaData.shape_categories[i];
-                        if (!shapeGroups[shapeCategory]) {
-                            shapeGroups[shapeCategory] = { x: [], y: [], hover: [] };
+                    // Generate distinct colors for each unique color category
+                    const uniqueColorCats = [...new Set(pcaData.color_categories)];
+                    const colorPalette = {};
+                    uniqueColorCats.forEach((cat, idx) => {
+                        const hue = (idx * 360 / uniqueColorCats.length) % 360;
+                        colorPalette[cat] = `hsl(${hue}, 70%, 50%)`;
+                    });
+
+                    // Group by BOTH color AND shape
+                    const comboGroups = {};
+                    base.x.forEach((x, i) => {
+                        const colorCat = pcaData.color_categories[i];
+                        const shapeCat = pcaData.shape_categories[i];
+                        const comboKey = `${colorCat}|||${shapeCat}`;
+
+                        if (!comboGroups[comboKey]) {
+                            comboGroups[comboKey] = {
+                                colorCat: colorCat,
+                                shapeCat: shapeCat,
+                                x: [],
+                                y: [],
+                                hover: []
+                            };
                         }
-                        shapeGroups[shapeCategory].x.push(x);
-                        shapeGroups[shapeCategory].y.push(ys[i]);
-                        if (dataset.hover_text && dataset.hover_text[i]) {
-                            shapeGroups[shapeCategory].hover.push(dataset.hover_text[i]);
+
+                        comboGroups[comboKey].x.push(x);
+                        comboGroups[comboKey].y.push(base.y[i]);
+                        if (base.hover_text && base.hover_text[i]) {
+                            comboGroups[comboKey].hover.push(base.hover_text[i]);
                         }
                     });
 
-                    // Create a trace for each shape group
-                    Object.keys(shapeGroups).forEach(shapeCat => {
-                        const group = shapeGroups[shapeCat];
+                    // Create traces for each color+shape combination
+                    Object.values(comboGroups).forEach(group => {
                         const trace = {
                             x: group.x,
                             y: group.y,
                             mode: 'markers',
                             type: 'scatter',
-                            name: `${dataset.label} / ${shapeCat}`,
+                            name: `${group.colorCat} / ${group.shapeCat}`,
                             marker: {
                                 size: 8,
                                 opacity: 0.7,
-                                symbol: shapeMap[shapeCat] || 'circle'
+                                color: colorPalette[group.colorCat],
+                                symbol: shapeMap[group.shapeCat] || 'circle'
                             },
                             text: group.hover.length ? group.hover : null,
-                            customdata: new Array(group.x.length).fill(dataset.label),
+                            customdata: new Array(group.x.length).fill(group.colorCat),
                             hovertemplate: buildHoverTemplate({
                                 pcx: pcaData.pc_x,
                                 pcy: pcaData.pc_y,
@@ -1510,10 +1524,69 @@
                                 hoverColumn: pcaData.hover_column
                             })
                         };
-                        if (dataset.color) trace.marker.color = dataset.color;
                         traces.push(trace);
                     });
-                });
+
+                } else {
+                    // OLD: Grouped format - each dataset in plot_data represents a color category
+                    console.log('Using grouped format for color+shape encoding');
+                    pcaData.plot_data.forEach((dataset, idx) => {
+                        // Extract coordinates
+                        let xs, ys;
+                        if (dataset.data && Array.isArray(dataset.data)) {
+                            xs = dataset.data.map(p => p.x);
+                            ys = dataset.data.map(p => p.y);
+                        } else if (dataset.x && dataset.y) {
+                            xs = dataset.x;
+                            ys = dataset.y;
+                        } else {
+                            return;
+                        }
+
+                        if (!xs || !ys || xs.length === 0) return;
+
+                        // Group this color category by shape
+                        const shapeGroups = {};
+                        xs.forEach((x, i) => {
+                            const shapeCategory = pcaData.shape_categories[i];
+                            if (!shapeGroups[shapeCategory]) {
+                                shapeGroups[shapeCategory] = { x: [], y: [], hover: [] };
+                            }
+                            shapeGroups[shapeCategory].x.push(x);
+                            shapeGroups[shapeCategory].y.push(ys[i]);
+                            if (dataset.hover_text && dataset.hover_text[i]) {
+                                shapeGroups[shapeCategory].hover.push(dataset.hover_text[i]);
+                            }
+                        });
+
+                        // Create a trace for each shape group
+                        Object.keys(shapeGroups).forEach(shapeCat => {
+                            const group = shapeGroups[shapeCat];
+                            const trace = {
+                                x: group.x,
+                                y: group.y,
+                                mode: 'markers',
+                                type: 'scatter',
+                                name: `${dataset.label} / ${shapeCat}`,
+                                marker: {
+                                    size: 8,
+                                    opacity: 0.7,
+                                    symbol: shapeMap[shapeCat] || 'circle'
+                                },
+                                text: group.hover.length ? group.hover : null,
+                                customdata: new Array(group.x.length).fill(dataset.label),
+                                hovertemplate: buildHoverTemplate({
+                                    pcx: pcaData.pc_x,
+                                    pcy: pcaData.pc_y,
+                                    colorBy: pcaData.color_by,
+                                    hoverColumn: pcaData.hover_column
+                                })
+                            };
+                            if (dataset.color) trace.marker.color = dataset.color;
+                            traces.push(trace);
+                        });
+                    });
+                }
             } else {
                 // Only color encoding (existing logic)
                 pcaData.plot_data.forEach((dataset, idx) => {

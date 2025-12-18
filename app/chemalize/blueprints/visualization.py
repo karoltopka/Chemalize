@@ -504,20 +504,38 @@ def visualize():
                     else:
                         # Kolorowanie z danych PCA
                         color_by = request.form.get("pca_color_by", "")
+
+                        # Check if shape_by will be used (determine data structure early)
+                        shape_by_column_check = request.form.get("pca_shape_by", "")
+                        will_use_shapes = (shape_by_column_check and
+                                         shape_by_column_check in pc_df.columns and
+                                         (pc_df[shape_by_column_check].dtype == 'object' or
+                                          pd.api.types.is_categorical_dtype(pc_df[shape_by_column_check])))
+
                         if color_by and color_by in pc_df.columns:
                             if pc_df[color_by].dtype == 'object' or pd.api.types.is_categorical_dtype(pc_df[color_by]):
-                                color_categories = pc_df[color_by].unique().tolist()
-                                for category in color_categories:
-                                    subset = pc_df[pc_df[color_by] == category]
-                                    category_data = {
-                                        'label': str(category),
-                                        'data': [{'x': row[pc_x_col], 'y': row[pc_y_col]} for _, row in subset.iterrows()]
-                                    }
+                                # Categorical coloring
+                                if will_use_shapes:
+                                    # Use flat array format for compatibility with shape encoding
+                                    plot_data = [{'x': pc_df[pc_x_col].tolist(), 'y': pc_df[pc_y_col].tolist()}]
+                                    color_categories = pc_df[color_by].tolist()
                                     if hover_text:
-                                        subset_indices = subset.index.tolist()
-                                        category_data['hover_text'] = [hover_text[i] for i in subset_indices]
-                                    plot_data.append(category_data)
+                                        plot_data[0]['hover_text'] = hover_text
+                                else:
+                                    # Use grouped format (original behavior when no shapes)
+                                    color_categories = pc_df[color_by].unique().tolist()
+                                    for category in color_categories:
+                                        subset = pc_df[pc_df[color_by] == category]
+                                        category_data = {
+                                            'label': str(category),
+                                            'data': [{'x': row[pc_x_col], 'y': row[pc_y_col]} for _, row in subset.iterrows()]
+                                        }
+                                        if hover_text:
+                                            subset_indices = subset.index.tolist()
+                                            category_data['hover_text'] = [hover_text[i] for i in subset_indices]
+                                        plot_data.append(category_data)
                             else:
+                                # Numeric coloring
                                 plot_data = [{'x': pc_df[pc_x_col].tolist(), 'y': pc_df[pc_y_col].tolist()}]
                                 color_data = pc_df[color_by].tolist()
                                 if hover_text:
