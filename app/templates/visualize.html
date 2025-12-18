@@ -47,6 +47,35 @@
     .ml-2 {
         margin-left: 0.5rem;
     }
+
+    .shape-editor-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 12px;
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        border-radius: 10px;
+        background: #f8fafc;
+        margin-bottom: 8px;
+    }
+
+    .shape-editor-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border: 1px dashed #cbd5e1;
+        border-radius: 8px;
+        background: #ffffff;
+        font-family: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 0.9rem;
+        color: #111827;
+    }
+
+    .shape-editor-meta {
+        font-size: 0.85rem;
+        color: #6b7280;
+    }
 </style>
 {% endblock %}
 
@@ -383,6 +412,9 @@
                     <small class="form-text text-muted">
                         Use different marker shapes for categories
                     </small>
+                    <button type="button" class="modern-btn btn-outline-secondary w-100 mt-2" id="open-shape-editor-btn">
+                        <i class="fas fa-edit"></i> Shape Editor
+                    </button>
                 </div>
 
                 <div class="form-group">
@@ -478,6 +510,40 @@
     </div>
 </div>
 
+<!-- Shape Editor Modal -->
+<div class="modal fade" id="shapeEditorModal" tabindex="-1" aria-labelledby="shapeEditorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="shapeEditorModalLabel">
+                    <i class="fas fa-shapes"></i> PCA Shape Editor
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">
+                    Adjust marker symbols for each category. Categories appear after you generate a PCA plot with
+                    <strong>Shape By</strong> selected.
+                </p>
+                <div id="shape-editor-status" class="mb-3"></div>
+                <div id="shape-editor-list"></div>
+                <div class="alert alert-light border mt-3 mb-0">
+                    <i class="fas fa-lightbulb"></i>
+                    <small class="ml-2">Shapes use Plotly marker symbols (circle, square, diamond, triangle, etc.).</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modern-btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Close
+                </button>
+                <button type="button" class="modern-btn btn-primary-modern" id="shape-editor-apply-btn" disabled>
+                    <i class="fas fa-save"></i> Save & Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- AJAX + WIZUALIZACJE -->
 <script>
     // Ensure Chart.js is available
@@ -511,6 +577,14 @@
         // Store actual data for filtering
         data: null,
         merged_data: null
+    };
+
+    // Shape editor state
+    const MARKER_SYMBOLS = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'triangle-down',
+                            'pentagon', 'hexagon', 'star', 'hourglass', 'bowtie'];
+    let shapeOverrides = {
+        column: null,   // Which column the overrides belong to
+        map: {}         // category -> symbol
     };
 
     // Global variables for PCA filtering
@@ -1400,10 +1474,6 @@
 
         let traces = [];
 
-        // Define marker symbols for shape encoding
-        const MARKER_SYMBOLS = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'triangle-down',
-                                'pentagon', 'hexagon', 'star', 'hourglass', 'bowtie'];
-
         // Create shape mapping if shape encoding is enabled
         let shapeMap = {};
         if (pcaData.shape_categories && pcaData.shape_by) {
@@ -1420,7 +1490,9 @@
 
             // Create consistent mapping for all shape values
             allShapeValues.forEach((shape, idx) => {
-                shapeMap[shape] = MARKER_SYMBOLS[idx % MARKER_SYMBOLS.length];
+                const overrideActive = shapeOverrides.column === pcaData.shape_by;
+                const overrideSymbol = overrideActive ? shapeOverrides.map[shape] : null;
+                shapeMap[shape] = overrideSymbol || MARKER_SYMBOLS[idx % MARKER_SYMBOLS.length];
             });
 
             console.log('Shape encoding enabled for:', pcaData.shape_by);
@@ -2104,6 +2176,15 @@
                                      !!(pcaData.color_categories && pcaData.color_categories.length <= 50);
         const hasBothLegends = hasNumericColorbar && hasCategoricalLegend;
 
+        // Legend positioning: when both colorbar and legend are present, push legend to the left
+        const legendPosition = hasBothLegends ? {
+            x: -0.18,
+            xanchor: 'right'
+        } : {
+            x: 1.02,
+            xanchor: 'left'
+        };
+
         // Build title with filter info
         let titleText = `PCA: PC${pcaData.pc_x} vs PC${pcaData.pc_y}`;
         if (pcaData.filter_info) {
@@ -2175,8 +2256,8 @@
                 orientation: 'v',
                 yanchor: 'top',
                 y: 1.0,
-                xanchor: 'left',
-                x: 1.02,  // Position outside plot area on the right
+                xanchor: legendPosition.xanchor,
+                x: legendPosition.x,  // Position outside plot area
                 bgcolor: 'rgba(255, 255, 255, 0.9)',
                 bordercolor: 'rgba(0, 0, 0, 0.3)',
                 borderwidth: 1,
@@ -2391,6 +2472,102 @@
         modal.show();
     }
 
+    function openShapeEditorModal() {
+        const modalEl = document.getElementById('shapeEditorModal');
+        if (!modalEl) return;
+
+        const statusEl = document.getElementById('shape-editor-status');
+        const listEl = document.getElementById('shape-editor-list');
+        const applyBtn = document.getElementById('shape-editor-apply-btn');
+
+        if (applyBtn) {
+            applyBtn.disabled = true;
+        }
+
+        if (!statusEl || !listEl) {
+            new bootstrap.Modal(modalEl).show();
+            return;
+        }
+
+        let shapeCategories = [];
+
+        if (originalPCAData && originalPCAData.shape_categories && originalPCAData.shape_categories.length > 0) {
+            shapeCategories = [...new Set(originalPCAData.shape_categories.filter(v =>
+                v !== null && v !== undefined && v !== ''))];
+
+            if (originalPCAData.new_compounds && Array.isArray(originalPCAData.new_compounds.shape_categories)) {
+                const overlayShapes = originalPCAData.new_compounds.shape_categories.filter(v =>
+                    v !== null && v !== undefined && v !== '');
+                shapeCategories = [...new Set([...shapeCategories, ...overlayShapes])];
+            }
+        }
+
+        if (!originalPCAData || !originalPCAData.shape_by) {
+            statusEl.innerHTML = `
+                <div class="modern-alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <div>
+                        <strong>No shape data yet</strong>
+                        <p class="mb-0">Generate a PCA plot and pick "Shape By" to load categories here.</p>
+                    </div>
+                </div>
+            `;
+            listEl.innerHTML = '';
+        } else if (shapeCategories.length === 0) {
+            statusEl.innerHTML = `
+                <div class="modern-alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>
+                        <strong>No categories detected</strong>
+                        <p class="mb-0">Use a categorical column for "Shape By" to see available categories.</p>
+                    </div>
+                </div>
+            `;
+            listEl.innerHTML = '';
+        } else {
+            statusEl.innerHTML = `
+                <div class="modern-alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    <div>
+                        <strong>${shapeCategories.length} categories detected</strong>
+                        <p class="mb-0">Current shape column: <strong>${originalPCAData.shape_by}</strong></p>
+                        ${shapeOverrides.column && shapeOverrides.column !== originalPCAData.shape_by ? `
+                            <p class="mb-0 text-muted">Overrides are tied to <strong>${shapeOverrides.column}</strong>. They will be ignored until you save for <strong>${originalPCAData.shape_by}</strong>.</p>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+
+            const usingOverrides = shapeOverrides.column === originalPCAData.shape_by;
+            listEl.innerHTML = shapeCategories.map((cat, idx) => {
+                const suggested = MARKER_SYMBOLS[idx % MARKER_SYMBOLS.length];
+                const selected = usingOverrides && shapeOverrides.map[cat] ? shapeOverrides.map[cat] : suggested;
+                const optionsHtml = MARKER_SYMBOLS.map(sym => `<option value="${sym}" ${sym === selected ? 'selected' : ''}>${sym}</option>`).join('');
+                return `
+                    <div class="shape-editor-item">
+                        <div>
+                            <div><strong>${cat}</strong></div>
+                            <div class="shape-editor-meta">Suggested: ${suggested}</div>
+                        </div>
+                        <div class="shape-editor-badge" style="gap:6px;">
+                            <i class="fas fa-shapes"></i>
+                            <select class="form-control form-control-sm shape-editor-select" data-category="${cat}" style="min-width: 130px;">
+                                ${optionsHtml}
+                            </select>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (applyBtn) {
+                applyBtn.disabled = shapeCategories.length === 0;
+            }
+        }
+
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+
     function showExternalColumnSelection(columns, columnInfo) {
         const externalColumnSelection = document.getElementById('external-column-selection');
         const colorColumnSelect = document.getElementById('color_column_select');
@@ -2481,6 +2658,8 @@
         const xyContainer = document.getElementById('xy-plot-container');
         const histogramContainer = document.getElementById('histogram-container');
         const pcaContainer = document.getElementById('pca-plot-container');
+        const shapeEditorBtn = document.getElementById('open-shape-editor-btn');
+        const shapeEditorApplyBtn = document.getElementById('shape-editor-apply-btn');
 
         // Elementy kolorowania
         const colorFileForm = document.getElementById('color-file-upload-form');
@@ -2846,6 +3025,51 @@
                 `;
                         colorFileData.uploaded = false;
                     });
+            });
+        }
+
+        // Open Shape Editor modal
+        if (shapeEditorBtn) {
+            shapeEditorBtn.addEventListener('click', function () {
+                openShapeEditorModal();
+            });
+        }
+
+        if (shapeEditorApplyBtn) {
+            shapeEditorApplyBtn.addEventListener('click', function () {
+                if (!originalPCAData || !originalPCAData.shape_by) {
+                    showFlashMessage('No PCA plot available. Generate a PCA plot with "Shape By" first.', 'warning');
+                    return;
+                }
+
+                const selects = document.querySelectorAll('.shape-editor-select');
+                if (!selects.length) {
+                    showFlashMessage('No categories to save. Generate a PCA plot with shape categories.', 'warning');
+                    return;
+                }
+
+                const newMap = {};
+                selects.forEach(sel => {
+                    const cat = sel.getAttribute('data-category');
+                    if (cat) {
+                        newMap[cat] = sel.value || MARKER_SYMBOLS[0];
+                    }
+                });
+
+                shapeOverrides = {
+                    column: originalPCAData.shape_by,
+                    map: newMap
+                };
+
+                const filterActive = !!(currentFilterColumn && currentFilterValues);
+                renderPCAPlot(originalPCAData, filterActive);
+
+                const modalInstance = bootstrap.Modal.getInstance(document.getElementById('shapeEditorModal'));
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+
+                showFlashMessage(`Shape map saved for ${originalPCAData.shape_by}`, 'success');
             });
         }
 
