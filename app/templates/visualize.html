@@ -76,6 +76,14 @@
         font-size: 0.85rem;
         color: #6b7280;
     }
+
+    .color-editor-swatch {
+        width: 38px;
+        height: 30px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
+    }
 </style>
 {% endblock %}
 
@@ -397,6 +405,9 @@
                     <small class="form-text text-muted">
                         Or use uploaded file for coloring
                     </small>
+                    <button type="button" class="modern-btn btn-outline-secondary w-100 mt-2" id="open-color-editor-btn">
+                        <i class="fas fa-edit"></i> Color Editor
+                    </button>
                 </div>
 
                 <div class="form-group">
@@ -544,6 +555,40 @@
     </div>
 </div>
 
+<!-- Color Editor Modal -->
+<div class="modal fade" id="colorEditorModal" tabindex="-1" aria-labelledby="colorEditorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="colorEditorModalLabel">
+                    <i class="fas fa-palette"></i> PCA Color Editor
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">
+                    Customize colors for categorical legends. Categories appear after you generate a PCA plot with
+                    <strong>Color By</strong> (categorical).
+                </p>
+                <div id="color-editor-status" class="mb-3"></div>
+                <div id="color-editor-list"></div>
+                <div class="alert alert-light border mt-3 mb-0">
+                    <i class="fas fa-info-circle"></i>
+                    <small class="ml-2">Colors apply to current categorical color column. Numeric color scales stay unchanged.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modern-btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Close
+                </button>
+                <button type="button" class="modern-btn btn-primary-modern" id="color-editor-apply-btn" disabled>
+                    <i class="fas fa-save"></i> Save & Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- AJAX + WIZUALIZACJE -->
 <script>
     // Ensure Chart.js is available
@@ -582,10 +627,23 @@
     // Shape editor state
     const MARKER_SYMBOLS = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'triangle-down',
                             'pentagon', 'hexagon', 'star', 'hourglass', 'bowtie'];
+    const COLOR_PALETTE = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#e11d48', '#6366f1',
+                           '#f97316', '#0ea5e9', '#84cc16', '#f43f5e', '#a855f7', '#22c55e', '#3b82f6', '#fb7185'];
     let shapeOverrides = {
         column: null,   // Which column the overrides belong to
         map: {}         // category -> symbol
     };
+    let colorOverrides = {
+        column: null,   // Which column the overrides belong to
+        map: {}         // category -> color (hex)
+    };
+
+    function getOverrideColorValue(category, column, fallback) {
+        if (column && colorOverrides.column === column && colorOverrides.map && colorOverrides.map[category]) {
+            return colorOverrides.map[category];
+        }
+        return fallback;
+    }
 
     // Global variables for PCA filtering
     let originalPCAData = null;
@@ -1505,6 +1563,11 @@
         console.log('pcaData.plot_data:', pcaData.plot_data ? pcaData.plot_data.length + ' datasets' : 'null');
         console.log('pcaData.shape_categories:', pcaData.shape_categories ? 'exists (' + pcaData.shape_categories.length + ' values)' : 'null');
 
+        // Helpers for color overrides
+        const colorOverridesActive = !!(pcaData.color_by && colorOverrides.column === pcaData.color_by && colorOverrides.map);
+        const getOverrideColor = (category, fallback) => getOverrideColorValue(category, pcaData.color_by, fallback);
+        const paletteColor = (idx) => COLOR_PALETTE[idx % COLOR_PALETTE.length];
+
         if (pcaData.plot_data && pcaData.plot_data.length > 0) {
             console.log('First dataset structure:', Object.keys(pcaData.plot_data[0]));
             if (pcaData.plot_data[0].x) {
@@ -1545,8 +1608,8 @@
                     const uniqueColorCats = [...new Set(pcaData.color_categories)];
                     const colorPalette = {};
                     uniqueColorCats.forEach((cat, idx) => {
-                        const hue = (idx * 360 / uniqueColorCats.length) % 360;
-                        colorPalette[cat] = `hsl(${hue}, 70%, 50%)`;
+                        const generated = paletteColor(idx);
+                        colorPalette[cat] = getOverrideColor(cat, generated);
                     });
 
                     // Group by BOTH color AND shape
@@ -1654,7 +1717,8 @@
                                     hoverColumn: pcaData.hover_column
                                 })
                             };
-                            if (dataset.color) trace.marker.color = dataset.color;
+                            const baseColor = getOverrideColor(dataset.label, dataset.color || paletteColor(idx));
+                            trace.marker.color = getOverrideColor(dataset.label, baseColor);
                             traces.push(trace);
                         });
                     });
@@ -1680,6 +1744,8 @@
                         hoverText = hoverText.slice(0, xs.length);
                     }
 
+                    const baseColor = dataset.color || paletteColor(idx);
+
                     const trace = {
                         x: xs,
                         y: ys,
@@ -1696,7 +1762,7 @@
                             hoverColumn: pcaData.hover_column
                         })
                     };
-                    if (dataset.color) trace.marker.color = dataset.color;
+                    trace.marker.color = getOverrideColor(dataset.label, baseColor);
                     traces.push(trace);
                 });
             }
@@ -2568,6 +2634,114 @@
         modal.show();
     }
 
+    function openColorEditorModal() {
+        const modalEl = document.getElementById('colorEditorModal');
+        if (!modalEl) return;
+
+        const statusEl = document.getElementById('color-editor-status');
+        const listEl = document.getElementById('color-editor-list');
+        const applyBtn = document.getElementById('color-editor-apply-btn');
+
+        if (applyBtn) {
+            applyBtn.disabled = true;
+        }
+
+        if (!statusEl || !listEl) {
+            new bootstrap.Modal(modalEl).show();
+            return;
+        }
+
+        // Color categories only for categorical coloring
+        const colorColumn = originalPCAData ? (originalPCAData.color_by || originalPCAData.new_compounds?.color_column) : null;
+        const categories = (originalPCAData && originalPCAData.color_categories) ? [...new Set(originalPCAData.color_categories)] : [];
+
+        // Include overlay categories if present
+        if (originalPCAData && originalPCAData.new_compounds && Array.isArray(originalPCAData.new_compounds.color_categories)) {
+            const overlayCats = originalPCAData.new_compounds.color_categories.filter(v => v !== null && v !== undefined && v !== '');
+            overlayCats.forEach(cat => {
+                if (!categories.includes(cat)) categories.push(cat);
+            });
+        }
+
+        if (!originalPCAData || !colorColumn || categories.length === 0) {
+            statusEl.innerHTML = `
+                <div class="modern-alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <div>
+                        <strong>No categorical color data</strong>
+                        <p class="mb-0">Generate a PCA plot with a categorical <strong>Color By</strong> column to edit colors.</p>
+                    </div>
+                </div>
+            `;
+            listEl.innerHTML = '';
+        } else {
+            statusEl.innerHTML = `
+                <div class="modern-alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    <div>
+                        <strong>${categories.length} categories detected</strong>
+                        <p class="mb-0">Current color column: <strong>${colorColumn}</strong></p>
+                        ${colorOverrides.column && colorOverrides.column !== colorColumn ? `
+                            <p class="mb-0 text-muted">Overrides are tied to <strong>${colorOverrides.column}</strong>. They will be ignored until you save for <strong>${colorColumn}</strong>.</p>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+
+            const usingOverrides = colorOverrides.column === colorColumn;
+            const paletteColorLocal = (idx) => COLOR_PALETTE[idx % COLOR_PALETTE.length];
+
+            // Prefer existing dataset colors (grouped format) when available
+            const datasetColorMap = {};
+            if (originalPCAData && Array.isArray(originalPCAData.plot_data) && originalPCAData.plot_data.length > 1) {
+                originalPCAData.plot_data.forEach(ds => {
+                    if (ds && ds.label && ds.color) {
+                        datasetColorMap[ds.label] = ds.color;
+                    }
+                });
+            }
+
+            const palette = categories.map((cat, idx) => {
+                const generated = datasetColorMap[cat] || paletteColorLocal(idx);
+                return getOverrideColorValue(cat, colorColumn, generated);
+            });
+
+            listEl.innerHTML = categories.map((cat, idx) => {
+                const defaultColor = palette[idx];
+                const selected = usingOverrides && colorOverrides.map[cat] ? colorOverrides.map[cat] : defaultColor;
+                return `
+                    <div class="shape-editor-item">
+                        <div>
+                            <div><strong>${cat}</strong></div>
+                            <div class="shape-editor-meta">Default: ${defaultColor}</div>
+                        </div>
+                        <div class="shape-editor-badge" style="gap:10px;">
+                            <div class="color-editor-swatch" style="background:${selected};"></div>
+                            <input type="color" class="form-control form-control-sm color-editor-input" data-category="${cat}" value="${selected}">
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (applyBtn) {
+                applyBtn.disabled = categories.length === 0;
+            }
+
+            // Update swatch preview on change
+            listEl.querySelectorAll('.color-editor-input').forEach(input => {
+                input.addEventListener('input', function () {
+                    const swatch = this.previousElementSibling;
+                    if (swatch) {
+                        swatch.style.background = this.value;
+                    }
+                });
+            });
+        }
+
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+
     function showExternalColumnSelection(columns, columnInfo) {
         const externalColumnSelection = document.getElementById('external-column-selection');
         const colorColumnSelect = document.getElementById('color_column_select');
@@ -2660,6 +2834,8 @@
         const pcaContainer = document.getElementById('pca-plot-container');
         const shapeEditorBtn = document.getElementById('open-shape-editor-btn');
         const shapeEditorApplyBtn = document.getElementById('shape-editor-apply-btn');
+        const colorEditorBtn = document.getElementById('open-color-editor-btn');
+        const colorEditorApplyBtn = document.getElementById('color-editor-apply-btn');
 
         // Elementy kolorowania
         const colorFileForm = document.getElementById('color-file-upload-form');
@@ -3035,6 +3211,12 @@
             });
         }
 
+        if (colorEditorBtn) {
+            colorEditorBtn.addEventListener('click', function () {
+                openColorEditorModal();
+            });
+        }
+
         if (shapeEditorApplyBtn) {
             shapeEditorApplyBtn.addEventListener('click', function () {
                 if (!originalPCAData || !originalPCAData.shape_by) {
@@ -3070,6 +3252,45 @@
                 }
 
                 showFlashMessage(`Shape map saved for ${originalPCAData.shape_by}`, 'success');
+            });
+        }
+
+        if (colorEditorApplyBtn) {
+            colorEditorApplyBtn.addEventListener('click', function () {
+                const colorColumn = originalPCAData ? (originalPCAData.color_by || originalPCAData.new_compounds?.color_column) : null;
+                if (!originalPCAData || !colorColumn || !originalPCAData.color_categories || !originalPCAData.color_categories.length) {
+                    showFlashMessage('No categorical color data. Generate a PCA plot with categorical coloring first.', 'warning');
+                    return;
+                }
+
+                const inputs = document.querySelectorAll('.color-editor-input');
+                if (!inputs.length) {
+                    showFlashMessage('No categories to save. Generate a PCA plot with categorical coloring.', 'warning');
+                    return;
+                }
+
+                const newMap = {};
+                inputs.forEach(input => {
+                    const cat = input.getAttribute('data-category');
+                    if (cat) {
+                        newMap[cat] = input.value || '#2563eb';
+                    }
+                });
+
+                colorOverrides = {
+                    column: colorColumn,
+                    map: newMap
+                };
+
+                const filterActive = !!(currentFilterColumn && currentFilterValues);
+                renderPCAPlot(originalPCAData, filterActive);
+
+                const modalInstance = bootstrap.Modal.getInstance(document.getElementById('colorEditorModal'));
+                if (modalInstance) {
+                    modalInstance.hide();
+                }
+
+                showFlashMessage(`Color map saved for ${colorColumn}`, 'success');
             });
         }
 
