@@ -58,14 +58,14 @@
             </div>
         </div>
     </div>
-    
-    <!-- Clustering Configuration Form -->
+
+    <!-- Clustering Configuration -->
     <div class="card mb-4">
         <div class="card-header bg-warning text-dark">
             <h5 class="mb-0">Clustering Configuration</h5>
         </div>
         <div class="card-body">
-            <form method="POST" action="{{ url_for('clustering.perform_clustering') }}">
+            <form method="POST" action="{{ url_for('clustering.perform_clustering') }}" id="clustering_form">
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
@@ -145,22 +145,66 @@
                         </div>
                         
                         <div class="form-group mt-3">
-                            <label>Feature Selection:</label>
+                            <label><i class="fas fa-filter"></i> Feature Selection Mode:</label>
                             <div class="custom-control custom-radio">
-                                <input type="radio" id="all_features" name="feature_selection" value="all" class="custom-control-input" 
+                                <input type="radio" id="all_features" name="feature_selection" value="all" class="custom-control-input"
                                        {% if feature_selection == 'all' or not feature_selection %}checked{% endif %}>
                                 <label class="custom-control-label" for="all_features">Use all numeric features</label>
                             </div>
                             <div class="custom-control custom-radio mt-2">
-                                <input type="radio" id="select_features" name="feature_selection" value="select" class="custom-control-input" 
+                                <input type="radio" id="select_features" name="feature_selection" value="select" class="custom-control-input"
                                        {% if feature_selection == 'select' %}checked{% endif %}>
                                 <label class="custom-control-label" for="select_features">Select specific features</label>
                             </div>
+                            <div class="custom-control custom-radio mt-2">
+                                <input type="radio" id="group_file_upload" name="feature_selection" value="groups" class="custom-control-input"
+                                       {% if feature_selection == 'groups' or uploaded_groups %}checked{% endif %}>
+                                <label class="custom-control-label" for="group_file_upload">
+                                    Use variable groups from file
+                                    {% if uploaded_groups %}
+                                    <span class="badge badge-success ml-2">{{ uploaded_groups|length }} groups uploaded</span>
+                                    {% endif %}
+                                </label>
+                            </div>
                         </div>
-                        
-                        <div class="form-group mt-3" id="feature_selection_div" style="{% if feature_selection != 'select' %}display: none;{% endif %}">
-                            <label for="selected_features">Select Features:</label>
-                            <select multiple class="form-control" id="selected_features" name="selected_features" size="8">
+
+                        <!-- Upload Groups (inline, NO nested form - uses JavaScript) -->
+                        <div id="upload_groups_inline" class="mt-3" style="{% if feature_selection != 'groups' and not uploaded_groups %}display: none;{% endif %}">
+                            <div class="border rounded p-3 bg-light">
+                                <strong><i class="fas fa-upload"></i> Upload Variable Groups File:</strong>
+                                <div class="mt-2">
+                                    <div class="form-row">
+                                        <div class="col-md-6">
+                                            <div class="custom-file">
+                                                <input type="file" class="custom-file-input" id="group_file_input" name="group_file" accept=".txt,.csv">
+                                                <label class="custom-file-label" for="group_file_input">Choose file...</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <button type="button" class="btn btn-primary btn-sm" onclick="uploadGroupsFile()">
+                                                <i class="fas fa-upload"></i> Upload
+                                            </button>
+                                            <a href="{{ url_for('clustering.download_example_groups') }}" class="btn btn-outline-secondary btn-sm ml-2" download>
+                                                <i class="fas fa-download"></i> Example
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <small class="form-text text-muted mt-1">
+                                        <i class="fas fa-info-circle"></i> Same format as Alvadesk PCA
+                                    </small>
+                                </div>
+                                {% if uploaded_groups %}
+                                <div class="alert alert-success mt-2 mb-0">
+                                    <i class="fas fa-check-circle"></i> {{ uploaded_groups|length }} groups uploaded! Select which ones to use below.
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Manual Feature Selection -->
+                        <div class="form-group mt-3" id="manual_selection_div" style="{% if feature_selection != 'select' %}display: none;{% endif %}">
+                            <label for="selected_features"><i class="fas fa-list-ul"></i> Select Features:</label>
+                            <select multiple class="form-control" id="selected_features" name="selected_features" size="10">
                                 {% if columns %}
                                     {% for col in columns %}
                                         {% if col in numeric_columns %}
@@ -169,7 +213,56 @@
                                     {% endfor %}
                                 {% endif %}
                             </select>
-                            <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple features</small>
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle"></i> Hold Ctrl/Cmd to select multiple features
+                            </small>
+
+                            <!-- Show selected features summary -->
+                            <div id="selected_features_summary" class="mt-2">
+                                {% if selected_features %}
+                                <div class="alert alert-info py-2">
+                                    <strong>Selected:</strong> {{ selected_features|length }} feature(s)
+                                    <button type="button" class="btn btn-sm btn-outline-info float-right" onclick="showSelectedFeaturesList()">
+                                        <i class="fas fa-eye"></i> View
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Group Selection (only shown when groups are uploaded) -->
+                        <div class="form-group mt-3" id="group_selection_div" style="{% if feature_selection == 'groups' and uploaded_groups %}display: block;{% else %}display: none;{% endif %}">
+                            <label><i class="fas fa-check-square"></i> Select Groups to Include:</label>
+                            <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto; background-color: white;">
+                                {% if uploaded_groups %}
+                                    {% for group_id, group_info in uploaded_groups.items() %}
+                                    <div class="custom-control custom-checkbox mb-2">
+                                        <input type="checkbox" class="custom-control-input group-checkbox"
+                                               id="group_{{ group_id }}"
+                                               name="selected_groups"
+                                               value="{{ group_id }}"
+                                               {% if selected_groups and group_id in selected_groups %}checked{% endif %}>
+                                        <label class="custom-control-label" for="group_{{ group_id }}">
+                                            <strong>{{ group_info.full_name }}</strong>
+                                            <span class="badge badge-secondary ml-2">{{ group_info.descriptors|length }} variables</span>
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                    <div class="mt-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllGroups()">
+                                            <i class="fas fa-check-double"></i> Select All
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllGroups()">
+                                            <i class="fas fa-times"></i> Deselect All
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted mb-0">
+                                        <i class="fas fa-info-circle"></i> No groups uploaded yet.
+                                        Upload a groups file in the section above to select specific variable groups.
+                                    </p>
+                                {% endif %}
+                            </div>
                         </div>
                         <div class="form-group mt-3">
                             <label for="index_column">Plot Index Column (Optional):</label>
@@ -192,14 +285,19 @@
                         </div>
                     </div>
                 </div>
-                
-                <button type="submit" class="btn btn-warning mt-3">
-                    <i class="fas fa-play mr-2"></i>Run Clustering Analysis
-                </button>
             </form>
         </div>
     </div>
-    
+
+    <!-- Run Analysis Button (Separate, triggers form submission) -->
+    <div class="card mb-4">
+        <div class="card-body text-center">
+            <button type="button" class="btn btn-warning btn-lg" onclick="submitClusteringForm()">
+                <i class="fas fa-play mr-2"></i>Run Clustering Analysis
+            </button>
+        </div>
+    </div>
+
     <!-- Clustering Results Section (displayed if clustering_performed is True) -->
     {% if clustering_performed %}
     <div class="card mb-4">
@@ -401,45 +499,212 @@
 
 <script>
     // JavaScript to control tab behavior and toggle method options
-    $(document).ready(function(){
-        $('#clusteringResultTabs a').on('click', function (e) {
-            e.preventDefault();
-            $(this).tab('show');
-        });
-        
-            // Initialize feature selection visibility
-        if($('input[name="feature_selection"]:checked').val() == 'select'){
-            $('#feature_selection_div').show();
-        } else {
-            $('#feature_selection_div').hide();
-        }
-    
-        // Toggle feature selection div
-        $('input[name="feature_selection"]').change(function(){
-            if($(this).val() == 'select'){
-                $('#feature_selection_div').show();
-            } else {
-                $('#feature_selection_div').hide();
-            }
-        });
-        
-        // Initial toggle of method options
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initial toggle of method and feature selection options
         toggleMethodOptions();
+        toggleFeatureSelectionMode();
+
+        // Update selected features summary dynamically
+        const selectedFeaturesElem = document.getElementById('selected_features');
+        if (selectedFeaturesElem) {
+            selectedFeaturesElem.addEventListener('change', function() {
+                updateSelectedFeaturesSummary();
+            });
+        }
+
+        // File input label update
+        const groupFileInput = document.getElementById('group_file');
+        if (groupFileInput) {
+            groupFileInput.addEventListener('change', function() {
+                const fileName = this.value.split('\\').pop();
+                const label = this.nextElementSibling;
+                if (label) {
+                    label.textContent = fileName || 'Choose file...';
+                }
+            });
+        }
+
+        // Add change listener for feature selection radio buttons
+        const featureRadios = document.querySelectorAll('input[name="feature_selection"]');
+        featureRadios.forEach(function(radio) {
+            radio.addEventListener('change', function() {
+                toggleFeatureSelectionMode();
+            });
+        });
     });
-    
+
     function toggleMethodOptions() {
         // Hide all method options first
-        $('.method-options').hide();
-        
+        const methodOptions = document.querySelectorAll('.method-options');
+        methodOptions.forEach(function(option) {
+            option.style.display = 'none';
+        });
+
         // Show the appropriate options based on the selected method
-        var method = $('#clustering_method').val();
-        if (method === 'kmeans') {
-            $('#kmeans_options').show();
-        } else if (method === 'dbscan') {
-            $('#dbscan_options').show();
-        } else if (method === 'hierarchical') {
-            $('#hierarchical_options').show();
+        const methodSelect = document.getElementById('clustering_method');
+        if (methodSelect) {
+            const method = methodSelect.value;
+            if (method === 'kmeans') {
+                const kmeans = document.getElementById('kmeans_options');
+                if (kmeans) kmeans.style.display = 'block';
+            } else if (method === 'dbscan') {
+                const dbscan = document.getElementById('dbscan_options');
+                if (dbscan) dbscan.style.display = 'block';
+            } else if (method === 'hierarchical') {
+                const hierarchical = document.getElementById('hierarchical_options');
+                if (hierarchical) hierarchical.style.display = 'block';
+            }
         }
     }
+
+    function toggleFeatureSelectionMode() {
+        // Get selected mode
+        const selectedRadio = document.querySelector('input[name="feature_selection"]:checked');
+        const mode = selectedRadio ? selectedRadio.value : 'all';
+        console.log('Feature selection mode changed to:', mode);
+
+        // Get divs
+        const manualDiv = document.getElementById('manual_selection_div');
+        const groupSelectionDiv = document.getElementById('group_selection_div');
+        const uploadGroupsInline = document.getElementById('upload_groups_inline');
+
+        // Hide all divs first
+        if (manualDiv) manualDiv.style.display = 'none';
+        if (groupSelectionDiv) groupSelectionDiv.style.display = 'none';
+        if (uploadGroupsInline) uploadGroupsInline.style.display = 'none';
+
+        // Show the appropriate div based on mode
+        if (mode === 'select') {
+            console.log('Showing manual selection div');
+            if (manualDiv) manualDiv.style.display = 'block';
+            updateSelectedFeaturesSummary();
+        } else if (mode === 'groups') {
+            console.log('Showing group upload and selection');
+            // Show the upload section inline
+            if (uploadGroupsInline) uploadGroupsInline.style.display = 'block';
+            // Show group selection checkboxes if groups are uploaded
+            if (groupSelectionDiv) {
+                const hasGroups = groupSelectionDiv.querySelector('input[type="checkbox"]');
+                if (hasGroups) {
+                    groupSelectionDiv.style.display = 'block';
+                }
+            }
+        } else {
+            console.log('All features mode - hiding all selection divs');
+        }
+    }
+
+    function updateSelectedFeaturesSummary() {
+        const selectElem = document.getElementById('selected_features');
+        const summaryDiv = document.getElementById('selected_features_summary');
+
+        if (!selectElem || !summaryDiv) return;
+
+        const selectedOptions = Array.from(selectElem.selectedOptions);
+        const count = selectedOptions.length;
+
+        if (count > 0) {
+            const summaryHTML = `
+                <div class="alert alert-info py-2">
+                    <strong>Selected:</strong> ${count} feature(s)
+                    <button type="button" class="btn btn-sm btn-outline-info float-right" onclick="showSelectedFeaturesList()">
+                        <i class="fas fa-eye"></i> View
+                    </button>
+                </div>
+            `;
+            summaryDiv.innerHTML = summaryHTML;
+        } else {
+            summaryDiv.innerHTML = '';
+        }
+    }
+
+    function showSelectedFeaturesList() {
+        const selectElem = document.getElementById('selected_features');
+        if (!selectElem) return;
+
+        const selectedOptions = Array.from(selectElem.selectedOptions);
+        const features = selectedOptions.map(function(option) {
+            return option.value;
+        });
+
+        if (features.length > 0) {
+            alert('Selected Features (' + features.length + '):\n\n' + features.join('\n'));
+        }
+    }
+
+    function selectAllGroups() {
+        const groupCheckboxes = document.querySelectorAll('input[name="selected_groups"]');
+        groupCheckboxes.forEach(function(checkbox) {
+            checkbox.checked = true;
+        });
+    }
+
+    function deselectAllGroups() {
+        const groupCheckboxes = document.querySelectorAll('input[name="selected_groups"]');
+        groupCheckboxes.forEach(function(checkbox) {
+            checkbox.checked = false;
+        });
+    }
+
+    function submitClusteringForm() {
+        console.log('Submitting clustering form...');
+        const form = document.getElementById('clustering_form');
+        if (form) {
+            form.submit();
+        } else {
+            console.error('Clustering form not found!');
+        }
+    }
+
+    function uploadGroupsFile() {
+        const fileInput = document.getElementById('group_file_input');
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert('Please select a file first');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('group_file', file);
+
+        // Show loading state
+        const uploadBtn = event.target;
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+
+        fetch('{{ url_for("clustering.upload_clustering_groups") }}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                // Reload page to show uploaded groups
+                window.location.reload();
+            } else {
+                throw new Error('Upload failed');
+            }
+        })
+        .catch(error => {
+            console.error('Error uploading file:', error);
+            alert('Error uploading file. Please try again.');
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Upload';
+        });
+    }
+
+    // Update file input label when file is selected
+    document.addEventListener('DOMContentLoaded', function() {
+        const fileInput = document.getElementById('group_file_input');
+        if (fileInput) {
+            fileInput.addEventListener('change', function(e) {
+                const fileName = e.target.files[0] ? e.target.files[0].name : 'Choose file...';
+                const label = e.target.nextElementSibling;
+                if (label) {
+                    label.textContent = fileName;
+                }
+            });
+        }
+    });
 </script>
 {% endblock %}
