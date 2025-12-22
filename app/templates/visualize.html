@@ -366,6 +366,15 @@
                     Uncheck to hide new compounds from visualization
                 </small>
             </div>
+            <div class="form-check mt-2" id="overlay-labels-container" style="display: none;">
+                <input type="checkbox" class="form-check-input" id="show-overlay-labels">
+                <label class="form-check-label" for="show-overlay-labels">
+                    <i class="fas fa-tag"></i> Show overlay labels (IDs)
+                </label>
+                <small class="form-text text-muted d-block ml-4">
+                    Uses ID/label column from uploaded overlay file
+                </small>
+            </div>
         </div>
 
         <form id="pca-visualization-form" class="visualization-form">
@@ -1950,6 +1959,8 @@
 
                 // Check if shape encoding is active for new compounds
                 const hasShapeEncoding = !!(pcaData.new_compounds.shape_categories && pcaData.new_compounds.shape_by);
+                const showOverlayLabels = document.getElementById('show-overlay-labels')?.checked ?? false;
+                const overlayTextPosition = 'top center';
 
                 if (hasShapeEncoding) {
                     // Group by BOTH color and shape
@@ -1977,7 +1988,7 @@
                         const newTrace = {
                             x: group.x,
                             y: group.y,
-                            mode: 'markers',
+                            mode: showOverlayLabels ? 'markers+text' : 'markers',
                             type: 'scatter',
                             name: `${group.colorCat} / ${group.shapeCat} (New)`,
                             marker: {
@@ -1987,6 +1998,8 @@
                                 opacity: 0.8
                             },
                             text: group.labels.length ? group.labels : null,
+                            textposition: showOverlayLabels ? overlayTextPosition : undefined,
+                            textfont: showOverlayLabels ? { size: 10, color: '#111827' } : undefined,
                             customdata: new Array(group.x.length).fill(group.colorCat),
                             hovertemplate: buildHoverTemplate({
                                 pcx: pcaData.pc_x,
@@ -2026,7 +2039,7 @@
                         const newTrace = {
                             x: group.x,
                             y: group.y,
-                            mode: 'markers',
+                            mode: showOverlayLabels ? 'markers+text' : 'markers',
                             type: 'scatter',
                             name: `${category} (New)`,
                             marker: {
@@ -2036,6 +2049,8 @@
                                 opacity: 0.8
                             },
                             text: group.labels.length ? group.labels : null,
+                            textposition: showOverlayLabels ? overlayTextPosition : undefined,
+                            textfont: showOverlayLabels ? { size: 10, color: '#111827' } : undefined,
                             customdata: new Array(group.x.length).fill(category),
                             hovertemplate: buildHoverTemplate({
                                 pcx: pcaData.pc_x,
@@ -2065,6 +2080,8 @@
                 const colorDisplay = (pcaData.new_compounds.color_data || []).map(v =>
                     (v === null || !isFinite(v)) ? 'NA' : (+v).toFixed(4)
                 );
+                const showOverlayLabels = document.getElementById('show-overlay-labels')?.checked ?? false;
+                const overlayTextPosition = 'top center';
 
                 // Calculate combined min/max for consistent color scale
                 let cmin = null;
@@ -2104,7 +2121,7 @@
                         const newTrace = {
                             x: group.x,
                             y: group.y,
-                            mode: 'markers',
+                            mode: showOverlayLabels ? 'markers+text' : 'markers',
                             type: 'scatter',
                             name: `${shapeCat} (New)`,
                             marker: {
@@ -2116,6 +2133,8 @@
                                 opacity: 0.8
                             },
                             text: group.labels.length ? group.labels : null,
+                            textposition: showOverlayLabels ? overlayTextPosition : undefined,
+                            textfont: showOverlayLabels ? { size: 10, color: '#111827' } : undefined,
                             customdata: group.customdata,
                             hovertemplate: buildHoverTemplate({
                                 pcx: pcaData.pc_x,
@@ -2131,7 +2150,7 @@
                     const newTrace = {
                         x: pcaData.new_compounds.x,
                         y: pcaData.new_compounds.y,
-                        mode: 'markers',
+                        mode: showOverlayLabels ? 'markers+text' : 'markers',
                         type: 'scatter',
                         name: 'New Compounds',
                         marker: {
@@ -2146,6 +2165,8 @@
                             opacity: 0.8
                         },
                         text: pcaData.new_compounds.labels || null,
+                        textposition: showOverlayLabels ? overlayTextPosition : undefined,
+                        textfont: showOverlayLabels ? { size: 10, color: '#111827' } : undefined,
                         customdata: colorDisplay,
                         hovertemplate: buildHoverTemplate({
                             pcx: pcaData.pc_x,
@@ -2165,6 +2186,8 @@
 
                 // Check if shape encoding is active
                 const hasShapeEncoding = !!(pcaData.new_compounds.shape_categories && pcaData.new_compounds.shape_by);
+                const showOverlayLabels = document.getElementById('show-overlay-labels')?.checked ?? false;
+                const overlayTextPosition = 'top center';
 
                 if (hasShapeEncoding) {
                     // Group by shape
@@ -2186,7 +2209,7 @@
                         const newTrace = {
                             x: group.x,
                             y: group.y,
-                            mode: 'markers',
+                            mode: showOverlayLabels ? 'markers+text' : 'markers',
                             type: 'scatter',
                             name: `${shapeCat} (New)`,
                             marker: {
@@ -2196,6 +2219,8 @@
                                 opacity: 0.8
                             },
                             text: group.labels.length ? group.labels : null,
+                            textposition: showOverlayLabels ? overlayTextPosition : undefined,
+                            textfont: showOverlayLabels ? { size: 10, color: '#111827' } : undefined,
                             hovertemplate: group.labels.length
                                 ? '<b>%{text}</b><br>PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
                                 : 'PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
@@ -2207,7 +2232,7 @@
                     const newTrace = {
                         x: pcaData.new_compounds.x,
                         y: pcaData.new_compounds.y,
-                        mode: 'markers',
+                        mode: showOverlayLabels ? 'markers+text' : 'markers',
                         type: 'scatter',
                         name: 'New Compounds',
                         marker: {
@@ -2220,6 +2245,8 @@
                             }
                         },
                         text: pcaData.new_compounds.labels || null,
+                        textposition: showOverlayLabels ? overlayTextPosition : undefined,
+                        textfont: showOverlayLabels ? { size: 10, color: '#111827' } : undefined,
                         hovertemplate: pcaData.new_compounds.labels
                             ? '<b>%{text}</b><br>PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
                             : 'PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
@@ -3342,6 +3369,8 @@
                             // Show overlay toggle checkbox
                             document.getElementById('overlay-toggle-container').style.display = 'block';
                             document.getElementById('show-overlay-checkbox').checked = true;
+                            document.getElementById('overlay-labels-container').style.display = 'block';
+                            document.getElementById('show-overlay-labels').checked = false;
 
                             showFlashMessage(`${data.n_compounds} new compounds ready to visualize!`, 'success');
 
@@ -3389,6 +3418,18 @@
                         const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
                         pcaForm.dispatchEvent(submitEvent);
                     }
+                }
+            });
+        }
+
+        // Toggle overlay labels - re-render plot when changed
+        const overlayLabelsCheckbox = document.getElementById('show-overlay-labels');
+        if (overlayLabelsCheckbox) {
+            overlayLabelsCheckbox.addEventListener('change', function () {
+                const pcaFormEl = document.getElementById('pca-visualization-form');
+                if (pcaFormEl) {
+                    const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+                    pcaFormEl.dispatchEvent(submitEvent);
                 }
             });
         }
