@@ -226,14 +226,14 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
         
         # Create dendrogram with color threshold to match the number of clusters
         plt.figure(figsize=(12, 8))
-        
+
         # Get the color threshold from the linkage matrix that gives us the desired clusters
         # For multi-cluster case (>2), we need to carefully set the threshold
         if actual_n_clusters > 1:
             # Get the distances at which clusters were merged
             distances = Z[:, 2]
             sorted_distances = np.sort(distances)
-            
+
             # Find the gap between merge distances that creates our desired number of clusters
             # We need to find the (n_clusters-1)th largest distance
             idx = len(distances) - (actual_n_clusters - 1)
@@ -245,21 +245,32 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
                 color_threshold = 0.7 * np.max(distances)
         else:
             color_threshold = 0
-        
+
+        # Set custom color palette for dendrogram using tab20 colors
+        from scipy.cluster.hierarchy import set_link_color_palette
+        tab20_colors = plt.cm.tab20.colors  # Get tab20 colors
+        # Convert RGB tuples to hex strings for scipy
+        tab20_hex = ['#%02x%02x%02x' % (int(r*255), int(g*255), int(b*255))
+                     for r, g, b in tab20_colors[:actual_n_clusters]]
+        set_link_color_palette(tab20_hex)
+
         # Generate the dendrogram with the precise color threshold
         # Use index_values as labels if available
         leaf_labels = None
         if index_values is not None:
             leaf_labels = index_values
-        
+
         dendrogram(
             Z,
-            truncate_mode='level', 
+            truncate_mode='level',
             p=5,
             color_threshold=color_threshold,  # This ensures consistent coloring with clusters
             above_threshold_color='grey',
             labels=leaf_labels  # Use custom labels if available
         )
+
+        # Reset color palette to default after drawing
+        set_link_color_palette(None)
         plt.title('Hierarchical Clustering Dendrogram')
         if index_values is not None:
             plt.xlabel(f'Sample ({index_column})')
@@ -381,11 +392,16 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
                                fontsize=8, alpha=0.8)
                 
         else:
-            # For KMeans and Hierarchical, use a fixed set of distinct colors for better visualization
-            cmap = plt.cm.get_cmap('tab10', max(5, actual_n_clusters))
-            
-            # Create the scatter plot with these colors
-            scatter = plt.scatter(X_pca[:, 0], X_pca[:, 1], c=labels, cmap=cmap, alpha=0.7)
+            # For KMeans and Hierarchical, use a FIXED colormap so colors stay consistent
+            # Get discrete colors from tab20 (use only first N colors for N clusters)
+            from matplotlib.colors import ListedColormap
+            tab20_colors = plt.cm.tab20.colors  # Get all 20 colors from tab20
+            cluster_colors = [tab20_colors[i % 20] for i in range(actual_n_clusters)]  # Use only first N
+            cmap = ListedColormap(cluster_colors)  # Create discrete colormap
+
+            # Create the scatter plot with discrete colors
+            scatter = plt.scatter(X_pca[:, 0], X_pca[:, 1], c=labels, cmap=cmap, alpha=0.7,
+                                vmin=-0.5, vmax=actual_n_clusters-0.5)
             
             # Add index labels if requested
             if index_values is not None:
@@ -424,10 +440,9 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
         plt.ylabel('Principal Component 2')
         plt.title(f'Cluster Visualization with PCA ({method.capitalize()})')
         
-        # Create a proper colorbar for consistent colors
+        # Create a proper colorbar showing only actual clusters
         if method != 'dbscan':
-            cbar = plt.colorbar(scatter, label='Cluster')
-            cbar.set_ticks(np.arange(actual_n_clusters))
+            cbar = plt.colorbar(scatter, label='Cluster', ticks=np.arange(actual_n_clusters))
             cbar.set_ticklabels([f'Cluster {i}' for i in range(actual_n_clusters)])
         
         plt.legend()
@@ -489,13 +504,16 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
             plt.bar(0, noise_size, color='black', alpha=0.7)
             plt.xticks([0], ['Noise'])
     else:
-        # Use same colormap as in the PCA visualization for consistency
-        cmap = plt.cm.get_cmap('tab10', max(5, actual_n_clusters))
-        
+        # Use FIXED colors from tab20 to match the PCA scatter plot
+        tab20_colors = plt.cm.tab20.colors  # Get all 20 colors from tab20
+
         # Create individual bars with colors matching the clusters
+        # Use cluster number directly as index into tab20_colors
         for i, (cluster, size) in enumerate(cluster_sizes.items()):
-            plt.bar(i, size, color=cmap(cluster), alpha=0.7)
-        
+            # Use the same color as in the PCA plot - cluster number as index
+            color = tab20_colors[cluster % 20]  # Get color by cluster number (not position!)
+            plt.bar(i, size, color=color, alpha=0.7)
+
         plt.xticks(range(len(cluster_sizes)), [f'Cluster {i}' for i in cluster_sizes.index])
     
     plt.xlabel('Cluster')
