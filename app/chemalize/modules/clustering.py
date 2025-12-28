@@ -668,5 +668,220 @@ def generate_report(dataset_path, method='kmeans', temp_path='temp/', index_colu
     
     # Build the PDF
     doc.build(elements)
-    
+
     return report_path
+
+
+def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_linkage='ward',
+                                col_linkage='ward', temp_path='temp/'):
+    """
+    Generate an interactive two-way hierarchical clustering heatmap using Plotly.
+
+    X axis: Variables (selected by user)
+    Y axis: Groups (e.g., regions, clusters) - mean values for each group
+
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        The input data
+    selected_variables : list
+        List of variable names to include in the heatmap (X axis)
+    grouping_column : str
+        Column name to group samples by (Y axis) - e.g., 'region', 'Cluster', etc.
+    row_linkage : str, default='ward'
+        Linkage method for row (group) clustering
+    col_linkage : str, default='ward'
+        Linkage method for column (variable) clustering
+    temp_path : str, default='temp/'
+        Path to temporary directory for saving plots
+
+    Returns:
+    --------
+    str
+        HTML string containing the Plotly heatmap
+    """
+    import plotly.figure_factory as ff
+    import plotly.graph_objects as go
+    from scipy.cluster.hierarchy import linkage as scipy_linkage
+
+    # Ensure the temporary directory exists
+    os.makedirs(temp_path, exist_ok=True)
+
+    # Check if grouping column exists
+    if grouping_column not in df.columns:
+        raise ValueError(f"Grouping column '{grouping_column}' not found in dataset")
+
+    # Filter to only selected variables that exist in the dataframe
+    available_vars = [var for var in selected_variables if var in df.columns and var != grouping_column]
+
+    if len(available_vars) == 0:
+        raise ValueError("None of the selected variables exist in the dataset")
+
+    if len(available_vars) < 2:
+        raise ValueError("At least 2 variables are required for column clustering")
+
+    # Get the data for heatmap (grouping column + selected variables)
+    cols_to_use = [grouping_column] + available_vars
+    heatmap_data = df[cols_to_use].copy()
+
+    # Remove rows with any NaN values
+    heatmap_data = heatmap_data.dropna()
+
+    if len(heatmap_data) == 0:
+        raise ValueError("No data available after removing missing values")
+
+    # Group by the grouping column and calculate mean for each group
+    grouped_data = heatmap_data.groupby(grouping_column)[available_vars].mean()
+
+    if len(grouped_data) < 2:
+        raise ValueError(f"At least 2 groups are required for row clustering. Found {len(grouped_data)} groups in '{grouping_column}'")
+
+    # Get group labels (Y axis)
+    group_labels = grouped_data.index.astype(str).tolist()
+
+    # Standardize the data for better visualization
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    grouped_data_scaled = scaler.fit_transform(grouped_data.values)
+
+    # Perform hierarchical clustering on rows (groups)
+    row_linkage_matrix = scipy_linkage(grouped_data_scaled, method=row_linkage)
+
+    # Perform hierarchical clustering on columns (variables)
+    col_linkage_matrix = scipy_linkage(grouped_data_scaled.T, method=col_linkage)
+
+    # Create row dendrogram to get row order
+    row_fig = ff.create_dendrogram(
+        grouped_data_scaled,
+        orientation='left',
+        labels=group_labels,
+        linkagefun=lambda x: scipy_linkage(x, method=row_linkage)
+    )
+
+    # Get the reordered indices/positions from the dendrogram
+    row_dendro_leaves = row_fig['layout']['yaxis']['ticktext']
+    row_dendro_positions = row_fig['layout']['yaxis']['tickvals']
+    row_order = [group_labels.index(label) for label in row_dendro_leaves]
+
+    # Create column dendrogram to get column order
+    col_fig = ff.create_dendrogram(
+        grouped_data_scaled.T,
+        orientation='bottom',
+        labels=available_vars,
+        linkagefun=lambda x: scipy_linkage(x, method=col_linkage)
+    )
+
+    col_dendro_leaves = col_fig['layout']['xaxis']['ticktext']
+    col_dendro_positions = col_fig['layout']['xaxis']['tickvals']
+    col_order = [available_vars.index(label) for label in col_dendro_leaves]
+
+    # Reorder the heatmap data
+    heatmap_reordered = grouped_data_scaled[row_order, :][:, col_order]
+    reordered_row_labels = [group_labels[i] for i in row_order]
+    reordered_col_labels = [available_vars[i] for i in col_order]
+    reordered_row_positions = [row_dendro_positions[i] for i in range(len(row_dendro_positions))]
+    reordered_col_positions = [col_dendro_positions[i] for i in range(len(col_dendro_positions))]
+
+    # Create the final combined figure with dendrograms and heatmap
+    from plotly.subplots import make_subplots
+
+    # Create row dendrogram
+    row_dendro = ff.create_dendrogram(
+        grouped_data_scaled,
+        orientation='left',
+        labels=group_labels,
+        linkagefun=lambda x: scipy_linkage(x, method=row_linkage)
+    )
+
+    # Create column dendrogram
+    col_dendro = ff.create_dendrogram(
+        grouped_data_scaled.T,
+        orientation='bottom',
+        labels=available_vars,
+        linkagefun=lambda x: scipy_linkage(x, method=col_linkage)
+    )
+
+    # Create the main heatmap
+    heatmap_text = [[reordered_col_labels[j] for j in range(len(reordered_col_labels))]
+                    for _ in reordered_row_labels]
+    heatmap_groups = [[label for _ in reordered_col_labels] for label in reordered_row_labels]
+
+    heatmap = go.Heatmap(
+        z=heatmap_reordered,
+        x=reordered_col_positions,
+        y=reordered_row_positions,
+        colorscale='RdBu_r',
+        zmid=0,
+        colorbar=dict(title="Scaled Mean Value", x=1.1),
+        hovertemplate='Variable: %{text}<br>Group: %{customdata}<br>Mean Value (scaled): %{z:.2f}<extra></extra>',
+        text=heatmap_text,
+        customdata=heatmap_groups
+    )
+
+    # Create a subplot layout: row dendrogram | heatmap
+    #                          column dendrogram (above heatmap)
+    fig = make_subplots(
+        rows=2, cols=2,
+        row_heights=[0.15, 0.85],
+        column_widths=[0.15, 0.85],
+        specs=[[None, {'type': 'xy'}],
+               [{'type': 'xy'}, {'type': 'xy'}]],
+        horizontal_spacing=0.01,
+        vertical_spacing=0.02
+    )
+
+    # Add column dendrogram at top
+    for trace in col_dendro['data']:
+        fig.add_trace(trace, row=1, col=2)
+
+    # Add row dendrogram on left
+    for trace in row_dendro['data']:
+        fig.add_trace(trace, row=2, col=1)
+
+    # Add main heatmap
+    fig.add_trace(heatmap, row=2, col=2)
+
+    # Update layout
+    fig.update_layout(
+        title=f'Two-Way Hierarchical Clustering Heatmap<br><sub>Groups by {grouping_column} | Row: {row_linkage} linkage | Column: {col_linkage} linkage</sub>',
+        height=max(600, len(reordered_row_labels) * 30 + 200),
+        width=max(800, len(reordered_col_labels) * 50 + 300),
+        showlegend=False,
+        hovermode='closest',
+        plot_bgcolor='white',
+        dragmode='pan',
+        margin=dict(t=150, l=120, r=40, b=80)
+    )
+
+    # Update axes for column dendrogram (x1/y1) - share X with heatmap
+    fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, matches='x3', row=1, col=2)
+    fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, row=1, col=2)
+
+    # Update axes for row dendrogram (x2/y2) - share Y with heatmap, reverse X so roots face heatmap
+    fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, autorange='reversed', row=2, col=1)
+    fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, matches='y3', row=2, col=1)
+
+    # Update axes for main heatmap (x3/y3)
+    fig.update_xaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2,
+                     tickangle=-45, side='bottom', tickmode='array',
+                     tickvals=reordered_col_positions, ticktext=reordered_col_labels, type='linear')
+    fig.update_yaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2, side='left',
+                     tickmode='array', tickvals=reordered_row_positions, ticktext=reordered_row_labels,
+                     autorange='reversed', type='linear')
+
+    # Add annotation above the row dendrogram to label the grouping column
+    fig.add_annotation(
+        text=str(grouping_column),
+        xref='paper', yref='paper',
+        x=-0.12, y=1.2,
+        xanchor='left', yanchor='bottom',
+        yshift=10,
+        showarrow=False,
+        align='left',
+        font=dict(size=12, color='black')
+    )
+
+    # Convert to HTML (rely on Plotly axis matching for pan/zoom sync)
+    html_string = fig.to_html(include_plotlyjs='cdn', div_id='twoway_hca_plot')
+
+    return html_string

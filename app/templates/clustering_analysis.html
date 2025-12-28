@@ -405,10 +405,16 @@
                 </li>
                 {% elif method == 'hierarchical' %}
                 <li class="nav-item">
-                    <a class="nav-link" id="dendrogram-tab" data-bs-toggle="tab" href="#dendrogram" role="tab" 
+                    <a class="nav-link" id="dendrogram-tab" data-bs-toggle="tab" href="#dendrogram" role="tab"
                        aria-controls="dendrogram" aria-selected="false">Dendrogram</a>
                 </li>
                 {% endif %}
+
+                <!-- Two-Way HCA Heatmap Tab -->
+                <li class="nav-item">
+                    <a class="nav-link" id="twoway-hca-tab" data-bs-toggle="tab" href="#twoway-hca" role="tab"
+                       aria-controls="twoway-hca" aria-selected="false">Two-Way HCA Heatmap</a>
+                </li>
             </ul>
             
             <div class="tab-content mt-3" id="clusteringResultTabContent">
@@ -476,8 +482,113 @@
                     {% endif %}
                 </div>
                 {% endif %}
+
+                <!-- Two-Way HCA Heatmap Tab -->
+                <div class="tab-pane fade" id="twoway-hca" role="tabpanel" aria-labelledby="twoway-hca-tab">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0"><i class="fas fa-th"></i> Generate Interactive Two-Way HCA Heatmap</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted">
+                                Create an interactive heatmap with hierarchical clustering on both axes:
+                                <br><strong>Rows (Groups):</strong> Grouped by the selected metadata column (defaults to Plot Index Column, otherwise Cluster)
+                                <br><strong>Columns (Variables):</strong> Select which variables to cluster on the X axis
+                            </p>
+
+                            <form method="POST" action="{{ url_for('clustering.generate_twoway_hca') }}" id="twoway_hca_form">
+                                <div class="form-group">
+                                    <label for="hca_variables"><i class="fas fa-list-ul"></i> Select Variables for Column Clustering:</label>
+                                    <select multiple class="form-control" id="hca_variables" name="hca_variables" size="10" required>
+                                        {% set default_hca_vars = twoway_hca_variables or hca_default_variables %}
+                                        {% if numeric_columns %}
+                                            {% for col in numeric_columns %}
+                                                <option value="{{ col }}" {% if default_hca_vars and col in default_hca_vars %}selected{% endif %}>{{ col }}</option>
+                                            {% endfor %}
+                                        {% endif %}
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        <i class="fas fa-info-circle"></i> Hold Ctrl/Cmd to select multiple variables. These will be hierarchically clustered on the heatmap columns.
+                                    </small>
+                                </div>
+
+                                <div class="form-group">
+
+
+                                    <label><i class="fas fa-tags"></i> Grouping:</label>
+                                    <div class="alert alert-secondary py-2 mb-2">
+                                        Uses <strong>{{ index_column or 'Plot Index Column not set' }}</strong> for row labels.
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+
+                                    <label for="hca_row_height"><i class="fas fa-ruler-vertical"></i> Dendrogram Height (node spacing):</label>
+                                    <input type="range" class="custom-range" id="hca_row_height" name="hca_row_height"
+                                           min="10" max="80" step="5"
+                                           value="{{ twoway_hca_height_scale or 30 }}">
+                                    <small class="form-text text-muted">Increase to stretch the vertical dendrogram and row spacing.</small>
+                                    <label for="hca_grouping_column"><i class="fas fa-tags"></i> Select Grouping Column for Rows:</label>
+                                    <select class="form-control" id="hca_grouping_column" name="hca_grouping_column">
+                                        <option value="Cluster" {% if twoway_hca_grouping_column == 'Cluster' %}selected{% endif %}>Cluster (from clustering results)</option>
+                                        {% set grouping_options = grouping_columns_options or columns %}
+                                        {% if grouping_options %}
+                                            {% for col in grouping_options %}
+                                                {% if col != 'Cluster' %}
+                                                    <option value="{{ col }}" {% if twoway_hca_grouping_column == col %}selected{% endif %}>{{ col }}</option>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        <i class="fas fa-info-circle"></i> Rows will be grouped by this column (e.g., region). Leave as Cluster to use clustering labels. To use sample metadata, pick the same column as “Plot Index Column”.
+                                    </small>
+
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="hca_linkage_rows">Row Linkage Method:</label>
+                                            <select class="form-control" id="hca_linkage_rows" name="hca_linkage_rows">
+                                                <option value="ward" selected>Ward</option>
+                                                <option value="average">Average</option>
+                                                <option value="complete">Complete</option>
+                                                <option value="single">Single</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label for="hca_linkage_cols">Column Linkage Method:</label>
+                                            <select class="form-control" id="hca_linkage_cols" name="hca_linkage_cols">
+                                                <option value="ward" selected>Ward</option>
+                                                <option value="average">Average</option>
+                                                <option value="complete">Complete</option>
+                                                <option value="single">Single</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-chart-area"></i> Generate Two-Way HCA Heatmap
+                                </button>
+                            </form>
+
+                            <!-- Display generated heatmap -->
+                            <div id="twoway_hca_status" class="mt-3"></div>
+                            <div id="twoway_hca_plot_div" class="mt-3">
+                                {% if twoway_hca_plot %}
+                                    <hr>
+                                    {{ twoway_hca_plot|safe }}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            
+
             <!-- Download Section -->
             <div class="row mt-4">
                 <div class="col-md-12">
@@ -702,6 +813,59 @@
                 const label = e.target.nextElementSibling;
                 if (label) {
                     label.textContent = fileName;
+                }
+            });
+        }
+
+        // Helper to inject HTML with executable scripts (required for Plotly)
+        function renderHtmlWithScripts(container, html) {
+            if (!container) return;
+            container.innerHTML = html;
+            const scripts = Array.from(container.querySelectorAll('script'));
+            scripts.forEach(oldScript => {
+                const newScript = document.createElement('script');
+                if (oldScript.src) {
+                    newScript.src = oldScript.src;
+                    newScript.async = false;
+                } else {
+                    newScript.textContent = oldScript.textContent;
+                }
+                oldScript.parentNode.replaceChild(newScript, oldScript);
+            });
+        }
+
+        // Handle Two-Way HCA without full page reload
+        const hcaForm = document.getElementById('twoway_hca_form');
+        const hcaStatus = document.getElementById('twoway_hca_status');
+        const hcaPlotDiv = document.getElementById('twoway_hca_plot_div');
+        if (hcaForm) {
+            hcaForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                if (hcaStatus) {
+                    hcaStatus.innerHTML = '<div class="alert alert-info py-2 mb-2"><i class="fas fa-spinner fa-spin"></i> Generating heatmap...</div>';
+                }
+                const formData = new FormData(hcaForm);
+                try {
+                    const resp = await fetch(hcaForm.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {'X-Requested-With': 'XMLHttpRequest'}
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok || !data.success) {
+                        throw new Error(data.error || 'Failed to generate heatmap');
+                    }
+                    if (hcaStatus) {
+                        hcaStatus.innerHTML = `<div class="alert alert-success py-2 mb-2">${data.message || 'Heatmap generated successfully.'}</div>`;
+                    }
+                    if (hcaPlotDiv) {
+                        const groupingInfo = data.grouping_column ? `<p class="text-muted mb-2"><strong>Row grouping:</strong> ${data.grouping_column}</p>` : '';
+                        renderHtmlWithScripts(hcaPlotDiv, `<hr>${groupingInfo}${data.plot_html}`);
+                    }
+                } catch (err) {
+                    if (hcaStatus) {
+                        hcaStatus.innerHTML = `<div class="alert alert-danger py-2 mb-2">${err.message}</div>`;
+                    }
                 }
             });
         }
