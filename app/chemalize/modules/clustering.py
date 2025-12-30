@@ -672,8 +672,119 @@ def generate_report(dataset_path, method='kmeans', temp_path='temp/', index_colu
     return report_path
 
 
+def _create_dendrogram_traces(linkage_matrix, leaf_positions, orientation='bottom', line_width=2, color='#636EFA'):
+    """
+    Create dendrogram traces manually from linkage matrix with custom leaf positions.
+
+    This ensures the dendrogram aligns properly with heatmap cells.
+
+    Parameters:
+    -----------
+    linkage_matrix : ndarray
+        The linkage matrix from scipy.cluster.hierarchy.linkage
+    leaf_positions : list
+        The x (or y) positions where leaves should be placed (matching heatmap)
+    orientation : str
+        'bottom' for column dendrogram (leaves at bottom), 'left' for row dendrogram (leaves at left)
+    line_width : int
+        Width of dendrogram lines
+    color : str
+        Color of dendrogram lines
+
+    Returns:
+    --------
+    list of go.Scatter traces
+    """
+    import plotly.graph_objects as go
+    from scipy.cluster.hierarchy import dendrogram
+
+    n_leaves = len(leaf_positions)
+
+    # Get dendrogram structure from scipy (without plotting)
+    dendro_data = dendrogram(linkage_matrix, no_plot=True)
+
+    # scipy dendrogram returns icoord (x) and dcoord (y) for each link
+    # icoord: x-coordinates of the four points of each link
+    # dcoord: y-coordinates (heights) of the four points of each link
+    icoord = dendro_data['icoord']
+    dcoord = dendro_data['dcoord']
+
+    # scipy uses positions 5, 15, 25, ... for leaves (step of 10, starting at 5)
+    # We need to map these to our leaf_positions
+    scipy_leaf_positions = [5 + 10 * i for i in range(n_leaves)]
+
+    # Create mapping from scipy positions to our positions
+    def map_position(scipy_pos):
+        # Find closest scipy leaf position
+        for i, sp in enumerate(scipy_leaf_positions):
+            if abs(scipy_pos - sp) < 0.1:
+                return leaf_positions[i]
+        # For non-leaf positions (internal nodes), interpolate
+        # Find which leaves this position is between
+        for i in range(len(scipy_leaf_positions) - 1):
+            if scipy_leaf_positions[i] < scipy_pos < scipy_leaf_positions[i + 1]:
+                # Linear interpolation
+                ratio = (scipy_pos - scipy_leaf_positions[i]) / (scipy_leaf_positions[i + 1] - scipy_leaf_positions[i])
+                return leaf_positions[i] + ratio * (leaf_positions[i + 1] - leaf_positions[i])
+        # Fallback - linear scaling
+        scipy_min, scipy_max = scipy_leaf_positions[0], scipy_leaf_positions[-1]
+        pos_min, pos_max = leaf_positions[0], leaf_positions[-1]
+        return pos_min + (scipy_pos - scipy_min) / (scipy_max - scipy_min) * (pos_max - pos_min)
+
+    traces = []
+
+    # Apply square root transformation to heights for better visibility of leaf connections
+    # This compresses large distances (root) and expands small distances (leaves)
+    import numpy as np
+    all_heights = [h for coords in dcoord for h in coords]
+    max_height = max(all_heights) if all_heights else 1
+
+    # Calculate minimum non-zero height for scaling reference
+    non_zero_heights = [h for h in all_heights if h > 0]
+    min_nonzero = min(non_zero_heights) if non_zero_heights else 1
+
+    def transform_height(h):
+        if h <= 0:
+            return 0  # Leaves stay at base
+        # Linear scaling with compression: map [min_nonzero, max_height] to [0.3*max, max]
+        # This ensures even the smallest connections are visible (at least 30% of max height)
+        ratio = (h - min_nonzero) / (max_height - min_nonzero) if max_height > min_nonzero else 0
+        return (0.3 + 0.7 * ratio) * max_height
+
+    for i in range(len(icoord)):
+        # Map x coordinates (leaf positions)
+        mapped_x = [map_position(x) for x in icoord[i]]
+        # y coordinates are heights - apply sqrt transformation
+        mapped_y = [transform_height(h) for h in dcoord[i]]
+
+        if orientation == 'bottom':
+            # Column dendrogram: x = leaf positions, y = heights
+            trace = go.Scatter(
+                x=mapped_x,
+                y=mapped_y,
+                mode='lines',
+                line=dict(color=color, width=line_width),
+                hoverinfo='skip',
+                showlegend=False
+            )
+        else:  # orientation == 'left'
+            # Row dendrogram: x = heights (reversed), y = leaf positions
+            trace = go.Scatter(
+                x=mapped_y,  # heights become x
+                y=mapped_x,  # leaf positions become y
+                mode='lines',
+                line=dict(color=color, width=line_width),
+                hoverinfo='skip',
+                showlegend=False
+            )
+
+        traces.append(trace)
+
+    return traces
+
+
 def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_linkage='ward',
-                                col_linkage='ward', temp_path='temp/'):
+                                col_linkage='ward', temp_path='temp/', height_scale=100, width_scale=100):
     """
     Generate an interactive two-way hierarchical clustering heatmap using Plotly.
 
@@ -694,6 +805,10 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         Linkage method for column (variable) clustering
     temp_path : str, default='temp/'
         Path to temporary directory for saving plots
+    height_scale : int, default=100
+        Scale for top dendrogram height (heatmap cells stay constant)
+    width_scale : int, default=100
+        Scale for left dendrogram width (heatmap cells stay constant)
 
     Returns:
     --------
@@ -785,20 +900,21 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     # Create the final combined figure with dendrograms and heatmap
     from plotly.subplots import make_subplots
 
-    # Create row dendrogram
-    row_dendro = ff.create_dendrogram(
-        grouped_data_scaled,
-        orientation='left',
-        labels=group_labels,
-        linkagefun=lambda x: scipy_linkage(x, method=row_linkage)
+    # Create dendrogram traces using custom function for proper alignment
+    col_dendro_traces = _create_dendrogram_traces(
+        col_linkage_matrix,
+        reordered_col_positions,
+        orientation='bottom',
+        line_width=2,
+        color='#1f77b4'
     )
 
-    # Create column dendrogram
-    col_dendro = ff.create_dendrogram(
-        grouped_data_scaled.T,
-        orientation='bottom',
-        labels=available_vars,
-        linkagefun=lambda x: scipy_linkage(x, method=col_linkage)
+    row_dendro_traces = _create_dendrogram_traces(
+        row_linkage_matrix,
+        reordered_row_positions,
+        orientation='left',
+        line_width=2,
+        color='#1f77b4'
     )
 
     # Create the main heatmap
@@ -818,34 +934,57 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         customdata=heatmap_groups
     )
 
+    # Calculate proportions so heatmap cells stay constant size, only dendrograms scale
+    n_rows = len(reordered_row_labels)
+    n_cols = len(reordered_col_labels)
+
+    # Fixed heatmap cell size (larger for better readability)
+    cell_height = 50
+    cell_width = 35
+    heatmap_height = n_rows * cell_height
+    heatmap_width = n_cols * cell_width
+
+    # Dendrogram size scales with parameters (larger base)
+    base_top_dendro = 400
+    base_left_dendro = 300
+    top_dendro_height = int(base_top_dendro * height_scale / 100)
+    left_dendro_width = int(base_left_dendro * width_scale / 100)
+
+    # Calculate proportions
+    top_ratio = top_dendro_height / (top_dendro_height + heatmap_height)
+    left_ratio = left_dendro_width / (left_dendro_width + heatmap_width)
+
     # Create a subplot layout: row dendrogram | heatmap
     #                          column dendrogram (above heatmap)
     fig = make_subplots(
         rows=2, cols=2,
-        row_heights=[0.15, 0.85],
-        column_widths=[0.15, 0.85],
+        row_heights=[top_ratio, 1 - top_ratio],
+        column_widths=[left_ratio, 1 - left_ratio],
         specs=[[None, {'type': 'xy'}],
                [{'type': 'xy'}, {'type': 'xy'}]],
-        horizontal_spacing=0.01,
-        vertical_spacing=0.02
+        horizontal_spacing=0,
+        vertical_spacing=0
     )
 
     # Add column dendrogram at top
-    for trace in col_dendro['data']:
+    for trace in col_dendro_traces:
         fig.add_trace(trace, row=1, col=2)
 
     # Add row dendrogram on left
-    for trace in row_dendro['data']:
+    for trace in row_dendro_traces:
         fig.add_trace(trace, row=2, col=1)
 
     # Add main heatmap
     fig.add_trace(heatmap, row=2, col=2)
 
-    # Update layout
+    # Total figure size = fixed heatmap + scaled dendrogram + padding
+    final_height = max(500, heatmap_height + top_dendro_height + 150)
+    final_width = max(800, heatmap_width + left_dendro_width + 150)
+
     fig.update_layout(
         title=f'Two-Way Hierarchical Clustering Heatmap<br><sub>Groups by {grouping_column} | Row: {row_linkage} linkage | Column: {col_linkage} linkage</sub>',
-        height=max(600, len(reordered_row_labels) * 30 + 200),
-        width=max(800, len(reordered_col_labels) * 50 + 300),
+        height=final_height,
+        width=final_width,
         showlegend=False,
         hovermode='closest',
         plot_bgcolor='white',
@@ -853,12 +992,12 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         margin=dict(t=150, l=120, r=40, b=80)
     )
 
-    # Update axes for column dendrogram (x1/y1) - share X with heatmap
+    # Update axes for column dendrogram - share X with heatmap, Y starts from 0
     fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, matches='x3', row=1, col=2)
-    fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, row=1, col=2)
+    fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, rangemode='tozero', row=1, col=2)
 
-    # Update axes for row dendrogram (x2/y2) - share Y with heatmap, reverse X so roots face heatmap
-    fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, autorange='reversed', row=2, col=1)
+    # Update axes for row dendrogram - share Y with heatmap, X starts from 0 (reversed)
+    fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, autorange='reversed', rangemode='tozero', row=2, col=1)
     fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, matches='y3', row=2, col=1)
 
     # Update axes for main heatmap (x3/y3)
