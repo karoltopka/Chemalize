@@ -54,6 +54,39 @@ def clustering_analysis():
     clustering_params['index_column'] = session.get('index_column', None)
     clustering_params['label_density'] = session.get('label_density', 10)
     clustering_params['columns'] = df.columns.tolist()  # Make sure all columns are available for selection
+    # Default grouping column for two-way HCA: prefer selected index column, fall back to Cluster
+    default_grouping_col = session.get('index_column') or 'Cluster'
+    clustering_params['twoway_hca_grouping_column'] = session.get('twoway_hca_grouping_column', default_grouping_col)
+
+    # Build grouping column options: only categorical (non-numeric) columns
+    # This includes string columns, object columns, and categorical dtype
+    categorical_columns = df.select_dtypes(exclude=[np.number]).columns.tolist()
+
+    grouping_columns_options = []
+    index_column = clustering_params['index_column']
+
+    # Add index column first if it exists
+    if index_column and index_column in df.columns and index_column not in grouping_columns_options:
+        grouping_columns_options.append(index_column)
+
+    # Add all categorical columns
+    for col in categorical_columns:
+        if col not in grouping_columns_options:
+            grouping_columns_options.append(col)
+
+    clustering_params['grouping_columns_options'] = grouping_columns_options
+    clustering_params['categorical_columns'] = categorical_columns
+    # Default HCA X-axis variables: reuse last selection, otherwise match single-HCA set
+    default_hca_variables = session.get('twoway_hca_variables', None)
+    if not default_hca_variables:
+        if feature_selection_mode in ('select', 'groups') and selected_features:
+            default_hca_variables = selected_features
+        else:
+            default_hca_variables = clustering_params['numeric_columns']
+    # Keep only numeric variables to mirror single HCA input
+    if default_hca_variables:
+        default_hca_variables = [col for col in default_hca_variables if col in clustering_params['numeric_columns']]
+    clustering_params['hca_default_variables'] = default_hca_variables
 
     clustering_params['feature_selection'] = session.get('feature_selection', 'all')
     clustering_params['selected_features'] = session.get('selected_features', None)
@@ -72,10 +105,13 @@ def clustering_analysis():
         # Add clustering results
         result_params = {k: session.get(k) for k in [
             'silhouette', 'calinski', 'n_noise', 'inertia',
-            'cluster_plot', 'profile_plot', 'size_plot', 
-            'elbow_plot', 'eps_plot', 'dendrogram'
+            'cluster_plot', 'profile_plot', 'size_plot',
+            'elbow_plot', 'eps_plot', 'dendrogram',
+            'twoway_hca_plot', 'twoway_hca_variables',
+            'twoway_hca_row_linkage', 'twoway_hca_col_linkage',
+            'twoway_hca_grouping_column', 'twoway_hca_height_scale', 'twoway_hca_width_scale'
         ] if session.get(k) is not None}
-        
+
         render_params.update(result_params)
     
     return render_template('clustering_analysis.html', 
@@ -363,3 +399,108 @@ def download_example_groups():
         return redirect(url_for('clustering.clustering_analysis'))
 
 
+@clustering_bp.route("/generate_twoway_hca", methods=['POST'])
+def generate_twoway_hca():
+    """Generate interactive two-way HCA heatmap using Plotly"""
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    if not check_dataset() or not session.get('clustering_performed'):
+        msg = 'No clustering analysis results available. Please run clustering first.'
+        if is_ajax:
+            return jsonify({'success': False, 'error': msg}), 400
+        flash(msg, 'danger')
+        return redirect(url_for('clustering.clustering_analysis'))
+
+    try:
+        # Get user-selected variables for column clustering
+        selected_variables = request.form.getlist('hca_variables')
+
+        if not selected_variables or len(selected_variables) < 2:
+            msg = 'Please select at least 2 variables for column clustering'
+            if is_ajax:
+                return jsonify({'success': False, 'error': msg}), 400
+            flash(msg, 'warning')
+            return redirect(url_for('clustering.clustering_analysis'))
+
+        # Get linkage methods
+        row_linkage = request.form.get('hca_linkage_rows', 'ward')
+        col_linkage = request.form.get('hca_linkage_cols', 'ward')
+
+        # Get scale parameters (percentage: 100-2000%)
+        height_scale = int(request.form.get('hca_row_height', 100))
+        width_scale = int(request.form.get('hca_col_width', 100))
+
+        # Load the clustering results (which includes the Cluster column)
+        results_path = os.path.join(ensure_temp_dir(), 'clustering_results.csv')
+
+        if not os.path.exists(results_path):
+            msg = 'Clustering results file not found. Please run clustering analysis first.'
+            if is_ajax:
+                return jsonify({'success': False, 'error': msg}), 400
+            flash(msg, 'danger')
+            return redirect(url_for('clustering.clustering_analysis'))
+
+        # Read the results dataframe
+        results_df = pd.read_csv(results_path)
+
+        # Pick grouping column for Y axis: explicit selection -> index column -> Cluster
+        grouping_column = request.form.get('hca_grouping_column', '').strip()
+        index_column = session.get('index_column', None)
+        if not grouping_column:
+            grouping_column = index_column if index_column else 'Cluster'
+
+        # Validate grouping column exists in the results
+        if grouping_column not in results_df.columns:
+            fallback_grouping = 'Cluster' if 'Cluster' in results_df.columns else None
+            if fallback_grouping and grouping_column != fallback_grouping:
+                msg = f"Selected grouping column '{grouping_column}' not found in clustering results. Using '{fallback_grouping}' instead."
+                if is_ajax:
+                    grouping_column = fallback_grouping
+                else:
+                    flash(msg, 'warning')
+                grouping_column = fallback_grouping
+            else:
+                msg = f"Grouping column '{grouping_column}' not found in clustering results."
+                if is_ajax:
+                    return jsonify({'success': False, 'error': msg}), 400
+                flash(msg, 'danger')
+                return redirect(url_for('clustering.clustering_analysis'))
+
+        # Generate the two-way HCA heatmap
+        heatmap_html = clustering.generate_twoway_hca_heatmap(
+            df=results_df,
+            selected_variables=selected_variables,
+            grouping_column=grouping_column,
+            row_linkage=row_linkage,
+            col_linkage=col_linkage,
+            temp_path=ensure_temp_dir(),
+            height_scale=height_scale,
+            width_scale=width_scale
+        )
+
+        # Store the heatmap HTML in session
+        session['twoway_hca_plot'] = heatmap_html
+        session['twoway_hca_variables'] = selected_variables
+        session['twoway_hca_row_linkage'] = row_linkage
+        session['twoway_hca_col_linkage'] = col_linkage
+        session['twoway_hca_grouping_column'] = grouping_column
+        session['twoway_hca_height_scale'] = height_scale
+        session['twoway_hca_width_scale'] = width_scale
+
+        success_msg = f"Two-way HCA heatmap generated successfully with {len(selected_variables)} variables, grouped by '{grouping_column}'."
+        if is_ajax:
+            return jsonify({
+                'success': True,
+                'plot_html': heatmap_html,
+                'grouping_column': grouping_column,
+                'variables': selected_variables,
+                'message': success_msg
+            })
+        flash(success_msg, 'success')
+
+    except Exception as e:
+        error_msg = f'Error generating two-way HCA heatmap: {str(e)}'
+        if is_ajax:
+            return jsonify({'success': False, 'error': error_msg}), 500
+        flash(error_msg, 'danger')
+
+    return redirect(url_for('clustering.clustering_analysis'))

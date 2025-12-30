@@ -245,6 +245,17 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
                 color_threshold = 0.7 * np.max(distances)
         else:
             color_threshold = 0
+        
+        color_threshold = max(color_threshold, 0)
+        
+        # Lift ties and log-scale distances for clearer lower branches
+        Z_plot = _prepare_linkage_for_plot(Z)
+        plot_color_threshold = color_threshold
+        y_label = 'Distance'
+        if Z_plot.size > 0:
+            if plot_color_threshold > 0:
+                plot_color_threshold = np.log1p(plot_color_threshold)
+            y_label = 'Distance (log scaled)'
 
         # Set custom color palette for dendrogram using tab20 colors
         from scipy.cluster.hierarchy import set_link_color_palette
@@ -260,14 +271,18 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
         if index_values is not None:
             leaf_labels = index_values
 
-        dendrogram(
-            Z,
-            truncate_mode='level',
-            p=5,
-            color_threshold=color_threshold,  # This ensures consistent coloring with clusters
-            above_threshold_color='grey',
-            labels=leaf_labels  # Use custom labels if available
-        )
+        dendrogram_kwargs = {
+            'color_threshold': plot_color_threshold,  # This ensures consistent coloring with clusters
+            'above_threshold_color': 'grey',
+            'labels': leaf_labels  # Use custom labels if available
+        }
+        max_full_leaves = 200
+        if len(X) > max_full_leaves:
+            dendrogram_kwargs.update({
+                'truncate_mode': 'level',
+                'p': min(30, len(X)),
+            })
+        dendrogram(Z_plot, **dendrogram_kwargs)
 
         # Reset color palette to default after drawing
         set_link_color_palette(None)
@@ -276,7 +291,7 @@ def perform_clustering(df, method='kmeans', n_clusters=3, h_n_clusters=None, eps
             plt.xlabel(f'Sample ({index_column})')
         else:
             plt.xlabel('Sample index')
-        plt.ylabel('Distance')
+        plt.ylabel(y_label)
         
         # Rotate x-axis labels if we're using custom labels
         if index_values is not None:
@@ -672,6 +687,51 @@ def generate_report(dataset_path, method='kmeans', temp_path='temp/', index_colu
     return report_path
 
 
+def _lift_linkage_distances(linkage_matrix, max_extra_ratio=0.2, min_gap_abs=1e-6):
+    """
+    Adjust linkage distances for plotting so ties don't collapse into flat lines.
+
+    This keeps the hierarchy structure but enforces a small vertical gap
+    between a merge and its children for visibility.
+    """
+    Z_plot = np.array(linkage_matrix, copy=True)
+    if Z_plot.size == 0:
+        return Z_plot
+
+    n_merges = Z_plot.shape[0]
+    max_dist = np.max(Z_plot[:, 2])
+    if max_dist <= 0:
+        target_extra = 1.0
+    else:
+        target_extra = max_dist * max_extra_ratio
+    min_gap = max(target_extra / max(n_merges, 1), min_gap_abs)
+
+    n_leaves = n_merges + 1
+    for i in range(n_merges):
+        left = int(Z_plot[i, 0])
+        right = int(Z_plot[i, 1])
+        left_height = 0.0 if left < n_leaves else Z_plot[left - n_leaves, 2]
+        right_height = 0.0 if right < n_leaves else Z_plot[right - n_leaves, 2]
+        min_height = max(left_height, right_height) + min_gap
+        if Z_plot[i, 2] < min_height:
+            Z_plot[i, 2] = min_height
+
+    return Z_plot
+
+
+def _prepare_linkage_for_plot(linkage_matrix, max_extra_ratio=0.2, min_gap_abs=0.02):
+    """
+    Prepare linkage distances for plotting: log-scale and lift ties.
+    """
+    Z_plot = np.array(linkage_matrix, copy=True)
+    if Z_plot.size == 0:
+        return Z_plot
+
+    Z_plot[:, 2] = np.log1p(Z_plot[:, 2])
+    Z_plot = _lift_linkage_distances(Z_plot, max_extra_ratio=max_extra_ratio, min_gap_abs=min_gap_abs)
+    return Z_plot
+
+
 def _create_dendrogram_traces(linkage_matrix, leaf_positions, orientation='bottom', line_width=2, color='#636EFA'):
     """
     Create dendrogram traces manually from linkage matrix with custom leaf positions.
@@ -700,8 +760,11 @@ def _create_dendrogram_traces(linkage_matrix, leaf_positions, orientation='botto
 
     n_leaves = len(leaf_positions)
 
+    # Lift ties and apply log scaling so low merges are visible
+    linkage_plot = _prepare_linkage_for_plot(linkage_matrix)
+
     # Get dendrogram structure from scipy (without plotting)
-    dendro_data = dendrogram(linkage_matrix, no_plot=True)
+    dendro_data = dendrogram(linkage_plot, no_plot=True)
 
     # scipy dendrogram returns icoord (x) and dcoord (y) for each link
     # icoord: x-coordinates of the four points of each link
@@ -733,29 +796,11 @@ def _create_dendrogram_traces(linkage_matrix, leaf_positions, orientation='botto
 
     traces = []
 
-    # Apply square root transformation to heights for better visibility of leaf connections
-    # This compresses large distances (root) and expands small distances (leaves)
-    import numpy as np
-    all_heights = [h for coords in dcoord for h in coords]
-    max_height = max(all_heights) if all_heights else 1
-
-    # Calculate minimum non-zero height for scaling reference
-    non_zero_heights = [h for h in all_heights if h > 0]
-    min_nonzero = min(non_zero_heights) if non_zero_heights else 1
-
-    def transform_height(h):
-        if h <= 0:
-            return 0  # Leaves stay at base
-        # Linear scaling with compression: map [min_nonzero, max_height] to [0.3*max, max]
-        # This ensures even the smallest connections are visible (at least 30% of max height)
-        ratio = (h - min_nonzero) / (max_height - min_nonzero) if max_height > min_nonzero else 0
-        return (0.3 + 0.7 * ratio) * max_height
-
     for i in range(len(icoord)):
         # Map x coordinates (leaf positions)
         mapped_x = [map_position(x) for x in icoord[i]]
-        # y coordinates are heights - apply sqrt transformation
-        mapped_y = [transform_height(h) for h in dcoord[i]]
+        # y coordinates are already lifted/log-scaled
+        mapped_y = list(dcoord[i])
 
         if orientation == 'bottom':
             # Column dendrogram: x = leaf positions, y = heights
