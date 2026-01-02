@@ -110,12 +110,30 @@
                 <p class="text-muted mb-3">Explore relationships between all numeric variables</p>
 
                 <div class="visualization-container">
-                    <div class="image-preview" onclick="openImageModal()">
-                        <img src="/static/img/pairplot1.png" class="img-fluid visualization-image"
-                            alt="Pair plot visualization" />
-                        <div class="image-overlay">
-                            <i class="fas fa-expand-arrows-alt"></i>
-                            <span>Click to enlarge</span>
+                    <!-- Placeholder before generation -->
+                    <div id="pairplot-placeholder" class="text-center py-5">
+                        <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">Click the button below to generate pair-plot</p>
+                        <button type="button" id="generate-pairplot-btn" class="modern-btn btn-primary-modern">
+                            <i class="fas fa-cogs"></i> Generate Pair-plot
+                        </button>
+                    </div>
+                    <!-- Loading indicator -->
+                    <div id="pairplot-loading" style="display: none;" class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="sr-only">Generating...</span>
+                        </div>
+                        <p class="text-muted mt-2">Generating pair-plot, please wait...</p>
+                    </div>
+                    <!-- Image preview (hidden initially) -->
+                    <div id="pairplot-image-container" style="display: none;">
+                        <div class="image-preview" onclick="openImageModal()">
+                            <img id="pairplot-image" src="" class="img-fluid visualization-image"
+                                alt="Pair plot visualization" />
+                            <div class="image-overlay">
+                                <i class="fas fa-expand-arrows-alt"></i>
+                                <span>Click to enlarge</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -449,6 +467,17 @@
                     </select>
                 </div>
 
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-circle"></i> Point Size
+                    </label>
+                    <div class="d-flex align-items-center">
+                        <input type="range" name="point_size" id="point_size_slider" class="form-range flex-grow-1"
+                               min="2" max="20" step="1" value="8">
+                        <span id="point_size_value" class="ml-2" style="min-width: 40px; font-weight: bold;">8</span>
+                    </div>
+                </div>
+
                 <!-- Hidden inputs for external coloring -->
                 <input type="hidden" name="use_external_coloring" id="use_external_coloring" value="0">
                 <input type="hidden" name="external_key_column" id="external_key_column" value="">
@@ -518,7 +547,7 @@
                 </button>
             </div>
             <div class="modal-body text-center">
-                <img src="/static/img/pairplot1.png" class="img-fluid modal-image" alt="Enlarged pair plot" />
+                <img id="pairplot-modal-image" src="" class="img-fluid modal-image" alt="Enlarged pair plot" />
             </div>
             <div class="modal-footer">
                 <div class="modal-info">
@@ -1469,6 +1498,9 @@
         console.log('Filter controls setup complete');
     }
 
+    // Global point size variable
+    let currentPointSize = 8;
+
     /* ===========================
        renderPCAPlot
        =========================== */
@@ -1654,7 +1686,7 @@
                             type: 'scatter',
                             name: `${group.colorCat} / ${group.shapeCat}`,
                             marker: {
-                                size: 8,
+                                size: currentPointSize,
                                 opacity: 0.7,
                                 color: colorPalette[group.colorCat],
                                 symbol: shapeMap[group.shapeCat] || 'circle'
@@ -1713,7 +1745,7 @@
                                 type: 'scatter',
                                 name: `${dataset.label} / ${shapeCat}`,
                                 marker: {
-                                    size: 8,
+                                    size: currentPointSize,
                                     opacity: 0.7,
                                     symbol: shapeMap[shapeCat] || 'circle'
                                 },
@@ -1761,7 +1793,7 @@
                         mode: 'markers',
                         type: 'scatter',
                         name: dataset.label,
-                        marker: { size: 8, opacity: 0.7 },
+                        marker: { size: currentPointSize, opacity: 0.7 },
                         text: hoverText,
                         customdata: new Array(xs.length).fill(dataset.label),
                         hovertemplate: buildHoverTemplate({
@@ -1825,7 +1857,7 @@
                         type: 'scatter',
                         name: shapeCat,
                         marker: {
-                            size: 8,
+                            size: currentPointSize,
                             color: group.colors,
                             coloraxis: 'coloraxis',  // Use shared color axis for global scale
                             opacity: 0.7,
@@ -1851,7 +1883,7 @@
                     type: 'scatter',
                     name: 'Samples',
                     marker: {
-                        size: 8,
+                        size: currentPointSize,
                         color: pcaData.color_data,
                         colorscale: 'Viridis',
                         showscale: true,
@@ -1903,7 +1935,7 @@
                     type: 'scatter',
                     name: shapeCat,
                     marker: {
-                        size: 8,
+                        size: currentPointSize,
                         opacity: 0.7,
                         symbol: shapeMap[shapeCat] || 'circle'
                     },
@@ -1927,7 +1959,7 @@
                 mode: 'markers',
                 type: 'scatter',
                 name: 'Samples',
-                marker: { size: 8, color: 'rgba(37, 99, 235, 0.7)', opacity: 0.7 },
+                marker: { size: currentPointSize, color: 'rgba(37, 99, 235, 0.7)', opacity: 0.7 },
                 text: base.hover_text || null,
                 customdata: base.hover_text || null,
                 hovertemplate: buildHoverTemplate({
@@ -2561,6 +2593,12 @@
 
     // Modal function
     function openImageModal() {
+        // Copy the pairplot image src to the modal
+        const pairplotImg = document.getElementById('pairplot-image');
+        const modalImg = document.getElementById('pairplot-modal-image');
+        if (pairplotImg && modalImg && pairplotImg.src) {
+            modalImg.src = pairplotImg.src;
+        }
         const modal = new bootstrap.Modal(document.getElementById('imageModal'));
         modal.show();
     }
@@ -2882,6 +2920,72 @@
 
         // Store new compounds data globally
         let newCompoundsData = null;
+
+        // Point size slider - update on the fly
+        const pointSizeSlider = document.getElementById('point_size_slider');
+        const pointSizeValueDisplay = document.getElementById('point_size_value');
+
+        if (pointSizeSlider) {
+            pointSizeSlider.addEventListener('input', function() {
+                currentPointSize = parseInt(this.value);
+                pointSizeValueDisplay.textContent = currentPointSize;
+
+                // Update plot on the fly using Plotly.restyle
+                const pcaPlotDiv = document.getElementById('pca-plotly');
+                if (pcaPlotDiv && pcaPlotDiv.data && pcaPlotDiv.data.length > 0) {
+                    // Update marker size for all traces
+                    const update = { 'marker.size': currentPointSize };
+                    Plotly.restyle(pcaPlotDiv, update);
+                }
+            });
+        }
+
+        // Pairplot generation on demand
+        const generatePairplotBtn = document.getElementById('generate-pairplot-btn');
+        const pairplotPlaceholder = document.getElementById('pairplot-placeholder');
+        const pairplotLoading = document.getElementById('pairplot-loading');
+        const pairplotImageContainer = document.getElementById('pairplot-image-container');
+        const pairplotImage = document.getElementById('pairplot-image');
+
+        if (generatePairplotBtn) {
+            generatePairplotBtn.addEventListener('click', function() {
+                // Show loading, hide placeholder
+                pairplotPlaceholder.style.display = 'none';
+                pairplotLoading.style.display = 'block';
+
+                fetch('/chemalize/generate_pairplot', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    pairplotLoading.style.display = 'none';
+
+                    if (data.status === 'success') {
+                        // Show image with cache-busting timestamp
+                        pairplotImage.src = '/static/img/pairplot1.png?' + new Date().getTime();
+                        pairplotImageContainer.style.display = 'block';
+
+                        // Update modal image as well
+                        const modalImg = document.querySelector('#imageModal .modal-image');
+                        if (modalImg) {
+                            modalImg.src = pairplotImage.src;
+                        }
+                    } else {
+                        // Show placeholder again with error
+                        pairplotPlaceholder.style.display = 'block';
+                        showFlashMessage(data.message || 'Error generating pairplot', 'danger');
+                    }
+                })
+                .catch(error => {
+                    pairplotLoading.style.display = 'none';
+                    pairplotPlaceholder.style.display = 'block';
+                    showFlashMessage('Error generating pairplot: ' + error, 'danger');
+                });
+            });
+        }
 
         // Flash message function
         function showFlashMessage(message, category) {

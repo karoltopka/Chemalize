@@ -926,8 +926,7 @@ def visualize():
                 col_csv_path = os.path.join(temp_dir, "col.csv")
                 df.to_csv(col_csv_path, index=False)
 
-                # Call pair_plot after saving col.csv file
-                vis.pair_plot()
+                # Don't generate pairplot on page load - wait for user to click button
                 columns = df.columns.tolist()
                 
                 pca_available = session.get('pca_performed', False)
@@ -987,10 +986,35 @@ def col():
 @nocache
 def pairplot1():
     return send_file(
-        "static/img/pairplot1.png", 
-        mimetype="image/png", 
+        "static/img/pairplot1.png",
+        mimetype="image/png",
         as_attachment=True
     )
+
+
+@visualization_bp.route("/generate_pairplot", methods=["POST"])
+@nocache
+def generate_pairplot():
+    """Generate pairplot on demand"""
+    try:
+        if not session.get("haha"):
+            return jsonify({"status": "error", "message": "No dataset loaded"})
+
+        # Generate the pairplot
+        plot_path = vis.pair_plot()
+
+        return jsonify({
+            "status": "success",
+            "message": "Pairplot generated successfully",
+            "plot_path": plot_path
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            "status": "error",
+            "message": f"Error generating pairplot: {str(e)}",
+            "traceback": traceback.format_exc()
+        })
 
 
 @visualization_bp.route("/tree.png")
