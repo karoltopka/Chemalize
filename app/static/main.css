@@ -2000,6 +2000,181 @@ body.dark-theme .modal-info {
     color: var(--text-secondary);
 }
 
+/* Dark theme for Bootstrap utility classes */
+body.dark-theme .bg-light {
+    background-color: #1f2937 !important;
+    color: var(--text-primary) !important;
+}
+
+body.dark-theme .bg-white {
+    background-color: #1f2937 !important;
+    color: var(--text-primary) !important;
+}
+
+body.dark-theme .border {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Dark theme for form controls (selects, inputs) */
+body.dark-theme .form-control,
+body.dark-theme .form-select,
+body.dark-theme select.form-control,
+body.dark-theme input.form-control,
+body.dark-theme textarea.form-control {
+    background-color: #374151 !important;
+    color: #f9fafb !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+body.dark-theme .form-control:focus,
+body.dark-theme .form-select:focus,
+body.dark-theme select.form-control:focus,
+body.dark-theme input.form-control:focus {
+    background-color: #4b5563 !important;
+    color: #ffffff !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25) !important;
+}
+
+body.dark-theme .form-control option,
+body.dark-theme .form-select option,
+body.dark-theme select option {
+    background-color: #374151 !important;
+    color: #f9fafb !important;
+}
+
+body.dark-theme .form-control::placeholder,
+body.dark-theme input::placeholder {
+    color: #9ca3af !important;
+}
+
+/* Dark theme for custom-select and other select variants */
+body.dark-theme .custom-select,
+body.dark-theme select {
+    background-color: #374151 !important;
+    color: #f9fafb !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Dark theme for form labels */
+body.dark-theme .form-label,
+body.dark-theme label {
+    color: var(--text-primary) !important;
+}
+
+/* Dark theme for cards and panels */
+body.dark-theme .card {
+    background-color: #1f2937 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-theme .card-header:not(.method-header) {
+    /* Keep the original background-color (primary-color) - don't override */
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: var(--text-light) !important;
+}
+
+/* Scrollable list backgrounds (for checkbox lists, etc.) */
+.bg-scrollable-list {
+    background-color: #ffffff;
+}
+
+body.dark-theme .bg-scrollable-list {
+    background-color: #374151 !important;
+}
+
+/* Info panel backgrounds (for collapsible info sections) */
+.bg-info-panel {
+    background: #f8f9fa;
+}
+
+body.dark-theme .bg-info-panel {
+    background: #374151 !important;
+}
+
+body.dark-theme .card-footer {
+    background-color: #374151 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Dark theme for list groups */
+body.dark-theme .list-group-item {
+    background-color: #1f2937 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: var(--text-primary) !important;
+}
+
+body.dark-theme .list-group-item:hover {
+    background-color: #374151 !important;
+}
+
+/* Dark theme for badges */
+body.dark-theme .badge-light,
+body.dark-theme .bg-light.badge {
+    background-color: #374151 !important;
+    color: #f9fafb !important;
+}
+
+/* Dark theme for alerts */
+body.dark-theme .alert-light {
+    background-color: #374151 !important;
+    color: #f9fafb !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Dark theme for modal */
+body.dark-theme .modal-content {
+    background-color: #1f2937 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-theme .modal-header {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-theme .modal-footer {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-theme .modal-title {
+    color: var(--text-primary) !important;
+}
+
+/* Dark theme for input groups */
+body.dark-theme .input-group-text {
+    background-color: #374151 !important;
+    color: #f9fafb !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Dark theme for range inputs */
+body.dark-theme input[type="range"] {
+    background-color: transparent !important;
+}
+
+body.dark-theme .form-range::-webkit-slider-track {
+    background-color: #4b5563;
+}
+
+body.dark-theme .form-range::-moz-range-track {
+    background-color: #4b5563;
+}
+
+/* Dark theme for checkboxes and radios */
+body.dark-theme .form-check-input {
+    background-color: #374151 !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+body.dark-theme .form-check-input:checked {
+    background-color: #3b82f6 !important;
+    border-color: #3b82f6 !important;
+}
+
+body.dark-theme .form-check-label {
+    color: var(--text-primary) !important;
+}
+
 /* =================================================================== */
 /* VISUALIZATION AND PLOTTING STYLES */
 /* =================================================================== */

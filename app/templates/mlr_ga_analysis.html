@@ -1507,14 +1507,31 @@
 /* Dark mode support */
 [data-bs-theme="dark"] .equation-cell,
 .dark-mode .equation-cell,
-body.dark .equation-cell {
+body.dark .equation-cell,
+body.dark-theme .equation-cell {
     background-color: var(--bs-tertiary-bg, #2b3035);
 }
 
 [data-bs-theme="dark"] .equation-code,
 .dark-mode .equation-code,
-body.dark .equation-code {
+body.dark .equation-code,
+body.dark-theme .equation-code {
     color: var(--bs-body-color, #dee2e6);
+}
+
+/* Additional dark theme support */
+body.dark-theme .split-options {
+    background-color: #374151 !important;
+    border-left-color: #3b82f6 !important;
+}
+
+body.dark-theme .ga-loading-content {
+    background: #1f2937 !important;
+    color: #f9fafb !important;
+}
+
+body.dark-theme .ga-loading-content p {
+    color: #9ca3af !important;
 }
 </style>
 

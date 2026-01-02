@@ -233,7 +233,7 @@
                         <!-- Group Selection (only shown when groups are uploaded) -->
                         <div class="form-group mt-3" id="group_selection_div" style="{% if feature_selection == 'groups' and uploaded_groups %}display: block;{% else %}display: none;{% endif %}">
                             <label><i class="fas fa-check-square"></i> Select Groups to Include:</label>
-                            <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto; background-color: white;">
+                            <div class="border rounded p-3 bg-scrollable-list" style="max-height: 300px; overflow-y: auto;">
                                 {% if uploaded_groups %}
                                     {% for group_id, group_info in uploaded_groups.items() %}
                                     <div class="custom-control custom-checkbox mb-2">
