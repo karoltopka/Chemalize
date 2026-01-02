@@ -5,9 +5,11 @@
 
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.pyc
 .Python
 env/
 venv/
@@ -44,11 +46,15 @@ data/uploads/*
 data/clean/*
 data/temp/*
 data/unified/*
+data/users/
 # Keep directory structure
 !data/uploads/.gitkeep
 !data/clean/.gitkeep
 !data/temp/.gitkeep
 !data/unified/.gitkeep
+
+# User data directory (multi-user sessions)
+app/data/users/
 
 # IDE
 .vscode/
@@ -71,9 +77,20 @@ htmlcov/
 # Jupyter Notebook
 .ipynb_checkpoints
 
+# Generated images (analysis outputs)
+app/static/img/hist_*.png
+app/static/img/test_*.png
+app/static/img/watermarks/
+app/static/img/pairplot*.png
+app/static/img/fig.png
+app/static/img/clustering_*.png
+app/static/img/pca_*.png
+app/static/img/tree.png
+
 # OS
 .DS_Store
 Thumbs.db
+**/.DS_Store
 
 # Backup files
 *.backup
