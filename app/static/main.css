@@ -513,23 +513,38 @@ html {
     padding: 2rem;
     margin-bottom: 2rem;
     box-shadow: var(--shadow);
-    transition: var(--transition);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.3s ease;
+    opacity: 0;
+    animation: cardSlideIn 0.5s ease forwards;
 }
 
+/* Staggered animation delays for multiple cards */
+.modern-card:nth-child(1) { animation-delay: 0.05s; }
+.modern-card:nth-child(2) { animation-delay: 0.1s; }
+.modern-card:nth-child(3) { animation-delay: 0.15s; }
+.modern-card:nth-child(4) { animation-delay: 0.2s; }
+.modern-card:nth-child(5) { animation-delay: 0.25s; }
+
 .modern-card:hover {
-    /* Removed transform to prevent stacking context issues with dropdowns */
-    /* transform: translateY(-2px); */
-    box-shadow: var(--shadow-lg);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.08);
+    border-color: rgba(59, 130, 246, 0.3);
     /* Use margin instead for lift effect without creating stacking context */
-    margin-top: -2px;
-    margin-bottom: calc(2rem + 2px);
+    margin-top: -4px;
+    margin-bottom: calc(2rem + 4px);
 }
 
 /* Disable hover transform for cards containing interactive visualizations/plots */
-.modern-card.no-hover-transform:hover {
+.modern-card.no-hover-transform:hover,
+.card.no-hover-transform:hover,
+.modern-card.plot-container:hover,
+.card.plot-container:hover {
     margin-top: 0;
     margin-bottom: 2rem;
     box-shadow: var(--shadow);
+    border-color: var(--border-color);
+    transform: none;
 }
 
 .modern-card h3, .modern-card h4, .modern-card h5 {
@@ -546,6 +561,52 @@ html {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+}
+
+/* Glass Panel - enhanced glassmorphism effect */
+.glass-panel {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 1rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+}
+
+.glass-panel:hover {
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+
+/* Card with gradient border on hover */
+.card-gradient-border {
+    position: relative;
+    background: var(--bg-white);
+    border-radius: 1rem;
+    z-index: 1;
+}
+
+.card-gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+    border-radius: inherit;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.card-gradient-border:hover::before {
+    opacity: 1;
+}
+
+/* Content section with subtle animation */
+.content-section {
+    opacity: 0;
+    animation: cardSlideIn 0.4s ease forwards;
+    animation-delay: 0.1s;
 }
 
 /* Upload Section */
@@ -1354,6 +1415,23 @@ html {
     overflow: visible;
     position: relative;
     z-index: 1;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.3s ease;
+    opacity: 0;
+    animation: cardSlideIn 0.5s ease forwards;
+}
+
+/* Staggered animation for cards */
+.card:nth-of-type(1) { animation-delay: 0.05s; }
+.card:nth-of-type(2) { animation-delay: 0.1s; }
+.card:nth-of-type(3) { animation-delay: 0.15s; }
+.card:nth-of-type(4) { animation-delay: 0.2s; }
+.card:nth-of-type(5) { animation-delay: 0.25s; }
+
+.card:hover {
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.1), 0 6px 12px rgba(0, 0, 0, 0.06);
+    border-color: rgba(59, 130, 246, 0.25);
 }
 
 .card-header {
@@ -1399,18 +1477,25 @@ html {
     position: sticky;
     top: 0;
     z-index: 2;
-    background: linear-gradient(135deg, #1e3a8a, #1e40af) !important; /* Ciemniejszy niebieski */
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%) !important;
     color: #ffffff !important;
-    font-weight: 700 !important;
+    font-weight: 600 !important;
     padding: 1rem;
     border-bottom: 2px solid var(--border-color);
     text-align: center;
     vertical-align: middle;
     border-radius: 0.5rem 0.5rem 0 0;
     overflow: hidden;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8) !important;
-    border-right: 1px solid rgba(255, 255, 255, 0.2);
-    font-size: 1rem;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.15);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Sticky header shadow effect */
+.table thead {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .table thead th:first-child {
@@ -1451,13 +1536,25 @@ html {
 }
 
 .table-striped tbody tr:nth-of-type(odd) {
-    background-color: var(--bg-primary);
-    transition: background-color 0.2s;
+    background: linear-gradient(90deg, var(--bg-primary) 0%, rgba(243, 244, 246, 0.8) 100%);
+    transition: all 0.25s ease;
+}
+
+.table-striped tbody tr:nth-of-type(even) {
+    background: var(--bg-white);
+    transition: all 0.25s ease;
+}
+
+.table tbody tr {
+    transition: background-color 0.2s ease;
 }
 
 .table-hover tbody tr:hover {
-    background-color: var(--hover-color);
-    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.2);
+    background-color: rgba(59, 130, 246, 0.08) !important;
+}
+
+.table-hover tbody tr:hover td {
+    border-color: rgba(59, 130, 246, 0.2);
 }
 
 .table th:first-child,
@@ -1555,6 +1652,97 @@ th {
     text-shadow: 0 3px 6px rgba(0, 0, 0, 1) !important;
     font-weight: 900 !important;
     font-size: 1.1rem !important;
+}
+
+/* Table skeleton loading */
+.table-loading td {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    color: transparent !important;
+    user-select: none;
+}
+
+body.dark-theme .table-loading td {
+    background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+    background-size: 200% 100%;
+}
+
+/* =================================================================== */
+/* MICRO-INTERACTIONS */
+/* =================================================================== */
+
+/* Ripple effect for buttons */
+.btn-ripple {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-ripple .ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    transform: scale(0);
+    animation: rippleEffect 0.6s linear;
+    pointer-events: none;
+}
+
+/* Modern focus ring */
+:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4) !important;
+}
+
+/* Button press effect */
+.btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+/* Link hover underline animation */
+.link-animated {
+    position: relative;
+    text-decoration: none;
+}
+
+.link-animated::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+    transition: width 0.3s ease;
+}
+
+.link-animated:hover::after {
+    width: 100%;
+}
+
+/* Pulse effect for notifications/badges */
+.pulse-effect {
+    animation: glowPulse 2s ease-in-out infinite;
+}
+
+/* Smooth scrollbar styling */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    border-radius: 5px;
+    border: 2px solid var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-hover);
 }
 
 /* =================================================================== */
@@ -1769,9 +1957,97 @@ th {
     animation: spin 1s linear infinite;
 }
 
+/* Card slide-in animation */
+@keyframes cardSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(24px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Shimmer loading animation */
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* Ripple effect animation */
+@keyframes rippleEffect {
+    0% {
+        transform: scale(0);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+/* Subtle glow pulse */
+@keyframes glowPulse {
+    0%, 100% {
+        box-shadow: 0 0 5px rgba(59, 130, 246, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+    }
+}
+
 /* =================================================================== */
 /* DARK THEME ENHANCEMENTS */
 /* =================================================================== */
+
+/* Dark theme for glass panel */
+body.dark-theme .glass-panel {
+    background: rgba(31, 41, 55, 0.85);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme .glass-panel:hover {
+    background: rgba(55, 65, 81, 0.9);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Dark theme for card gradient border */
+body.dark-theme .card-gradient-border {
+    background: #1f2937;
+}
+
+/* Dark theme for card hover effects */
+body.dark-theme .modern-card:hover,
+body.dark-theme .card:hover {
+    border-color: rgba(59, 130, 246, 0.4);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 8px 16px rgba(59, 130, 246, 0.1);
+}
+
+/* Dark theme for table row hover */
+body.dark-theme .table-hover tbody tr:hover {
+    background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+/* Dark theme for table striping */
+body.dark-theme .table-striped tbody tr:nth-of-type(odd) {
+    background: linear-gradient(90deg, #1f2937 0%, rgba(55, 65, 81, 0.8) 100%);
+}
+
+body.dark-theme .table-striped tbody tr:nth-of-type(even) {
+    background: #111827;
+}
+
+/* Dark theme scrollbar */
+body.dark-theme ::-webkit-scrollbar-track {
+    background: #1f2937;
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    border-color: #1f2937;
+}
 
 body.dark-theme .analysis-stat {
     background: rgba(37, 99, 235, 0.2);
