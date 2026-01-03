@@ -979,25 +979,49 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         customdata=heatmap_groups
     )
 
-    # Calculate proportions so heatmap cells stay constant size, only dendrograms scale
+    # Calculate proportions with dynamic cell sizing based on number of variables
     n_rows = len(reordered_row_labels)
     n_cols = len(reordered_col_labels)
 
-    # Fixed heatmap cell size (larger for better readability)
-    cell_height = 50
-    cell_width = 35
+    # Cell sizing - minimum size to fit labels, chart can expand as needed
+    # Wider cells for fewer variables, narrower for many
+    if n_cols > 50:
+        cell_width = 25  # Narrow cells for many variables
+    elif n_cols > 30:
+        cell_width = 30
+    else:
+        cell_width = 35  # Standard width
+
+    if n_rows > 30:
+        cell_height = 35  # Shorter cells for many groups
+    elif n_rows > 15:
+        cell_height = 45
+    else:
+        cell_height = 50  # Standard height
+
     heatmap_height = n_rows * cell_height
     heatmap_width = n_cols * cell_width
 
     # Dendrogram size scales with parameters (larger base)
-    base_top_dendro = 400
-    base_left_dendro = 300
+    base_top_dendro = 300
+    base_left_dendro = 250
     top_dendro_height = int(base_top_dendro * height_scale / 100)
     left_dendro_width = int(base_left_dendro * width_scale / 100)
 
     # Calculate proportions
     top_ratio = top_dendro_height / (top_dendro_height + heatmap_height)
     left_ratio = left_dendro_width / (left_dendro_width + heatmap_width)
+
+    # Calculate space needed for Y-axis labels based on longest label width
+    max_label_len = max(len(str(label)) for label in reordered_row_labels)
+    # Estimate label width in pixels: ~6-7px per character at font size 10-11
+    y_font_size = 9 if n_rows > 30 else (10 if n_rows > 15 else 11)
+    char_width = y_font_size * 0.65  # Average character width relative to font size
+    estimated_label_width = max_label_len * char_width + 20  # +20px padding
+    # Calculate preliminary total width
+    preliminary_width = max(800, heatmap_width + left_dendro_width + 150)
+    # Convert to ratio - use 1.5x multiplier for safety margin since labels extend leftward
+    label_space = max(0.04, min(0.20, (estimated_label_width * 1.5) / preliminary_width))
 
     # Create a subplot layout: row dendrogram | heatmap
     #                          column dendrogram (above heatmap)
@@ -1007,8 +1031,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         column_widths=[left_ratio, 1 - left_ratio],
         specs=[[None, {'type': 'xy'}],
                [{'type': 'xy'}, {'type': 'xy'}]],
-        horizontal_spacing=0,
-        vertical_spacing=0
+        horizontal_spacing=label_space,  # Gap for labels between dendrogram and heatmap
+        vertical_spacing=0.02
     )
 
     # Add column dendrogram at top
@@ -1022,19 +1046,22 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     # Add main heatmap
     fig.add_trace(heatmap, row=2, col=2)
 
-    # Total figure size = fixed heatmap + scaled dendrogram + padding
+    # Total figure size = heatmap + dendrogram + padding (no max limit - let it expand)
     final_height = max(500, heatmap_height + top_dendro_height + 150)
     final_width = max(800, heatmap_width + left_dendro_width + 150)
 
+    # Adjust bottom margin based on label angle (more space for vertical labels)
+    bottom_margin = 150 if n_cols > 30 else (120 if n_cols > 15 else 100)
+
     fig.update_layout(
-        title=f'Two-Way Hierarchical Clustering Heatmap<br><sub>Groups by {grouping_column} | Row: {row_linkage} linkage | Column: {col_linkage} linkage</sub>',
+        title=f'Two-Way Hierarchical Clustering Heatmap<br><sub>Groups by {grouping_column} | Row: {row_linkage} linkage | Column: {col_linkage} linkage | {n_cols} variables × {n_rows} groups</sub>',
         height=final_height,
         width=final_width,
         showlegend=False,
         hovermode='closest',
         plot_bgcolor='white',
         dragmode='pan',
-        margin=dict(t=150, l=120, r=40, b=80)
+        margin=dict(t=150, l=120, r=60, b=bottom_margin)
     )
 
     # Update axes for column dendrogram - share X with heatmap, Y starts from 0
@@ -1046,12 +1073,32 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, matches='y3', row=2, col=1)
 
     # Update axes for main heatmap (x3/y3)
+    # Adjust label angle and font based on number of variables - always show ALL labels
+    if n_cols > 50:
+        x_tickangle = -90  # Vertical for many variables
+        x_tickfont = dict(size=8)
+    elif n_cols > 30:
+        x_tickangle = -90
+        x_tickfont = dict(size=9)
+    elif n_cols > 15:
+        x_tickangle = -60
+        x_tickfont = dict(size=10)
+    else:
+        x_tickangle = -45
+        x_tickfont = dict(size=11)
+
     fig.update_xaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2,
-                     tickangle=-45, side='bottom', tickmode='array',
-                     tickvals=reordered_col_positions, ticktext=reordered_col_labels, type='linear')
+                     tickangle=x_tickangle, side='bottom', tickmode='array',
+                     tickvals=reordered_col_positions, ticktext=reordered_col_labels, type='linear',
+                     tickfont=x_tickfont)
+
+    # Y-axis labels (groups) - adjust font size if many groups
+    y_tickfont = dict(size=9) if n_rows > 30 else (dict(size=10) if n_rows > 15 else dict(size=11))
+    # Calculate standoff based on label length - longer labels need more space from dendrogram
+    y_standoff = max(5, int(max_label_len * 0.5))
     fig.update_yaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2, side='left',
                      tickmode='array', tickvals=reordered_row_positions, ticktext=reordered_row_labels,
-                     autorange='reversed', type='linear')
+                     autorange='reversed', type='linear', tickfont=y_tickfont, ticklabelstandoff=y_standoff)
 
     # Add annotation above the row dendrogram to label the grouping column
     fig.add_annotation(
@@ -1065,7 +1112,15 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         font=dict(size=12, color='black')
     )
 
-    # Convert to HTML (rely on Plotly axis matching for pan/zoom sync)
-    html_string = fig.to_html(include_plotlyjs='cdn', div_id='twoway_hca_plot')
+    # Convert to HTML with higher resolution image export config
+    config = {
+        'toImageButtonOptions': {
+            'format': 'png',
+            'filename': 'twoway_hca_heatmap',
+            'scale': 2  # 2x resolution
+        },
+        'displaylogo': False
+    }
+    html_string = fig.to_html(include_plotlyjs='cdn', div_id='twoway_hca_plot', config=config)
 
     return html_string
