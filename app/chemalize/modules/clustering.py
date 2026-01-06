@@ -828,8 +828,170 @@ def _create_dendrogram_traces(linkage_matrix, leaf_positions, orientation='botto
     return traces
 
 
+def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_labels, color_labels,
+                                       orientation='bottom', line_width=2, default_color='#888888'):
+    """
+    Create dendrogram traces with branches colored by category.
+
+    Branches are colored based on the category of leaves they connect.
+    If a branch connects leaves of different categories, it uses the default color.
+
+    Parameters:
+    -----------
+    linkage_matrix : ndarray
+        The linkage matrix from scipy.cluster.hierarchy.linkage
+    leaf_positions : list
+        The x (or y) positions where leaves should be placed (matching heatmap)
+    leaf_labels : list
+        Labels for each leaf (used for matching with color_labels)
+    color_labels : dict
+        Dictionary mapping leaf labels to their category (e.g., {'sample1': 'TypeA', 'sample2': 'TypeB'})
+    orientation : str
+        'bottom' for column dendrogram (leaves at bottom), 'left' for row dendrogram (leaves at left)
+    line_width : int
+        Width of dendrogram lines
+    default_color : str
+        Color for branches connecting different categories
+
+    Returns:
+    --------
+    tuple (list of go.Scatter traces, dict of category colors)
+    """
+    import plotly.graph_objects as go
+    from scipy.cluster.hierarchy import dendrogram
+    import matplotlib.pyplot as plt
+
+    n_leaves = len(leaf_positions)
+
+    # Get unique categories and assign colors
+    unique_categories = list(set(color_labels.values()))
+    unique_categories.sort()  # Sort for consistent coloring
+
+    # Use tab20 colormap for categories
+    tab20_colors = plt.cm.tab20.colors
+    category_colors = {}
+    for i, cat in enumerate(unique_categories):
+        rgb = tab20_colors[i % 20]
+        category_colors[cat] = f'rgb({int(rgb[0]*255)},{int(rgb[1]*255)},{int(rgb[2]*255)})'
+
+    # Lift ties and apply log scaling so low merges are visible
+    linkage_plot = _prepare_linkage_for_plot(linkage_matrix)
+
+    # Get dendrogram structure from scipy (without plotting)
+    dendro_data = dendrogram(linkage_plot, no_plot=True)
+
+    icoord = dendro_data['icoord']
+    dcoord = dendro_data['dcoord']
+    leaves_order = dendro_data['leaves']  # Order of leaves in the dendrogram
+
+    # scipy uses positions 5, 15, 25, ... for leaves (step of 10, starting at 5)
+    scipy_leaf_positions = [5 + 10 * i for i in range(n_leaves)]
+
+    # Create mapping from scipy positions to our positions and to leaf indices
+    def map_position(scipy_pos):
+        for i, sp in enumerate(scipy_leaf_positions):
+            if abs(scipy_pos - sp) < 0.1:
+                return leaf_positions[i]
+        for i in range(len(scipy_leaf_positions) - 1):
+            if scipy_leaf_positions[i] < scipy_pos < scipy_leaf_positions[i + 1]:
+                ratio = (scipy_pos - scipy_leaf_positions[i]) / (scipy_leaf_positions[i + 1] - scipy_leaf_positions[i])
+                return leaf_positions[i] + ratio * (leaf_positions[i + 1] - leaf_positions[i])
+        scipy_min, scipy_max = scipy_leaf_positions[0], scipy_leaf_positions[-1]
+        pos_min, pos_max = leaf_positions[0], leaf_positions[-1]
+        return pos_min + (scipy_pos - scipy_min) / (scipy_max - scipy_min) * (pos_max - pos_min)
+
+    def get_leaf_index_at_position(scipy_pos):
+        """Get the leaf index at a given scipy position"""
+        for i, sp in enumerate(scipy_leaf_positions):
+            if abs(scipy_pos - sp) < 0.1:
+                return i
+        return None
+
+    def get_leaves_under_branch(icoord_link, dcoord_link, all_icoords, all_dcoords):
+        """
+        Find all leaf indices under a branch by traversing down.
+        A branch connects at its two lowest points (where dcoord == 0 or connects to another branch).
+        """
+        leaves = set()
+        # The link has 4 points: (x1,y1), (x2,y2), (x3,y3), (x4,y4)
+        # Points at y=0 (or min y) are either leaves or connect to sub-branches
+        x_coords = icoord_link
+        y_coords = dcoord_link
+
+        # Find the bottom points (indices 0 and 3 in the U-shape)
+        for pos_idx in [0, 3]:  # First and last x-coordinates are the bottom
+            x_pos = x_coords[pos_idx]
+            leaf_idx = get_leaf_index_at_position(x_pos)
+            if leaf_idx is not None:
+                leaves.add(leaf_idx)
+            else:
+                # This connects to another branch - find it recursively
+                for ic, dc in zip(all_icoords, all_dcoords):
+                    # Check if this branch's top connects to our bottom
+                    if abs(ic[1] - x_pos) < 0.1 or abs(ic[2] - x_pos) < 0.1:
+                        if max(dc) < max(y_coords):  # It's below us
+                            sub_leaves = get_leaves_under_branch(ic, dc, all_icoords, all_dcoords)
+                            leaves.update(sub_leaves)
+
+        return leaves
+
+    traces = []
+
+    for i in range(len(icoord)):
+        mapped_x = [map_position(x) for x in icoord[i]]
+        mapped_y = list(dcoord[i])
+
+        # Find leaves under this branch
+        leaves_under = get_leaves_under_branch(icoord[i], dcoord[i], icoord, dcoord)
+
+        # Determine the color based on categories of leaves
+        if leaves_under:
+            # Get categories of all leaves under this branch
+            categories_under = set()
+            for leaf_idx in leaves_under:
+                if leaf_idx < len(leaves_order):
+                    original_idx = leaves_order[leaf_idx]
+                    if original_idx < len(leaf_labels):
+                        label = leaf_labels[original_idx]
+                        if label in color_labels:
+                            categories_under.add(color_labels[label])
+
+            # If all leaves belong to same category, use that color
+            if len(categories_under) == 1:
+                cat = list(categories_under)[0]
+                branch_color = category_colors.get(cat, default_color)
+            else:
+                branch_color = default_color
+        else:
+            branch_color = default_color
+
+        if orientation == 'bottom':
+            trace = go.Scatter(
+                x=mapped_x,
+                y=mapped_y,
+                mode='lines',
+                line=dict(color=branch_color, width=line_width),
+                hoverinfo='skip',
+                showlegend=False
+            )
+        else:
+            trace = go.Scatter(
+                x=mapped_y,
+                y=mapped_x,
+                mode='lines',
+                line=dict(color=branch_color, width=line_width),
+                hoverinfo='skip',
+                showlegend=False
+            )
+
+        traces.append(trace)
+
+    return traces, category_colors
+
+
 def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_linkage='ward',
-                                col_linkage='ward', temp_path='temp/', height_scale=100, width_scale=100):
+                                col_linkage='ward', temp_path='temp/', height_scale=100, width_scale=100,
+                                row_color_column=None):
     """
     Generate an interactive two-way hierarchical clustering heatmap using Plotly.
 
@@ -854,6 +1016,10 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         Scale for top dendrogram height (heatmap cells stay constant)
     width_scale : int, default=100
         Scale for left dendrogram width (heatmap cells stay constant)
+    row_color_column : str, default=None
+        Column name to use for coloring the row dendrogram branches.
+        Each unique value in this column will get a different color.
+        If None, dendrogram uses a single color.
 
     Returns:
     --------
@@ -955,13 +1121,48 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         color='#1f77b4'
     )
 
-    row_dendro_traces = _create_dendrogram_traces(
-        row_linkage_matrix,
-        reordered_row_positions,
-        orientation='left',
-        line_width=2,
-        color='#1f77b4'
-    )
+    # Build color mapping for row dendrogram if row_color_column is specified
+    category_colors = None
+    if row_color_column and row_color_column in df.columns:
+        # Build mapping from group labels to their color category
+        # For each group (from grouping_column), get the most common value of row_color_column
+        color_mapping = {}
+        for group_label in group_labels:
+            group_mask = df[grouping_column].astype(str) == str(group_label)
+            if group_mask.any():
+                # Get the most common value of row_color_column for this group
+                color_values = df.loc[group_mask, row_color_column].dropna()
+                if len(color_values) > 0:
+                    most_common = color_values.mode()
+                    if len(most_common) > 0:
+                        color_mapping[group_label] = str(most_common.iloc[0])
+
+        if color_mapping:
+            row_dendro_traces, category_colors = _create_dendrogram_traces_colored(
+                row_linkage_matrix,
+                reordered_row_positions,
+                group_labels,  # Original order labels
+                color_mapping,
+                orientation='left',
+                line_width=2,
+                default_color='#888888'
+            )
+        else:
+            row_dendro_traces = _create_dendrogram_traces(
+                row_linkage_matrix,
+                reordered_row_positions,
+                orientation='left',
+                line_width=2,
+                color='#1f77b4'
+            )
+    else:
+        row_dendro_traces = _create_dendrogram_traces(
+            row_linkage_matrix,
+            reordered_row_positions,
+            orientation='left',
+            line_width=2,
+            color='#1f77b4'
+        )
 
     # Create the main heatmap
     heatmap_text = [[reordered_col_labels[j] for j in range(len(reordered_col_labels))]
@@ -1050,22 +1251,65 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     # Add main heatmap
     fig.add_trace(heatmap, row=2, col=2)
 
+    # Add legend traces for dendrogram colors if coloring is enabled
+    show_legend = False
+    max_category_len = 0
+    if category_colors:
+        show_legend = True
+        max_category_len = max(len(str(cat)) for cat in category_colors.keys())
+        for cat_name, cat_color in category_colors.items():
+            # Add invisible scatter trace for legend
+            fig.add_trace(go.Scatter(
+                x=[None], y=[None],
+                mode='markers',
+                marker=dict(size=10, color=cat_color),
+                name=str(cat_name),
+                showlegend=True
+            ))
+
     # Total figure size = heatmap + dendrogram + padding (no max limit - let it expand)
     final_height = max(500, heatmap_height + top_dendro_height + 150)
     final_width = max(800, heatmap_width + left_dendro_width + 150)
 
+    # Add extra width for legend if showing (based on longest category name)
+    if show_legend:
+        # Estimate legend width: ~8px per character + padding
+        legend_width = max(150, max_category_len * 8 + 80)
+        final_width += legend_width
+
     # Bottom margin for -45° angled labels
     bottom_margin = 100
 
+    # Build title with optional color column info
+    title_text = f'Two-Way Hierarchical Clustering Heatmap<br><sub>Groups by {grouping_column} | Row: {row_linkage} linkage | Column: {col_linkage} linkage | {n_cols} variables × {n_rows} groups'
+    if row_color_column and category_colors:
+        title_text += f' | Colored by {row_color_column}'
+    title_text += '</sub>'
+
+    # Adjust right margin for legend (based on longest category name)
+    # Colorbar takes ~60px, then we need space for legend
+    if show_legend:
+        right_margin = max(200, max_category_len * 8 + 140)  # Extra space for colorbar + legend
+    else:
+        right_margin = 80  # Just colorbar
+
     fig.update_layout(
-        title=f'Two-Way Hierarchical Clustering Heatmap<br><sub>Groups by {grouping_column} | Row: {row_linkage} linkage | Column: {col_linkage} linkage | {n_cols} variables × {n_rows} groups</sub>',
+        title=title_text,
         height=final_height,
         width=final_width,
-        showlegend=False,
+        showlegend=show_legend,
+        legend=dict(
+            title=dict(text=row_color_column if row_color_column else "Category"),
+            orientation='v',
+            yanchor='top',
+            y=0.95,
+            xanchor='left',
+            x=1.18  # Position to the right of colorbar (which is at x=1.1)
+        ) if show_legend else None,
         hovermode='closest',
         plot_bgcolor='white',
         dragmode='pan',
-        margin=dict(t=150, l=120, r=60, b=bottom_margin)
+        margin=dict(t=150, l=120, r=right_margin, b=bottom_margin)
     )
 
     # Update axes for column dendrogram - share X with heatmap, Y starts from 0

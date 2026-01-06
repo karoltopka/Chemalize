@@ -114,7 +114,8 @@ def clustering_analysis():
             'elbow_plot', 'eps_plot', 'dendrogram',
             'twoway_hca_plot', 'twoway_hca_variables',
             'twoway_hca_row_linkage', 'twoway_hca_col_linkage',
-            'twoway_hca_grouping_column', 'twoway_hca_height_scale', 'twoway_hca_width_scale'
+            'twoway_hca_grouping_column', 'twoway_hca_height_scale', 'twoway_hca_width_scale',
+            'twoway_hca_dendro_color_column'
         ] if session.get(k) is not None}
 
         render_params.update(result_params)
@@ -434,6 +435,11 @@ def generate_twoway_hca():
         height_scale = int(request.form.get('hca_row_height', 100))
         width_scale = int(request.form.get('hca_col_width', 100))
 
+        # Get dendrogram color column (optional)
+        row_color_column = request.form.get('hca_dendro_color_column', '').strip()
+        if row_color_column == '':
+            row_color_column = None
+
         # Load the clustering results (which includes the Cluster column)
         results_path = os.path.join(ensure_temp_dir(), 'clustering_results.csv')
 
@@ -479,7 +485,8 @@ def generate_twoway_hca():
             col_linkage=col_linkage,
             temp_path=ensure_temp_dir(),
             height_scale=height_scale,
-            width_scale=width_scale
+            width_scale=width_scale,
+            row_color_column=row_color_column
         )
 
         # Store the heatmap HTML in session
@@ -490,8 +497,11 @@ def generate_twoway_hca():
         session['twoway_hca_grouping_column'] = grouping_column
         session['twoway_hca_height_scale'] = height_scale
         session['twoway_hca_width_scale'] = width_scale
+        session['twoway_hca_dendro_color_column'] = row_color_column
 
         success_msg = f"Two-way HCA heatmap generated successfully with {len(selected_variables)} variables, grouped by '{grouping_column}'."
+        if row_color_column:
+            success_msg += f" Dendrogram colored by '{row_color_column}'."
         if is_ajax:
             return jsonify({
                 'success': True,
