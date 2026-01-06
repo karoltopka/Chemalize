@@ -1178,7 +1178,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         y=reordered_row_positions,
         colorscale='RdBu_r',
         zmid=0,
-        colorbar=dict(title="Z-Score", x=1.02),
+        colorbar=dict(title=dict(text="Z-Score", side='top'), x=1.02, y=1.004, yanchor='top'),
         hovertemplate='Variable: %{text}<br>Group: %{customdata[0]}<br>Original Value: %{customdata[1]:.4f}<br>Z-Score: %{z:.2f}<extra></extra>',
         text=heatmap_text,
         customdata=heatmap_customdata
@@ -1302,7 +1302,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
             title=dict(text=row_color_column if row_color_column else "Category"),
             orientation='v',
             yanchor='top',
-            y=0.95,
+            y=1.0,
             xanchor='left',
             x=1.10  # Position to the right of colorbar (which is at x=1.02)
         ) if show_legend else None,
