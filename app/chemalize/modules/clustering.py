@@ -935,8 +935,9 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     col_dendro_positions = col_fig['layout']['xaxis']['tickvals']
     col_order = [available_vars.index(label) for label in col_dendro_leaves]
 
-    # Reorder the heatmap data
+    # Reorder the heatmap data (both scaled and original)
     heatmap_reordered = grouped_data_scaled[row_order, :][:, col_order]
+    heatmap_original_reordered = grouped_data.values[row_order, :][:, col_order]
     reordered_row_labels = [group_labels[i] for i in row_order]
     reordered_col_labels = [available_vars[i] for i in col_order]
     reordered_row_positions = [row_dendro_positions[i] for i in range(len(row_dendro_positions))]
@@ -965,7 +966,10 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     # Create the main heatmap
     heatmap_text = [[reordered_col_labels[j] for j in range(len(reordered_col_labels))]
                     for _ in reordered_row_labels]
-    heatmap_groups = [[label for _ in reordered_col_labels] for label in reordered_row_labels]
+    # Customdata contains [group_label, original_value] for each cell
+    heatmap_customdata = [[[reordered_row_labels[i], heatmap_original_reordered[i, j]]
+                           for j in range(len(reordered_col_labels))]
+                          for i in range(len(reordered_row_labels))]
 
     heatmap = go.Heatmap(
         z=heatmap_reordered,
@@ -973,10 +977,10 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         y=reordered_row_positions,
         colorscale='RdBu_r',
         zmid=0,
-        colorbar=dict(title="Scaled Mean Value", x=1.1),
-        hovertemplate='Variable: %{text}<br>Group: %{customdata}<br>Mean Value (scaled): %{z:.2f}<extra></extra>',
+        colorbar=dict(title="Z-Score", x=1.1),
+        hovertemplate='Variable: %{text}<br>Group: %{customdata[0]}<br>Original Value: %{customdata[1]:.4f}<br>Z-Score: %{z:.2f}<extra></extra>',
         text=heatmap_text,
-        customdata=heatmap_groups
+        customdata=heatmap_customdata
     )
 
     # Calculate proportions with dynamic cell sizing based on number of variables
@@ -1032,7 +1036,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         specs=[[None, {'type': 'xy'}],
                [{'type': 'xy'}, {'type': 'xy'}]],
         horizontal_spacing=label_space,  # Gap for labels between dendrogram and heatmap
-        vertical_spacing=0.02
+        vertical_spacing=0.01  # Minimal gap between top dendrogram and heatmap
     )
 
     # Add column dendrogram at top
@@ -1050,8 +1054,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     final_height = max(500, heatmap_height + top_dendro_height + 150)
     final_width = max(800, heatmap_width + left_dendro_width + 150)
 
-    # Adjust bottom margin based on label angle (more space for vertical labels)
-    bottom_margin = 150 if n_cols > 30 else (120 if n_cols > 15 else 100)
+    # Bottom margin for -45° angled labels
+    bottom_margin = 100
 
     fig.update_layout(
         title=f'Two-Way Hierarchical Clustering Heatmap<br><sub>Groups by {grouping_column} | Row: {row_linkage} linkage | Column: {col_linkage} linkage | {n_cols} variables × {n_rows} groups</sub>',
@@ -1073,24 +1077,21 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, matches='y3', row=2, col=1)
 
     # Update axes for main heatmap (x3/y3)
-    # Adjust label angle and font based on number of variables - always show ALL labels
+    # Always use slight angle (-45°) for X-axis labels, adjust font size based on count
+    x_tickangle = -45
     if n_cols > 50:
-        x_tickangle = -90  # Vertical for many variables
         x_tickfont = dict(size=8)
     elif n_cols > 30:
-        x_tickangle = -90
         x_tickfont = dict(size=9)
     elif n_cols > 15:
-        x_tickangle = -60
         x_tickfont = dict(size=10)
     else:
-        x_tickangle = -45
         x_tickfont = dict(size=11)
 
     fig.update_xaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2,
                      tickangle=x_tickangle, side='bottom', tickmode='array',
                      tickvals=reordered_col_positions, ticktext=reordered_col_labels, type='linear',
-                     tickfont=x_tickfont)
+                     tickfont=x_tickfont, ticklabelstandoff=2)
 
     # Y-axis labels (groups) - adjust font size if many groups
     y_tickfont = dict(size=9) if n_rows > 30 else (dict(size=10) if n_rows > 15 else dict(size=11))

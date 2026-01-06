@@ -76,10 +76,15 @@ def clustering_analysis():
 
     clustering_params['grouping_columns_options'] = grouping_columns_options
     clustering_params['categorical_columns'] = categorical_columns
+
+    # Get feature selection settings from session (needed for default HCA variables)
+    feature_selection = session.get('feature_selection', 'all')
+    selected_features = session.get('selected_features', None)
+
     # Default HCA X-axis variables: reuse last selection, otherwise match single-HCA set
     default_hca_variables = session.get('twoway_hca_variables', None)
     if not default_hca_variables:
-        if feature_selection_mode in ('select', 'groups') and selected_features:
+        if feature_selection in ('select', 'groups') and selected_features:
             default_hca_variables = selected_features
         else:
             default_hca_variables = clustering_params['numeric_columns']
