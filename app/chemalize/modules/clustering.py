@@ -1178,7 +1178,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         y=reordered_row_positions,
         colorscale='RdBu_r',
         zmid=0,
-        colorbar=dict(title="Z-Score", x=1.1),
+        colorbar=dict(title="Z-Score", x=1.02),
         hovertemplate='Variable: %{text}<br>Group: %{customdata[0]}<br>Original Value: %{customdata[1]:.4f}<br>Z-Score: %{z:.2f}<extra></extra>',
         text=heatmap_text,
         customdata=heatmap_customdata
@@ -1237,7 +1237,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         specs=[[None, {'type': 'xy'}],
                [{'type': 'xy'}, {'type': 'xy'}]],
         horizontal_spacing=label_space,  # Gap for labels between dendrogram and heatmap
-        vertical_spacing=0.01  # Minimal gap between top dendrogram and heatmap
+        vertical_spacing=0  # No gap between top dendrogram and heatmap
     )
 
     # Add column dendrogram at top
@@ -1277,8 +1277,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         legend_width = max(150, max_category_len * 8 + 80)
         final_width += legend_width
 
-    # Bottom margin for -45° angled labels
-    bottom_margin = 100
+    # Bottom margin for -45° angled labels - will be auto-adjusted by automargin
+    bottom_margin = 50
 
     # Build title with optional color column info
     title_text = f'Two-Way Hierarchical Clustering Heatmap<br><sub>Groups by {grouping_column} | Row: {row_linkage} linkage | Column: {col_linkage} linkage | {n_cols} variables × {n_rows} groups'
@@ -1304,17 +1304,18 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
             yanchor='top',
             y=0.95,
             xanchor='left',
-            x=1.18  # Position to the right of colorbar (which is at x=1.1)
+            x=1.10  # Position to the right of colorbar (which is at x=1.02)
         ) if show_legend else None,
         hovermode='closest',
         plot_bgcolor='white',
         dragmode='pan',
-        margin=dict(t=150, l=120, r=right_margin, b=bottom_margin)
+        margin=dict(t=120, l=120, r=right_margin, b=bottom_margin)
     )
 
     # Update axes for column dendrogram - share X with heatmap, Y starts from 0
     fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, matches='x3', row=1, col=2)
-    fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, rangemode='tozero', row=1, col=2)
+    fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, row=1, col=2,
+                     rangemode='nonnegative', automargin=False)
 
     # Update axes for row dendrogram - share Y with heatmap, X starts from 0 (reversed)
     fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, autorange='reversed', rangemode='tozero', row=2, col=1)
@@ -1335,15 +1336,13 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     fig.update_xaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2,
                      tickangle=x_tickangle, side='bottom', tickmode='array',
                      tickvals=reordered_col_positions, ticktext=reordered_col_labels, type='linear',
-                     tickfont=x_tickfont, ticklabelstandoff=2)
+                     tickfont=x_tickfont, ticklabelstandoff=0, automargin=True)
 
     # Y-axis labels (groups) - adjust font size if many groups
     y_tickfont = dict(size=9) if n_rows > 30 else (dict(size=10) if n_rows > 15 else dict(size=11))
-    # Calculate standoff based on label length - longer labels need more space from dendrogram
-    y_standoff = max(5, int(max_label_len * 0.5))
     fig.update_yaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2, side='left',
                      tickmode='array', tickvals=reordered_row_positions, ticktext=reordered_row_labels,
-                     autorange='reversed', type='linear', tickfont=y_tickfont, ticklabelstandoff=y_standoff)
+                     autorange='reversed', type='linear', tickfont=y_tickfont, ticklabelstandoff=0, automargin=False)
 
     # Add annotation above the row dendrogram to label the grouping column
     fig.add_annotation(
