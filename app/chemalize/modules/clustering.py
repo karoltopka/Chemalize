@@ -860,6 +860,7 @@ def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_label
     import plotly.graph_objects as go
     from scipy.cluster.hierarchy import dendrogram
     import matplotlib.pyplot as plt
+    import numpy as np
 
     n_leaves = len(leaf_positions)
 
@@ -874,6 +875,31 @@ def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_label
         rgb = tab20_colors[i % 20]
         category_colors[cat] = f'rgb({int(rgb[0]*255)},{int(rgb[1]*255)},{int(rgb[2]*255)})'
 
+    # Convert color_labels keys to strings for consistent matching
+    color_labels_str = {str(k): v for k, v in color_labels.items()}
+
+    # Build category sets for each cluster using linkage matrix
+    # Cluster IDs: 0 to n_leaves-1 are original leaves, n_leaves+ are merged clusters
+    cluster_categories = {}
+
+    # Initialize leaves with their categories
+    for i, label in enumerate(leaf_labels):
+        label_str = str(label)
+        if label_str in color_labels_str:
+            cluster_categories[i] = {color_labels_str[label_str]}
+        else:
+            cluster_categories[i] = set()
+
+    # Process linkage matrix to build category sets for merged clusters
+    for i, row in enumerate(linkage_matrix):
+        left_id = int(row[0])
+        right_id = int(row[1])
+        new_id = n_leaves + i
+
+        left_cats = cluster_categories.get(left_id, set())
+        right_cats = cluster_categories.get(right_id, set())
+        cluster_categories[new_id] = left_cats | right_cats
+
     # Lift ties and apply log scaling so low merges are visible
     linkage_plot = _prepare_linkage_for_plot(linkage_matrix)
 
@@ -882,12 +908,12 @@ def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_label
 
     icoord = dendro_data['icoord']
     dcoord = dendro_data['dcoord']
-    leaves_order = dendro_data['leaves']  # Order of leaves in the dendrogram
+    leaves_order = dendro_data['leaves']
 
-    # scipy uses positions 5, 15, 25, ... for leaves (step of 10, starting at 5)
+    # scipy uses positions 5, 15, 25, ... for leaves
     scipy_leaf_positions = [5 + 10 * i for i in range(n_leaves)]
 
-    # Create mapping from scipy positions to our positions and to leaf indices
+    # Create mapping from scipy positions to our positions
     def map_position(scipy_pos):
         for i, sp in enumerate(scipy_leaf_positions):
             if abs(scipy_pos - sp) < 0.1:
@@ -900,92 +926,113 @@ def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_label
         pos_min, pos_max = leaf_positions[0], leaf_positions[-1]
         return pos_min + (scipy_pos - scipy_min) / (scipy_max - scipy_min) * (pos_max - pos_min)
 
-    def get_leaf_index_at_position(scipy_pos):
-        """Get the leaf index at a given scipy position"""
-        for i, sp in enumerate(scipy_leaf_positions):
-            if abs(scipy_pos - sp) < 0.1:
-                return i
-        return None
+    # Match dendrogram links to linkage matrix rows by height
+    # Sort linkage rows by height and dendrogram links by height
+    linkage_heights = [(i, linkage_plot[i, 2]) for i in range(len(linkage_plot))]
+    linkage_heights.sort(key=lambda x: x[1])
 
-    def get_leaves_under_branch(icoord_link, dcoord_link, all_icoords, all_dcoords):
-        """
-        Find all leaf indices under a branch by traversing down.
-        A branch connects at its two lowest points (where dcoord == 0 or connects to another branch).
-        """
-        leaves = set()
-        # The link has 4 points: (x1,y1), (x2,y2), (x3,y3), (x4,y4)
-        # Points at y=0 (or min y) are either leaves or connect to sub-branches
-        x_coords = icoord_link
-        y_coords = dcoord_link
+    dendro_heights = [(i, max(dcoord[i])) for i in range(len(dcoord))]
+    dendro_heights.sort(key=lambda x: x[1])
 
-        # Find the bottom points (indices 0 and 3 in the U-shape)
-        for pos_idx in [0, 3]:  # First and last x-coordinates are the bottom
-            x_pos = x_coords[pos_idx]
-            leaf_idx = get_leaf_index_at_position(x_pos)
-            if leaf_idx is not None:
-                leaves.add(leaf_idx)
-            else:
-                # This connects to another branch - find it recursively
-                for ic, dc in zip(all_icoords, all_dcoords):
-                    # Check if this branch's top connects to our bottom
-                    if abs(ic[1] - x_pos) < 0.1 or abs(ic[2] - x_pos) < 0.1:
-                        if max(dc) < max(y_coords):  # It's below us
-                            sub_leaves = get_leaves_under_branch(ic, dc, all_icoords, all_dcoords)
-                            leaves.update(sub_leaves)
+    # Create mapping: dendrogram link index -> linkage row index
+    dendro_to_linkage = {}
+    for (dendro_idx, _), (linkage_idx, _) in zip(dendro_heights, linkage_heights):
+        dendro_to_linkage[dendro_idx] = linkage_idx
 
-        return leaves
+    # Debug: show some cluster categories
+    single_cat_clusters = [(k, v) for k, v in cluster_categories.items() if len(v) == 1]
+    print(f"DEBUG: Clusters with single category: {len(single_cat_clusters)} out of {len(cluster_categories)}")
+    print(f"DEBUG: Sample single-cat clusters: {single_cat_clusters[:5]}")
 
     traces = []
 
-    for i in range(len(icoord)):
-        mapped_x = [map_position(x) for x in icoord[i]]
-        mapped_y = list(dcoord[i])
+    for link_idx in range(len(icoord)):
+        ic = icoord[link_idx]
+        dc = dcoord[link_idx]
 
-        # Find leaves under this branch
-        leaves_under = get_leaves_under_branch(icoord[i], dcoord[i], icoord, dcoord)
+        # Get the corresponding linkage row to find left and right children
+        linkage_row_idx = dendro_to_linkage.get(link_idx, None)
 
-        # Determine the color based on categories of leaves
-        if leaves_under:
-            # Get categories of all leaves under this branch
-            categories_under = set()
-            for leaf_idx in leaves_under:
-                if leaf_idx < len(leaves_order):
-                    original_idx = leaves_order[leaf_idx]
-                    if original_idx < len(leaf_labels):
-                        label = leaf_labels[original_idx]
-                        if label in color_labels:
-                            categories_under.add(color_labels[label])
-
-            # If all leaves belong to same category, use that color
-            if len(categories_under) == 1:
-                cat = list(categories_under)[0]
-                branch_color = category_colors.get(cat, default_color)
-            else:
-                branch_color = default_color
+        if linkage_row_idx is not None:
+            left_child = int(linkage_matrix[linkage_row_idx, 0])
+            right_child = int(linkage_matrix[linkage_row_idx, 1])
+            left_cats = cluster_categories.get(left_child, set())
+            right_cats = cluster_categories.get(right_child, set())
         else:
-            branch_color = default_color
+            left_cats = set()
+            right_cats = set()
+
+        # Determine colors for left leg, right leg, and top bar
+        left_color = category_colors.get(list(left_cats)[0], default_color) if len(left_cats) == 1 else default_color
+        right_color = category_colors.get(list(right_cats)[0], default_color) if len(right_cats) == 1 else default_color
+        # Top bar is colored only if both sides have the same single category
+        if len(left_cats) == 1 and len(right_cats) == 1 and left_cats == right_cats:
+            top_color = left_color
+        else:
+            top_color = default_color
+
+        # U-shape points: [x0,y0], [x1,y1], [x2,y2], [x3,y3]
+        # x0,y0 = bottom-left, x1,y1 = top-left, x2,y2 = top-right, x3,y3 = bottom-right
+        # Left leg: (x0,y0) to (x1,y1)
+        # Top bar: (x1,y1) to (x2,y2)
+        # Right leg: (x2,y2) to (x3,y3)
 
         if orientation == 'bottom':
-            trace = go.Scatter(
-                x=mapped_x,
-                y=mapped_y,
+            # Left leg
+            traces.append(go.Scatter(
+                x=[map_position(ic[0]), map_position(ic[1])],
+                y=[dc[0], dc[1]],
                 mode='lines',
-                line=dict(color=branch_color, width=line_width),
+                line=dict(color=left_color, width=line_width),
                 hoverinfo='skip',
                 showlegend=False
-            )
+            ))
+            # Top bar
+            traces.append(go.Scatter(
+                x=[map_position(ic[1]), map_position(ic[2])],
+                y=[dc[1], dc[2]],
+                mode='lines',
+                line=dict(color=top_color, width=line_width),
+                hoverinfo='skip',
+                showlegend=False
+            ))
+            # Right leg
+            traces.append(go.Scatter(
+                x=[map_position(ic[2]), map_position(ic[3])],
+                y=[dc[2], dc[3]],
+                mode='lines',
+                line=dict(color=right_color, width=line_width),
+                hoverinfo='skip',
+                showlegend=False
+            ))
         else:
-            trace = go.Scatter(
-                x=mapped_y,
-                y=mapped_x,
+            # Left leg (for 'left' orientation, x and y are swapped)
+            traces.append(go.Scatter(
+                x=[dc[0], dc[1]],
+                y=[map_position(ic[0]), map_position(ic[1])],
                 mode='lines',
-                line=dict(color=branch_color, width=line_width),
+                line=dict(color=left_color, width=line_width),
                 hoverinfo='skip',
                 showlegend=False
-            )
-
-        traces.append(trace)
-
+            ))
+            # Top bar
+            traces.append(go.Scatter(
+                x=[dc[1], dc[2]],
+                y=[map_position(ic[1]), map_position(ic[2])],
+                mode='lines',
+                line=dict(color=top_color, width=line_width),
+                hoverinfo='skip',
+                showlegend=False
+            ))
+            # Right leg
+            traces.append(go.Scatter(
+                x=[dc[2], dc[3]],
+                y=[map_position(ic[2]), map_position(ic[3])],
+                mode='lines',
+                line=dict(color=right_color, width=line_width),
+                hoverinfo='skip',
+                showlegend=False
+            ))
     return traces, category_colors
 
 
@@ -1138,6 +1185,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                         color_mapping[group_label] = str(most_common.iloc[0])
 
         if color_mapping:
+            print(f"DEBUG color_mapping: {color_mapping}")
+            print(f"DEBUG group_labels: {group_labels}")
             row_dendro_traces, category_colors = _create_dendrogram_traces_colored(
                 row_linkage_matrix,
                 reordered_row_positions,
