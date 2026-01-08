@@ -1821,19 +1821,21 @@
         </div>
     `;
 
-        const plotDiv = document.getElementById('pca-plotly');
-
-        // Dynamically set height (square)
-        function setSquareHeight() {
+        // Wait for DOM to render before creating plot
+        setTimeout(() => {
+            const plotDiv = document.getElementById('pca-plotly');
             const wrapper = document.getElementById('pca-plotly-wrapper');
-            const pcaPlotly = document.getElementById('pca-plotly');
-            if (wrapper && pcaPlotly) {
-                const width = wrapper.offsetWidth;
-                pcaPlotly.style.height = width + 'px';
-            }
-        }
 
-        let traces = [];
+            if (!plotDiv) {
+                console.error('Plot div not found');
+                return;
+            }
+
+            // Get container width for square plot
+            const containerWidth = wrapper ? wrapper.offsetWidth : 600;
+            const plotSize = containerWidth > 0 ? containerWidth : 600;
+
+            let traces = [];
 
         // Build hover template with color and filter info
         let hoverTemplate = '<b>%{text}</b><br>PC' + data.pc_x + ': %{x:.3f}<br>PC' + data.pc_y + ': %{y:.3f}';
@@ -2093,6 +2095,11 @@
             traces.push(trace);
         }
 
+        // Calculate domain to force square plot area
+        const domainSize = 0.90;
+        const domainStart = (1 - domainSize) / 2;
+        const domainEnd = domainStart + domainSize;
+
         const layout = {
             xaxis: {
                 title: `PC${data.pc_x} (${data.variance_x}% variance)`,
@@ -2102,7 +2109,8 @@
                 zerolinecolor: 'rgba(0, 0, 0, 0.3)',
                 zerolinewidth: 1,
                 scaleanchor: 'y',
-                scaleratio: 1
+                scaleratio: 1,
+                domain: [domainStart, domainEnd]
             },
             yaxis: {
                 title: `PC${data.pc_y} (${data.variance_y}% variance)`,
@@ -2111,27 +2119,29 @@
                 zeroline: true,
                 zerolinecolor: 'rgba(0, 0, 0, 0.3)',
                 zerolinewidth: 1,
-                constrain: 'domain'
+                domain: [domainStart, domainEnd]
             },
+            width: plotSize,
+            height: plotSize,
             paper_bgcolor: 'rgba(0, 0, 0, 0)',
             plot_bgcolor: 'rgba(0, 0, 0, 0)',
             margin: {
-                l: 50,
-                r: data.color_categories ? 120 : 20,
-                b: 50,
-                t: 10,
-                pad: 2
+                l: 70,
+                r: 30,
+                b: 60,
+                t: 20,
+                pad: 4
             },
-            autosize: true,
+            autosize: false,
             hovermode: 'closest',
             showlegend: data.color_categories ? true : false,
             legend: {
                 orientation: 'v',
                 yanchor: 'top',
                 y: 0.98,
-                xanchor: 'left',
-                x: 1.02,
-                bgcolor: 'rgba(255, 255, 255, 0.8)',
+                xanchor: 'right',
+                x: 0.98,
+                bgcolor: 'rgba(255, 255, 255, 0.85)',
                 bordercolor: 'rgba(0, 0, 0, 0.2)',
                 borderwidth: 1,
                 font: { size: 10 }
@@ -2152,9 +2162,10 @@
         };
 
         Plotly.newPlot(plotDiv, traces, layout, {
-            responsive: true,
+            responsive: false,
             displayModeBar: true,
             modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+            displaylogo: false,
             toImageButtonOptions: {
                 format: 'png',
                 filename: `PCA_PC${data.pc_x}_vs_PC${data.pc_y}`,
@@ -2162,23 +2173,24 @@
                 width: 1000,
                 scale: 2
             }
-        }).then(() => {
-            // Set square height after plot is created
-            setTimeout(() => {
-                setSquareHeight();
-                Plotly.Plots.resize('pca-plotly');
-            }, 100);
         });
 
-        // Add resize listener
-        const resizeHandler = function () {
-            clearTimeout(resizeHandler.timeout);
-            resizeHandler.timeout = setTimeout(() => {
-                setSquareHeight();
-                Plotly.Plots.resize('pca-plotly');
+        // Add resize listener with explicit width/height to maintain square
+        let resizeTimer;
+        window.addEventListener('resize', function () {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function () {
+                const wrapper = document.getElementById('pca-plotly-wrapper');
+                if (wrapper) {
+                    const newSize = wrapper.offsetWidth;
+                    Plotly.relayout('pca-plotly', {
+                        width: newSize,
+                        height: newSize
+                    });
+                }
             }, 250);
-        };
-        window.addEventListener('resize', resizeHandler);
+        });
+        }, 50);  // End of setTimeout
     }
 
     function saveAlvadeskColoredPlot() {
