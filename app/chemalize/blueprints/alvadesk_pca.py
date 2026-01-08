@@ -1864,12 +1864,13 @@ def alvadesk_pca_analyze_group_correlations():
                 "message": "Cannot determine key column for merging datasets."
             }), 400
 
-        # Merge datasets
+        # Merge datasets - use suffixes to handle duplicate columns
         df_merged = pd.merge(
             df_pca,
             df_external[[key_column, target_variable]],
             on=key_column,
-            how='inner'
+            how='inner',
+            suffixes=('_pca', '_ext')
         )
 
         if len(df_merged) == 0:
@@ -1878,8 +1879,19 @@ def alvadesk_pca_analyze_group_correlations():
                 "message": "No matching rows found between PCA data and external file."
             }), 400
 
+        # Get target values - check for suffixed column name if original doesn't exist
+        if target_variable in df_merged.columns:
+            target_col = target_variable
+        elif f"{target_variable}_ext" in df_merged.columns:
+            target_col = f"{target_variable}_ext"
+        else:
+            return jsonify({
+                "status": "error",
+                "message": f"Target variable '{target_variable}' not found after merging datasets."
+            }), 400
+
         # Get target values and remove NaN
-        y = df_merged[target_variable].copy()
+        y = df_merged[target_col].copy()
         valid_indices = ~y.isna()
         y = y[valid_indices]
         df_valid = df_merged[valid_indices].copy()
