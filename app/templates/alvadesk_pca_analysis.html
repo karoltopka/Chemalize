@@ -842,6 +842,12 @@
                         </label>
                     </div>
                 </div>
+                <div class="col-md-2">
+                    <label class="form-label">Legend Label:</label>
+                    <input type="text" class="form-control" id="projected-legend-label" name="projected_legend_label"
+                        placeholder="e.g. (new)" value="">
+                    <small class="text-muted d-block">Label in legend (your text)</small>
+                </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="button" class="btn btn-success w-100" onclick="projectNewCompounds()">
                         <i class="fas fa-project-diagram"></i> Project
@@ -3191,7 +3197,7 @@
         removeProjectedFromPlot();
 
         if (colorType === 'categorical') {
-            // Categorical coloring - add diamond traces for each category
+            // Categorical coloring - add diamond traces for each category (hidden from legend)
             projectedCompoundsData.plot_data.forEach(categoryData => {
                 const category = categoryData.category;
                 const points = categoryData.points;
@@ -3205,9 +3211,6 @@
                 // Build display labels (with overlap pruning)
                 const displayLabels = computeDisplayLabels(x, y, labels);
 
-                // Create trace name that matches original category
-                const traceName = category;
-
                 // Determine color
                 let markerColor = categoryData.color || '#dc3545';
                 let markerOpacity = categoryData.opacity || 1.0;
@@ -3217,9 +3220,9 @@
                     y: y,
                     mode: showLabelsOnPlot ? 'markers+text' : 'markers',
                     type: 'scatter',
-                    name: traceName,
-                    legendgroup: traceName,  // Group with original trace
-                    showlegend: true,
+                    name: category,
+                    legendgroup: 'new_compounds',  // Group all new compounds together
+                    showlegend: false,  // Hide individual categories from legend
                     text: showLabelsOnPlot ? displayLabels : [],
                     hovertext: labels,
                     textposition: showLabelsOnPlot ? 'top center' : undefined,
@@ -3245,6 +3248,31 @@
 
                 Plotly.addTraces(plotDiv, newTrace);
             });
+
+            // Add single legend entry for all new compounds
+            const legendLabelInput = document.getElementById('projected-legend-label');
+            const legendLabelText = legendLabelInput && legendLabelInput.value.trim() ? legendLabelInput.value.trim() : '(new)';
+            const legendTrace = {
+                x: [null],
+                y: [null],
+                mode: 'markers',
+                type: 'scatter',
+                name: legendLabelText,
+                legendgroup: 'new_compounds',
+                showlegend: true,
+                marker: {
+                    symbol: 'diamond',
+                    size: markerSize,
+                    color: '#888888',
+                    line: {
+                        color: '#fff',
+                        width: 2
+                    }
+                },
+                hoverinfo: 'skip',
+                _isProjected: true
+            };
+            Plotly.addTraces(plotDiv, legendTrace);
 
         } else if (colorType === 'numeric') {
             // Numeric coloring - add diamond traces with same colorscale
@@ -3288,6 +3316,8 @@
                         mode: showLabelsOnPlot ? 'markers+text' : 'markers',
                         type: 'scatter',
                         name: 'New Compounds',
+                        legendgroup: 'new_compounds',
+                        showlegend: false,
                         text: showLabelsOnPlot ? displayLabels : [],
                         hovertext: labels,
                         textposition: showLabelsOnPlot ? 'top center' : undefined,
@@ -3316,6 +3346,8 @@
                         mode: showLabelsOnPlot ? 'markers+text' : 'markers',
                         type: 'scatter',
                         name: category,
+                        legendgroup: 'new_compounds',
+                        showlegend: false,
                         text: showLabelsOnPlot ? displayLabels : [],
                         hovertext: labels,
                         textposition: showLabelsOnPlot ? 'top center' : undefined,
@@ -3341,6 +3373,31 @@
                 }
             });
 
+            // Add single legend entry for all new compounds (numeric)
+            const legendLabelInputNum = document.getElementById('projected-legend-label');
+            const legendLabelTextNum = legendLabelInputNum && legendLabelInputNum.value.trim() ? legendLabelInputNum.value.trim() : '(new)';
+            const legendTraceNumeric = {
+                x: [null],
+                y: [null],
+                mode: 'markers',
+                type: 'scatter',
+                name: legendLabelTextNum,
+                legendgroup: 'new_compounds',
+                showlegend: true,
+                marker: {
+                    symbol: 'diamond',
+                    size: markerSize,
+                    color: '#888888',
+                    line: {
+                        color: '#fff',
+                        width: 2
+                    }
+                },
+                hoverinfo: 'skip',
+                _isProjected: true
+            };
+            Plotly.addTraces(plotDiv, legendTraceNumeric);
+
         } else {
             // No coloring - single red diamond trace
             const points = projectedCompoundsData.plot_data[0].points;
@@ -3353,12 +3410,16 @@
 
             const displayLabels = computeDisplayLabels(x, y, labels);
 
+            // Get legend label from input
+            const legendLabelInputNone = document.getElementById('projected-legend-label');
+            const legendLabelTextNone = legendLabelInputNone && legendLabelInputNone.value.trim() ? legendLabelInputNone.value.trim() : '(new)';
+
             const newTrace = {
                 x: x,
                 y: y,
                 mode: showLabelsOnPlot ? 'markers+text' : 'markers',
                 type: 'scatter',
-                name: 'New Compounds',
+                name: legendLabelTextNone,
                 text: showLabelsOnPlot ? displayLabels : [],
                 hovertext: labels,
                 textposition: showLabelsOnPlot ? 'top center' : undefined,
