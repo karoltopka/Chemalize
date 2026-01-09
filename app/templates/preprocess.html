@@ -241,9 +241,9 @@
             Data Description
         </div>
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                {% for i in description %}{{i|safe}}{% endfor %}
-            </table>
+            <div id="descriptionTable">
+                {{ description|safe }}
+            </div>
         </div>
     </div>
     {% endif %}
@@ -255,10 +255,29 @@
             Dataset Preview
         </div>
         <div class="table-responsive">
-            <div class="p-3">
-                {% for i in head %}{{i|safe}}{% endfor %}
+            <div class="p-3" id="datasetPreviewTable">
+                {{ head|safe }}
             </div>
         </div>
+    </div>
+    {% endif %}
+    {% if description and head and total_columns %}
+    <div class="d-flex flex-column align-items-center gap-2 my-3" id="columnsPreviewControls">
+        <div class="text-muted small" id="columnsPreviewInfo">
+            Showing {{ preview_column_limit }} of {{ total_columns }} columns
+        </div>
+        {% if preview_column_limit < total_columns %}
+        {% set remaining_columns = total_columns - preview_column_limit %}
+        {% set next_columns = preview_column_step if remaining_columns > preview_column_step else remaining_columns %}
+        <button class="modern-btn btn-info-modern" type="button" id="loadMoreColumnsBtn"
+                data-preview-limit="{{ preview_column_limit }}"
+                data-preview-step="{{ preview_column_step }}"
+                data-total-columns="{{ total_columns }}"
+                data-endpoint="{{ url_for('preprocessing.preprocess_columns') }}">
+            <i class="fas fa-plus"></i>
+            Load {{ next_columns }} more columns
+        </button>
+        {% endif %}
     </div>
     {% endif %}
 </div>
@@ -338,6 +357,8 @@ document.addEventListener('DOMContentLoaded', function() {
             card.style.transform = 'translateY(0)';
         }, index * 150);
     });
+
+    setupColumnPreviewControls();
 });
 
 function handleLongFilename() {
@@ -449,6 +470,97 @@ function updateRowButtonStates() {
             if (warning) warning.style.display = 'block';
         }
     }
+}
+
+function setupColumnPreviewControls() {
+    const loadMoreBtn = document.getElementById('loadMoreColumnsBtn');
+    const infoEl = document.getElementById('columnsPreviewInfo');
+    const descriptionTable = document.getElementById('descriptionTable');
+    const previewTable = document.getElementById('datasetPreviewTable');
+
+    if (!loadMoreBtn || !infoEl || !descriptionTable || !previewTable) {
+        return;
+    }
+
+    const step = parseInt(loadMoreBtn.dataset.previewStep, 10) || 50;
+    const shownColumns = parseInt(loadMoreBtn.dataset.previewLimit, 10) || 0;
+    const totalColumns = parseInt(loadMoreBtn.dataset.totalColumns, 10) || 0;
+
+    updateColumnsPreviewInfo(infoEl, shownColumns, totalColumns);
+    updateLoadMoreColumnsButton(loadMoreBtn, step);
+
+    loadMoreBtn.addEventListener('click', async function() {
+        const currentLimit = parseInt(loadMoreBtn.dataset.previewLimit, 10) || 0;
+        const total = parseInt(loadMoreBtn.dataset.totalColumns, 10) || 0;
+        const nextLimit = Math.min(currentLimit + step, total);
+        const endpoint = loadMoreBtn.dataset.endpoint;
+
+        if (!endpoint) {
+            return;
+        }
+
+        const previousLabel = loadMoreBtn.innerHTML;
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+
+        try {
+            const response = await fetch(`${endpoint}?limit=${nextLimit}`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Request failed with status ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (data.description_html) {
+                descriptionTable.innerHTML = data.description_html;
+            }
+            if (data.head_html) {
+                previewTable.innerHTML = data.head_html;
+            }
+
+            loadMoreBtn.dataset.previewLimit = data.shown_columns;
+            loadMoreBtn.dataset.totalColumns = data.total_columns;
+            updateColumnsPreviewInfo(infoEl, data.shown_columns, data.total_columns);
+            updateLoadMoreColumnsButton(loadMoreBtn, step);
+        } catch (error) {
+            console.error(error);
+            loadMoreBtn.innerHTML = previousLabel;
+            loadMoreBtn.disabled = false;
+            alert('Failed to load more columns. Please try again.');
+        }
+    });
+}
+
+function updateColumnsPreviewInfo(infoEl, shownColumns, totalColumns) {
+    if (!infoEl) {
+        return;
+    }
+
+    infoEl.textContent = `Showing ${shownColumns} of ${totalColumns} columns`;
+}
+
+function updateLoadMoreColumnsButton(loadMoreBtn, step) {
+    if (!loadMoreBtn) {
+        return;
+    }
+
+    const shownColumns = parseInt(loadMoreBtn.dataset.previewLimit, 10) || 0;
+    const totalColumns = parseInt(loadMoreBtn.dataset.totalColumns, 10) || 0;
+    const remaining = totalColumns - shownColumns;
+
+    if (remaining <= 0) {
+        loadMoreBtn.style.display = 'none';
+        return;
+    }
+
+    const nextCount = Math.min(step, remaining);
+    loadMoreBtn.disabled = false;
+    loadMoreBtn.style.display = '';
+    loadMoreBtn.innerHTML = `<i class="fas fa-plus"></i> Load ${nextCount} more columns`;
 }
 
 // Enhanced rename modal script

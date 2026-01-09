@@ -206,11 +206,15 @@ def preprocess():
         try:
             clean_path = get_clean_path(session["csv_name"])
             df = read_dataset(clean_path)
-            description = gp.get_description(df)
             columns = df.columns.tolist()
+            preview_limit = min(20, len(columns))
+            preview_step = 50
+            preview_columns = columns[:preview_limit]
+            preview_df = df.loc[:, preview_columns] if preview_columns else df.iloc[:, :0]
+            description = gp.get_description(preview_df) if preview_df.shape[1] else pd.DataFrame()
             rows = list(range(len(df)))
             dim1, dim2 = df.shape
-            head = df.head()
+            head = preview_df.head()
             
             return render_template(
                 "preprocess.html",
@@ -223,10 +227,12 @@ def preprocess():
                 dim=f"{dim1} x {dim2}",
                 description=description.to_html(
                     classes=[
+                        "table",
                         "table-bordered",
                         "table-striped",
                         "table-hover",
                         "thead-light",
+                        "mb-0",
                     ]
                 ),
                 columns=columns,
@@ -240,6 +246,9 @@ def preprocess():
                         "thead-light",
                     ]
                 ),
+                preview_column_limit=preview_limit,
+                preview_column_step=preview_step,
+                total_columns=len(columns),
             )
         except Exception as e:
             import traceback
@@ -249,6 +258,55 @@ def preprocess():
     
     # Always return a valid response, even when no data is loaded
     return render_template("preprocess.html", active="preprocess", title="Preprocess")
+
+
+@preprocessing_bp.route("/preprocess/columns", methods=["GET"])
+def preprocess_columns():
+    if "csv_name" not in session:
+        return jsonify({"error": "No dataset loaded"}), 400
+
+    clean_path = get_clean_path(session["csv_name"])
+    if not os.path.exists(clean_path):
+        return jsonify({"error": "Dataset not found"}), 404
+
+    limit = request.args.get("limit", type=int)
+    if not limit or limit < 1:
+        limit = 20
+
+    df = read_dataset(clean_path)
+    columns = df.columns.tolist()
+    total_columns = len(columns)
+    limit = min(limit, total_columns)
+
+    preview_df = df.loc[:, columns[:limit]] if total_columns else df.iloc[:, :0]
+    description_df = gp.get_description(preview_df) if preview_df.shape[1] else pd.DataFrame()
+    description_html = description_df.to_html(
+        classes=[
+            "table",
+            "table-bordered",
+            "table-striped",
+            "table-hover",
+            "thead-light",
+            "mb-0",
+        ]
+    )
+    head_html = preview_df.head().to_html(
+        classes=[
+            "table",
+            "table-bordered",
+            "table-striped",
+            "table-hover",
+            "thead-light",
+        ]
+    )
+
+    return jsonify({
+        "description_html": description_html,
+        "head_html": head_html,
+        "shown_columns": limit,
+        "total_columns": total_columns,
+        "has_more": limit < total_columns,
+    })
 
 
 @preprocessing_bp.route('/manual')
@@ -628,6 +686,3 @@ def manual_process():
                           target_transformed=session.get("target_transformed", False),
                           features_transformed=session.get("features_transformed", False),
                           features_selected=session.get("features_selected", False))
-
-
-
