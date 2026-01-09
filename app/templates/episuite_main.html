@@ -69,12 +69,34 @@
         .card.animate-in {
             animation: none !important;
             transform: none !important;
+            opacity: 1 !important;
         }
 
         /* Remove backdrop-filter only from cards (creates stacking context) */
         .modern-card,
         .card {
             backdrop-filter: none !important;
+            opacity: 1 !important;
+        }
+
+        /* Dark mode form-text fix */
+        body.dark-theme .form-text,
+        [data-theme="dark"] .form-text {
+            color: #9ca3af !important;
+        }
+
+        /* Light mode - remove dark text-shadow from card headers */
+        body:not(.dark-theme) .card-header h5,
+        body:not(.dark-theme) .card-header {
+            text-shadow: none !important;
+        }
+
+        /* Ensure card header icons are visible */
+        .card-header h5 i,
+        .card-header i {
+            color: inherit !important;
+            -webkit-text-fill-color: currentColor !important;
+            background: none !important;
         }
     </style>
 </head>
