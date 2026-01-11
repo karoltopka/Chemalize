@@ -829,7 +829,8 @@ def _create_dendrogram_traces(linkage_matrix, leaf_positions, orientation='botto
 
 
 def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_labels, color_labels,
-                                       orientation='bottom', line_width=2, default_color='#888888'):
+                                       orientation='bottom', line_width=2, default_color='#888888',
+                                       custom_colors=None):
     """
     Create dendrogram traces with branches colored by category.
 
@@ -852,6 +853,10 @@ def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_label
         Width of dendrogram lines
     default_color : str
         Color for branches connecting different categories
+    custom_colors : dict
+        Dictionary mapping category names to hex color strings.
+        E.g., {'TypeA': '#ff0000', 'TypeB': '#00ff00'}
+        If None, uses default tab10 color palette.
 
     Returns:
     --------
@@ -859,8 +864,6 @@ def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_label
     """
     import plotly.graph_objects as go
     from scipy.cluster.hierarchy import dendrogram
-    import matplotlib.pyplot as plt
-    import numpy as np
 
     n_leaves = len(leaf_positions)
 
@@ -868,12 +871,21 @@ def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_label
     unique_categories = list(set(color_labels.values()))
     unique_categories.sort()  # Sort for consistent coloring
 
-    # Use tab20 colormap for categories
-    tab20_colors = plt.cm.tab20.colors
+    # Default colors (tab10 palette)
+    default_palette = [
+        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+    ]
+
+    # Build category_colors dict
     category_colors = {}
     for i, cat in enumerate(unique_categories):
-        rgb = tab20_colors[i % 20]
-        category_colors[cat] = f'rgb({int(rgb[0]*255)},{int(rgb[1]*255)},{int(rgb[2]*255)})'
+        if custom_colors and cat in custom_colors:
+            # Use custom color if provided
+            category_colors[cat] = custom_colors[cat]
+        else:
+            # Fallback to default palette
+            category_colors[cat] = default_palette[i % len(default_palette)]
 
     # Convert color_labels keys to strings for consistent matching
     color_labels_str = {str(k): v for k, v in color_labels.items()}
@@ -1038,7 +1050,7 @@ def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_label
 
 def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_linkage='ward',
                                 col_linkage='ward', temp_path='temp/', height_scale=100, width_scale=100,
-                                row_color_column=None, show_zeros=False):
+                                row_color_column=None, show_zeros=False, custom_colors=None):
     """
     Generate an interactive two-way hierarchical clustering heatmap using Plotly.
 
@@ -1070,6 +1082,10 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     show_zeros : bool, default=False
         If True, display crossed markers on cells where the original
         (pre-scaled) value is exactly 0.
+    custom_colors : dict, default=None
+        Dictionary mapping category names to hex color strings.
+        E.g., {'TypeA': '#ff0000', 'TypeB': '#00ff00'}
+        If None, uses default tab10 color palette.
 
     Returns:
     --------
@@ -1197,7 +1213,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                 color_mapping,
                 orientation='left',
                 line_width=2,
-                default_color='#888888'
+                default_color='#888888',
+                custom_colors=custom_colors
             )
         else:
             row_dendro_traces = _create_dendrogram_traces(

@@ -584,6 +584,17 @@
                                     </small>
                                 </div>
 
+                                <div class="form-group" id="hca_custom_colors_group" style="display: none;">
+                                    <label><i class="fas fa-palette"></i> Category Colors:</label>
+                                    <div id="hca_color_pickers_container" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                                        <small class="text-muted">Select a "Dendrogram Color By" column to set custom colors.</small>
+                                    </div>
+                                    <small class="form-text text-muted">
+                                        <i class="fas fa-info-circle"></i> Click on colors to change them for each category.
+                                    </small>
+                                    <input type="hidden" id="hca_custom_colors" name="hca_custom_colors" value="">
+                                </div>
+
                                 <div class="form-group">
                                     <div class="custom-control custom-checkbox">
                                         <input type="checkbox" class="custom-control-input" id="hca_show_zeros" name="hca_show_zeros" value="1"
@@ -919,6 +930,97 @@
                     }
                 }
             });
+        }
+
+        // Dynamic color pickers for dendrogram categories
+        const dendroColorSelect = document.getElementById('hca_dendro_color_column');
+        const customColorsGroup = document.getElementById('hca_custom_colors_group');
+        const colorPickersContainer = document.getElementById('hca_color_pickers_container');
+        const customColorsInput = document.getElementById('hca_custom_colors');
+
+        // Default colors (tab10 palette)
+        const defaultColors = [
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+            '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+        ];
+
+        function updateCustomColorsInput() {
+            const colorInputs = colorPickersContainer.querySelectorAll('input[type="color"]');
+            const colors = {};
+            colorInputs.forEach(input => {
+                colors[input.dataset.category] = input.value;
+            });
+            customColorsInput.value = JSON.stringify(colors);
+        }
+
+        async function loadCategoryColors(columnName) {
+            if (!columnName) {
+                customColorsGroup.style.display = 'none';
+                colorPickersContainer.innerHTML = '<small class="text-muted">Select a "Dendrogram Color By" column to set custom colors.</small>';
+                customColorsInput.value = '';
+                return;
+            }
+
+            colorPickersContainer.innerHTML = '<small class="text-muted"><i class="fas fa-spinner fa-spin"></i> Loading categories...</small>';
+            customColorsGroup.style.display = 'block';
+
+            try {
+                const formData = new FormData();
+                formData.append('column_name', columnName);
+
+                const resp = await fetch('{{ url_for("clustering.get_column_categories") }}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {'X-Requested-With': 'XMLHttpRequest'}
+                });
+                const data = await resp.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load categories');
+                }
+
+                const categories = data.categories;
+                const savedColors = data.saved_colors || {};
+
+                if (categories.length === 0) {
+                    colorPickersContainer.innerHTML = '<small class="text-muted">No categories found.</small>';
+                    return;
+                }
+
+                let html = '<div class="d-flex flex-wrap">';
+                categories.forEach((cat, idx) => {
+                    const color = savedColors[cat] || defaultColors[idx % defaultColors.length];
+                    html += `
+                        <div class="d-flex align-items-center mr-3 mb-2" style="min-width: 150px;">
+                            <input type="color" class="form-control form-control-sm p-0 border-0"
+                                   style="width: 30px; height: 30px; cursor: pointer;"
+                                   value="${color}" data-category="${cat}"
+                                   onchange="updateCustomColorsInput()">
+                            <span class="ml-2 small" style="max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                                  title="${cat}">${cat}</span>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                colorPickersContainer.innerHTML = html;
+                updateCustomColorsInput();
+
+            } catch (err) {
+                colorPickersContainer.innerHTML = `<small class="text-danger">${err.message}</small>`;
+            }
+        }
+
+        // Make updateCustomColorsInput available globally
+        window.updateCustomColorsInput = updateCustomColorsInput;
+
+        if (dendroColorSelect) {
+            dendroColorSelect.addEventListener('change', function() {
+                loadCategoryColors(this.value);
+            });
+            // Load on page load if value already set
+            if (dendroColorSelect.value) {
+                loadCategoryColors(dendroColorSelect.value);
+            }
         }
     });
 </script>

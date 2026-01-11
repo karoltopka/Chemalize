@@ -115,7 +115,7 @@ def clustering_analysis():
             'twoway_hca_plot', 'twoway_hca_variables',
             'twoway_hca_row_linkage', 'twoway_hca_col_linkage',
             'twoway_hca_grouping_column', 'twoway_hca_height_scale', 'twoway_hca_width_scale',
-            'twoway_hca_dendro_color_column', 'twoway_hca_show_zeros'
+            'twoway_hca_dendro_color_column', 'twoway_hca_custom_colors', 'twoway_hca_show_zeros'
         ] if session.get(k) is not None}
 
         render_params.update(result_params)
@@ -440,6 +440,16 @@ def generate_twoway_hca():
         if row_color_column == '':
             row_color_column = None
 
+        # Get custom colors for dendrogram categories (JSON string)
+        custom_colors_str = request.form.get('hca_custom_colors', '').strip()
+        custom_colors = None
+        if custom_colors_str:
+            try:
+                import json
+                custom_colors = json.loads(custom_colors_str)
+            except (json.JSONDecodeError, ValueError):
+                custom_colors = None
+
         # Get show zeros option
         show_zeros = request.form.get('hca_show_zeros') == '1'
 
@@ -490,7 +500,8 @@ def generate_twoway_hca():
             height_scale=height_scale,
             width_scale=width_scale,
             row_color_column=row_color_column,
-            show_zeros=show_zeros
+            show_zeros=show_zeros,
+            custom_colors=custom_colors
         )
 
         # Store the heatmap HTML in session
@@ -502,6 +513,11 @@ def generate_twoway_hca():
         session['twoway_hca_height_scale'] = height_scale
         session['twoway_hca_width_scale'] = width_scale
         session['twoway_hca_dendro_color_column'] = row_color_column
+        # Save custom colors per column for persistence
+        if custom_colors and row_color_column:
+            saved_colors = session.get('twoway_hca_custom_colors', {})
+            saved_colors[row_color_column] = custom_colors
+            session['twoway_hca_custom_colors'] = saved_colors
         session['twoway_hca_show_zeros'] = show_zeros
 
         success_msg = f"Two-way HCA heatmap generated successfully with {len(selected_variables)} variables, grouped by '{grouping_column}'."
@@ -524,3 +540,41 @@ def generate_twoway_hca():
         flash(error_msg, 'danger')
 
     return redirect(url_for('clustering.clustering_analysis'))
+
+
+@clustering_bp.route("/get_column_categories", methods=['POST'])
+def get_column_categories():
+    """Get unique categories for a column (for dynamic color picker)"""
+    if not check_dataset() or not session.get('clustering_performed'):
+        return jsonify({'success': False, 'error': 'No clustering results available'}), 400
+
+    try:
+        column_name = request.form.get('column_name', '').strip()
+        if not column_name:
+            return jsonify({'success': False, 'error': 'No column specified'}), 400
+
+        # Load the clustering results
+        results_path = os.path.join(ensure_temp_dir(), 'clustering_results.csv')
+        if not os.path.exists(results_path):
+            return jsonify({'success': False, 'error': 'Results file not found'}), 400
+
+        results_df = pd.read_csv(results_path)
+
+        if column_name not in results_df.columns:
+            return jsonify({'success': False, 'error': f'Column {column_name} not found'}), 400
+
+        # Get unique values, sorted
+        unique_values = sorted(results_df[column_name].dropna().unique(), key=str)
+        categories = [str(v) for v in unique_values]
+
+        # Get previously saved colors if any
+        saved_colors = session.get('twoway_hca_custom_colors', {})
+
+        return jsonify({
+            'success': True,
+            'categories': categories,
+            'saved_colors': saved_colors.get(column_name, {})
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
