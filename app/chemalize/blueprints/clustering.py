@@ -115,7 +115,7 @@ def clustering_analysis():
             'twoway_hca_plot', 'twoway_hca_variables',
             'twoway_hca_row_linkage', 'twoway_hca_col_linkage',
             'twoway_hca_grouping_column', 'twoway_hca_height_scale', 'twoway_hca_width_scale',
-            'twoway_hca_dendro_color_column'
+            'twoway_hca_dendro_color_column', 'twoway_hca_show_zeros'
         ] if session.get(k) is not None}
 
         render_params.update(result_params)
@@ -440,6 +440,9 @@ def generate_twoway_hca():
         if row_color_column == '':
             row_color_column = None
 
+        # Get show zeros option
+        show_zeros = request.form.get('hca_show_zeros') == '1'
+
         # Load the clustering results (which includes the Cluster column)
         results_path = os.path.join(ensure_temp_dir(), 'clustering_results.csv')
 
@@ -486,7 +489,8 @@ def generate_twoway_hca():
             temp_path=ensure_temp_dir(),
             height_scale=height_scale,
             width_scale=width_scale,
-            row_color_column=row_color_column
+            row_color_column=row_color_column,
+            show_zeros=show_zeros
         )
 
         # Store the heatmap HTML in session
@@ -498,6 +502,7 @@ def generate_twoway_hca():
         session['twoway_hca_height_scale'] = height_scale
         session['twoway_hca_width_scale'] = width_scale
         session['twoway_hca_dendro_color_column'] = row_color_column
+        session['twoway_hca_show_zeros'] = show_zeros
 
         success_msg = f"Two-way HCA heatmap generated successfully with {len(selected_variables)} variables, grouped by '{grouping_column}'."
         if row_color_column:

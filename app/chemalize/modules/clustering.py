@@ -1038,7 +1038,7 @@ def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_label
 
 def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_linkage='ward',
                                 col_linkage='ward', temp_path='temp/', height_scale=100, width_scale=100,
-                                row_color_column=None):
+                                row_color_column=None, show_zeros=False):
     """
     Generate an interactive two-way hierarchical clustering heatmap using Plotly.
 
@@ -1067,6 +1067,9 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         Column name to use for coloring the row dendrogram branches.
         Each unique value in this column will get a different color.
         If None, dendrogram uses a single color.
+    show_zeros : bool, default=False
+        If True, display crossed markers on cells where the original
+        (pre-scaled) value is exactly 0.
 
     Returns:
     --------
@@ -1316,6 +1319,47 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                 showlegend=True
             ))
 
+    # Add markers for zero values if requested
+    zeros_marked = False
+    if show_zeros:
+        # Find positions where original values are 0
+        zero_x_positions = []
+        zero_y_positions = []
+        zero_hover_texts = []
+
+        for i in range(len(reordered_row_labels)):
+            for j in range(len(reordered_col_labels)):
+                if heatmap_original_reordered[i, j] == 0:
+                    zero_x_positions.append(reordered_col_positions[j])
+                    zero_y_positions.append(reordered_row_positions[i])
+                    # Get Z-Score for this cell
+                    z_score = heatmap_reordered[i, j]
+                    zero_hover_texts.append(
+                        f"Variable: {reordered_col_labels[j]}<br>"
+                        f"Group: {reordered_row_labels[i]}<br>"
+                        f"Original Value: 0.0000<br>"
+                        f"Z-Score: {z_score:.2f}"
+                    )
+
+        if zero_x_positions:
+            zeros_marked = True
+            # Add scatter markers with "x" symbol for zeros (not in legend)
+            fig.add_trace(go.Scatter(
+                x=zero_x_positions,
+                y=zero_y_positions,
+                mode='markers',
+                marker=dict(
+                    symbol='x',
+                    size=12,
+                    color='black',
+                    line=dict(width=2, color='black')
+                ),
+                name='0',
+                showlegend=False,
+                hovertemplate='%{text}<extra></extra>',
+                text=zero_hover_texts
+            ), row=2, col=2)
+
     # Total figure size = heatmap + dendrogram + padding (no max limit - let it expand)
     final_height = max(500, heatmap_height + top_dendro_height + 150)
     final_width = max(800, heatmap_width + left_dendro_width + 150)
@@ -1333,6 +1377,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     title_text = f'Two-Way Hierarchical Clustering Heatmap<br><sub>Groups by {grouping_column} | Row: {row_linkage} linkage | Column: {col_linkage} linkage | {n_cols} variables × {n_rows} groups'
     if row_color_column and category_colors:
         title_text += f' | Colored by {row_color_column}'
+    if zeros_marked:
+        title_text += ' | ✕ = 0'
     title_text += '</sub>'
 
     # Adjust right margin for legend (based on longest category name)
