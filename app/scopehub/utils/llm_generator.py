@@ -708,7 +708,7 @@ def generate_all_queries(name: str, context: dict = None) -> dict:
     }
 
 
-def combine_queries(queries: list, database: str, operator: str = "AND") -> str:
+def combine_queries(queries: list, database: str, operator: str = "OR") -> str:
     """
     Combine multiple queries with specified operator
 
