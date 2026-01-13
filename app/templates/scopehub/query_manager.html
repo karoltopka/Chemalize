@@ -403,6 +403,231 @@
             font-size: 0.9rem;
             margin-bottom: 0.25rem;
         }
+
+        /* Query Builder Styles */
+        .query-builder-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            overflow-y: auto;
+            padding: 2rem;
+        }
+
+        .query-builder-overlay.active {
+            display: block;
+        }
+
+        .query-builder-panel {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            border: 1px solid var(--card-border);
+            overflow: hidden;
+        }
+
+        .query-builder-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, #9b59b6, #8e44ad);
+            color: white;
+        }
+
+        .query-builder-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .btn-close-builder {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: background 0.3s ease;
+        }
+
+        .btn-close-builder:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .query-builder-content {
+            padding: 2rem;
+        }
+
+        .query-builder-desc {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: var(--card-bg);
+            border-radius: 8px;
+            border-left: 4px solid #9b59b6;
+        }
+
+        .query-builder-sections {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .qb-section-card {
+            background: var(--card-bg);
+            border: 2px solid var(--card-border);
+            border-radius: 8px;
+            padding: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .qb-section-card.selected {
+            border-color: #9b59b6;
+            box-shadow: 0 0 15px rgba(155, 89, 182, 0.3);
+        }
+
+        .qb-section-title {
+            font-weight: bold;
+            color: var(--accent);
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+        }
+
+        .qb-subsection-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .qb-subsection-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem 1rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--card-border);
+            color: var(--text-secondary);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .qb-subsection-btn:hover {
+            border-color: #9b59b6;
+            color: var(--text-primary);
+        }
+
+        .qb-subsection-btn.active {
+            background: linear-gradient(135deg, #9b59b6, #8e44ad);
+            border-color: #9b59b6;
+            color: white;
+        }
+
+        .qb-subsection-btn .entry-count {
+            margin-left: auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .query-builder-actions {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .query-builder-result {
+            background: var(--card-bg);
+            border: 2px solid var(--success);
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .query-builder-result h3 {
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .result-database {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .result-database:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .result-query {
+            background: var(--bg-primary);
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            word-break: break-all;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .btn-copy, .btn-search-final {
+            padding: 0.4rem 0.8rem;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            color: var(--text-secondary);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-copy:hover, .btn-search-final:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .db-badge {
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85rem;
+        }
+
+        .db-badge.pubmed {
+            background: #2196F3;
+            color: white;
+        }
+
+        .db-badge.wos {
+            background: #FF9800;
+            color: white;
+        }
+
+        .db-badge.scopus {
+            background: #4CAF50;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -436,6 +661,9 @@
                 <button class="btn btn-secondary" id="btn-export">
                     <i class="fas fa-download"></i> Export
                 </button>
+                <button class="btn" id="btn-query-builder" style="background: #9b59b6;">
+                    <i class="fas fa-puzzle-piece"></i> Query Builder
+                </button>
             </div>
         </div>
 
@@ -453,6 +681,80 @@
             <button class="btn" id="btn-add-section" style="margin-top: 1rem;">
                 <i class="fas fa-plus"></i> Add New Section
             </button>
+        </div>
+    </div>
+
+    <!-- Query Builder Panel -->
+    <div class="query-builder-overlay" id="query-builder-overlay">
+        <div class="query-builder-panel">
+            <div class="query-builder-header">
+                <h2><i class="fas fa-puzzle-piece"></i> Query Builder</h2>
+                <button class="btn-close-builder" onclick="closeQueryBuilder()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="query-builder-content">
+                <p class="query-builder-desc">
+                    Select one subsection from each section to combine. Combined strings will be joined with <strong>AND</strong>.
+                </p>
+
+                <div class="query-builder-sections" id="query-builder-sections">
+                    <!-- Section selectors will be rendered here -->
+                </div>
+
+                <div class="query-builder-actions">
+                    <button class="btn" onclick="buildFinalQuery()" style="background: #9b59b6;">
+                        <i class="fas fa-cogs"></i> Build Query
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearQueryBuilder()">
+                        <i class="fas fa-eraser"></i> Clear Selection
+                    </button>
+                </div>
+
+                <div class="query-builder-result" id="query-builder-result" style="display: none;">
+                    <h3><i class="fas fa-check-circle" style="color: var(--success);"></i> Final Combined Query</h3>
+
+                    <div class="result-database">
+                        <div class="result-header">
+                            <span class="db-badge pubmed">PubMed</span>
+                            <button class="btn-copy" onclick="copyToClipboard('final-pubmed')">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                            <button class="btn-search-final" onclick="searchPubmed(document.getElementById('final-pubmed').textContent)">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
+                        <div class="result-query" id="final-pubmed"></div>
+                    </div>
+
+                    <div class="result-database">
+                        <div class="result-header">
+                            <span class="db-badge wos">Web of Science</span>
+                            <button class="btn-copy" onclick="copyToClipboard('final-wos')">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                            <button class="btn-search-final" onclick="searchWOS(document.getElementById('final-wos').textContent)">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
+                        <div class="result-query" id="final-wos"></div>
+                    </div>
+
+                    <div class="result-database">
+                        <div class="result-header">
+                            <span class="db-badge scopus">Scopus</span>
+                            <button class="btn-copy" onclick="copyToClipboard('final-scopus')">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                            <button class="btn-search-final" onclick="searchScopus(document.getElementById('final-scopus').textContent)">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
+                        <div class="result-query" id="final-scopus"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1187,6 +1489,177 @@
 
             setTimeout(() => notification.remove(), 4000);
         }
+
+        // =============== Query Builder Functions ===============
+
+        // Store selected subsections: { sectionName: subsectionName }
+        let queryBuilderSelections = {};
+
+        function openQueryBuilder() {
+            renderQueryBuilderSections();
+            document.getElementById('query-builder-overlay').classList.add('active');
+            document.getElementById('query-builder-result').style.display = 'none';
+        }
+
+        function closeQueryBuilder() {
+            document.getElementById('query-builder-overlay').classList.remove('active');
+        }
+
+        function renderQueryBuilderSections() {
+            const container = document.getElementById('query-builder-sections');
+
+            // Group data by section and subsection
+            const sections = {};
+            appData.forEach(entry => {
+                const section = entry.Section;
+                const subsection = entry.Subsection;
+                if (!section) return;
+
+                if (!sections[section]) {
+                    sections[section] = {};
+                }
+                if (!sections[section][subsection]) {
+                    sections[section][subsection] = [];
+                }
+                sections[section][subsection].push(entry);
+            });
+
+            if (Object.keys(sections).length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; grid-column: 1 / -1;">No sections available. Add data first.</p>';
+                return;
+            }
+
+            let html = '';
+            Object.keys(sections).sort().forEach(sectionName => {
+                const subsections = sections[sectionName];
+                const isSelected = queryBuilderSelections[sectionName] ? 'selected' : '';
+
+                html += `
+                    <div class="qb-section-card ${isSelected}" data-section="${sectionName}">
+                        <div class="qb-section-title">
+                            <i class="fas fa-folder"></i> Section ${sectionName}
+                        </div>
+                        <div class="qb-subsection-list">
+                `;
+
+                Object.keys(subsections).sort().forEach(subsectionName => {
+                    const entries = subsections[subsectionName];
+                    const isActive = queryBuilderSelections[sectionName] === subsectionName ? 'active' : '';
+                    const displayName = subsectionName || sectionName;
+
+                    html += `
+                        <button class="qb-subsection-btn ${isActive}"
+                                onclick="selectSubsection('${sectionName}', '${subsectionName}')">
+                            <i class="fas fa-file-alt"></i>
+                            ${displayName}
+                            <span class="entry-count">${entries.length} entries</span>
+                        </button>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function selectSubsection(sectionName, subsectionName) {
+            // Toggle selection
+            if (queryBuilderSelections[sectionName] === subsectionName) {
+                delete queryBuilderSelections[sectionName];
+            } else {
+                queryBuilderSelections[sectionName] = subsectionName;
+            }
+
+            // Update UI
+            renderQueryBuilderSections();
+            document.getElementById('query-builder-result').style.display = 'none';
+        }
+
+        function clearQueryBuilder() {
+            queryBuilderSelections = {};
+            renderQueryBuilderSections();
+            document.getElementById('query-builder-result').style.display = 'none';
+        }
+
+        function buildFinalQuery() {
+            const selectedKeys = Object.keys(queryBuilderSelections);
+
+            if (selectedKeys.length === 0) {
+                showNotification('Please select at least one subsection', 'warning');
+                return;
+            }
+
+            // Collect combined strings for each selection
+            const pubmedParts = [];
+            const wosParts = [];
+            const scopusParts = [];
+
+            selectedKeys.sort().forEach(sectionName => {
+                const subsectionName = queryBuilderSelections[sectionName];
+
+                // Find entries for this subsection
+                const entries = appData.filter(e =>
+                    e.Section === sectionName && e.Subsection === subsectionName
+                );
+
+                // Build combined string for each database (using OR within subsection)
+                const pubmedCombined = entries
+                    .map(e => e.Pubmed_Formula)
+                    .filter(f => f && f.trim())
+                    .map(f => `(${f})`)
+                    .join(' OR ');
+
+                const wosCombined = entries
+                    .map(e => e.WOS_Formula)
+                    .filter(f => f && f.trim())
+                    .map(f => `(${f})`)
+                    .join(' OR ');
+
+                const scopusCombined = entries
+                    .map(e => e.Scopus_Formula)
+                    .filter(f => f && f.trim())
+                    .map(f => `(${f})`)
+                    .join(' OR ');
+
+                if (pubmedCombined) pubmedParts.push(`(${pubmedCombined})`);
+                if (wosCombined) wosParts.push(`(${wosCombined})`);
+                if (scopusCombined) scopusParts.push(`(${scopusCombined})`);
+            });
+
+            // Join with AND between sections
+            const finalPubmed = pubmedParts.join(' AND ');
+            const finalWos = wosParts.join(' AND ');
+            const finalScopus = scopusParts.join(' AND ');
+
+            // Display results
+            document.getElementById('final-pubmed').textContent = finalPubmed || '(no formulas)';
+            document.getElementById('final-wos').textContent = finalWos || '(no formulas)';
+            document.getElementById('final-scopus').textContent = finalScopus || '(no formulas)';
+            document.getElementById('query-builder-result').style.display = 'block';
+
+            showNotification(`Query built from ${selectedKeys.length} section(s): ${selectedKeys.join(', ')}`);
+        }
+
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                showNotification('Copied to clipboard!');
+            }).catch(() => {
+                showNotification('Failed to copy', 'error');
+            });
+        }
+
+        // Add event listener for Query Builder button
+        document.addEventListener('DOMContentLoaded', () => {
+            const qbBtn = document.getElementById('btn-query-builder');
+            if (qbBtn) {
+                qbBtn.addEventListener('click', openQueryBuilder);
+            }
+        });
     </script>
 </body>
 </html>
