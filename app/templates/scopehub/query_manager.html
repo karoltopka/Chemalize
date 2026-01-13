@@ -630,19 +630,19 @@
                         .map(e => e.Pubmed_Formula)
                         .filter(f => f && f.trim())
                         .map(f => `(${f})`)
-                        .join(' AND ');
+                        .join(' OR ');
 
                     const wosCombined = entries
                         .map(e => e.WOS_Formula)
                         .filter(f => f && f.trim())
                         .map(f => `(${f})`)
-                        .join(' AND ');
+                        .join(' OR ');
 
                     const scopusCombined = entries
                         .map(e => e.Scopus_Formula)
                         .filter(f => f && f.trim())
                         .map(f => `(${f})`)
-                        .join(' AND ');
+                        .join(' OR ');
 
                     // Always display full subsection name (A1, A2, etc.) for clarity
                     const displaySubsectionName = subsectionName;
