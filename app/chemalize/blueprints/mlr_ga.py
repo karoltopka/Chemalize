@@ -6,11 +6,12 @@ import os
 import pandas as pd
 import numpy as np
 import time
+import math
 import json
 import queue
 import threading
 from werkzeug.utils import secure_filename
-from app.config import get_clean_path, get_temp_path, get_upload_path, get_unified_path, TEMP_DIR, CLEAN_DIR, UPLOAD_DIR, UNIFIED_DIR
+from app.config import get_clean_path, get_temp_path, get_upload_path, get_unified_path, get_user_id, TEMP_DIR, CLEAN_DIR, UPLOAD_DIR, UNIFIED_DIR
 from app.chemalize.utils import read_dataset, clean_temp_folder, check_dataset, get_dataset_info, ensure_temp_dir
 from app.chemalize.preprocessing import generic_preprocessing as gp
 
@@ -944,7 +945,7 @@ def mlr_ga_step3():
 @mlr_ga_bp.route("/mlr_ga_get_progress")
 def mlr_ga_get_progress():
     """Polling endpoint for GA progress updates - returns JSON"""
-    session_id = request.args.get('session_id', 'default')
+    session_id = request.args.get('session_id') or get_user_id()
 
     with ga_progress_lock:
         progress_data = ga_latest_progress.get(session_id, {'status': 'waiting'})
@@ -959,9 +960,12 @@ def mlr_ga_get_progress():
         elif isinstance(obj, (np.integer, np.int64, np.int32, np.int16, np.int8)):
             return int(obj)
         elif isinstance(obj, (np.floating, np.float64, np.float32, np.float16)):
-            return float(obj)
+            value = float(obj)
+            return value if math.isfinite(value) else None
+        elif isinstance(obj, float):
+            return obj if math.isfinite(obj) else None
         elif isinstance(obj, np.ndarray):
-            return obj.tolist()
+            return convert_to_json_serializable(obj.tolist())
         elif isinstance(obj, np.bool_):
             return bool(obj)
         elif isinstance(obj, (str, int, float, bool, type(None))):
@@ -980,7 +984,7 @@ def mlr_ga_start():
     if not check_dataset():
         return jsonify({'status': 'error', 'message': 'No dataset found'}), 400
 
-    session_id = session.get('_id', 'default')
+    session_id = get_user_id()
 
     # Check if GA is already running for this session
     with ga_progress_lock:
@@ -1043,8 +1047,17 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
         step1_clean_indices = session_data.get('mlr_ga_step1_clean_indices')
 
         if step2_clean_indices:
-            # Step 2 indices already account for Step 1 if it was performed
-            df = df.loc[step2_clean_indices].reset_index(drop=True)
+            if step1_clean_indices:
+                # Map step2 indices (post-step1) back to original indices
+                mapped_indices = [
+                    step1_clean_indices[i]
+                    for i in step2_clean_indices
+                    if i < len(step1_clean_indices)
+                ]
+                df = df.loc[mapped_indices].reset_index(drop=True)
+            else:
+                # Step 2 indices are already based on original data
+                df = df.loc[step2_clean_indices].reset_index(drop=True)
         elif step1_clean_indices:
             # Only Step 1 was performed
             df = df.loc[step1_clean_indices].reset_index(drop=True)
@@ -1082,6 +1095,16 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
         remove_zero_variance = session_data.get('mlr_ga_remove_zero_variance', True)
         remove_low_variance = session_data.get('mlr_ga_remove_low_variance', False)
         variance_threshold = session_data.get('mlr_ga_variance_threshold', 0.01)
+
+        split_method = session_data.get('mlr_ga_split_method', 'random')
+        if split_method == 'time' or split_method == 'systematic':
+            shuffle_cv = False
+        elif split_method == 'kfold':
+            shuffle_cv = session_data.get('mlr_ga_shuffle_kfold', True)
+        elif split_method == 'random':
+            shuffle_cv = session_data.get('mlr_ga_shuffle', True)
+        else:
+            shuffle_cv = True
 
         X, y, removed_features, preprocessing_info = preprocess_for_ga(
             df_clean, target_var,
@@ -1152,6 +1175,7 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
             check_ad=check_ad,
             ad_threshold=ad_threshold,
             progress_callback=progress_callback,
+            shuffle_cv=shuffle_cv,
             random_state=42
         )
 
@@ -1159,10 +1183,26 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
         ga.fit(X_train, y_train, X_val, y_val)
 
         # Get all top models
-        best_models = ga.get_best_models()
+        try:
+            best_models = ga.get_best_models()
+        except ValueError:
+            with ga_progress_lock:
+                ga_latest_progress[session_id] = {
+                    'status': 'error',
+                    'message': 'No valid models found. Try disabling AD check, lowering correlation threshold, or reducing CV folds.'
+                }
+            return
 
         # Get selected features (best model)
-        selected_features = ga.get_selected_features()
+        try:
+            selected_features = ga.get_selected_features()
+        except ValueError:
+            with ga_progress_lock:
+                ga_latest_progress[session_id] = {
+                    'status': 'error',
+                    'message': 'No valid models found. Try disabling AD check, lowering correlation threshold, or reducing CV folds.'
+                }
+            return
         best_score = float(ga.best_score_)
 
         # Plot fitness history (temp_path passed from main thread)
@@ -1218,7 +1258,7 @@ def mlr_ga_complete():
     if not check_dataset():
         return jsonify({'status': 'error', 'message': 'No dataset found'}), 400
 
-    session_id = session.get('_id', 'default')
+    session_id = get_user_id()
 
     try:
         # Get results from background thread

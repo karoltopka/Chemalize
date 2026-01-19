@@ -1712,21 +1712,28 @@ function showGALoadingScreen(event) {
     const form = event.target.closest('form');
     const formData = new FormData(form);
 
-    // Session ID for tracking
-    const sessionId = 'default';
+    // Session ID for tracking (from server response)
+    let sessionId = null;
 
-    // Start polling BEFORE sending the start request
+    // Start polling after GA start response
     let pollInterval = null;
 
+    function formatNumber(value) {
+        return Number.isFinite(value) ? value.toFixed(4) : 'N/A';
+    }
+
     function pollProgress() {
+        if (!sessionId) {
+            return;
+        }
         fetch(`{{ url_for('mlr_ga.mlr_ga_get_progress') }}?session_id=${sessionId}`)
             .then(response => response.json())
             .then(data => {
                 console.log('Progress update:', data);
 
-                // Update progress bar
-                if (data.generation && data.total_generations) {
-                    const percentage = (data.generation / data.total_generations) * 100;
+                // Update progress bar (retry-based)
+                if (data.retry && data.max_retries) {
+                    const percentage = (data.retry / data.max_retries) * 100;
                     const progressBar = document.getElementById('ga-progress-bar');
                     const progressText = document.getElementById('ga-progress-text');
 
@@ -1734,7 +1741,12 @@ function showGALoadingScreen(event) {
                         progressBar.style.width = percentage + '%';
                     }
                     if (progressText) {
-                        progressText.textContent = `${data.generation} / ${data.total_generations} (${percentage.toFixed(0)}%)`;
+                        progressText.textContent = `Retry ${data.retry} / ${data.max_retries} (${percentage.toFixed(0)}%)`;
+                    }
+                } else if (data.message) {
+                    const progressText = document.getElementById('ga-progress-text');
+                    if (progressText) {
+                        progressText.textContent = data.message;
                     }
                 }
 
@@ -1743,15 +1755,15 @@ function showGALoadingScreen(event) {
                 if (data.max_retries) document.getElementById('ga-max-retries').textContent = data.max_retries;
                 if (data.generation) document.getElementById('ga-generation').textContent = data.generation;
                 if (data.total_generations) document.getElementById('ga-total-gen').textContent = data.total_generations;
-                if (data.best_score !== undefined) document.getElementById('ga-current-score').textContent = data.best_score.toFixed(4);
-                if (data.overall_best_score !== undefined) document.getElementById('ga-best-score').textContent = data.overall_best_score.toFixed(4);
+                if (data.best_score !== undefined) document.getElementById('ga-current-score').textContent = formatNumber(data.best_score);
+                if (data.overall_best_score !== undefined) document.getElementById('ga-best-score').textContent = formatNumber(data.overall_best_score);
                 if (data.n_features !== undefined) document.getElementById('ga-n-features').textContent = data.n_features;
                 if (data.unique_models !== undefined) document.getElementById('ga-unique-models').textContent = data.unique_models;
 
                 // Update detailed metrics
-                if (data.r2 !== undefined) document.getElementById('ga-r2').textContent = data.r2.toFixed(4);
-                if (data.q2loo !== undefined) document.getElementById('ga-q2loo').textContent = data.q2loo.toFixed(4);
-                if (data.rmse !== undefined) document.getElementById('ga-rmse').textContent = data.rmse.toFixed(4);
+                if (data.r2 !== undefined) document.getElementById('ga-r2').textContent = formatNumber(data.r2);
+                if (data.q2loo !== undefined) document.getElementById('ga-q2loo').textContent = formatNumber(data.q2loo);
+                if (data.rmse !== undefined) document.getElementById('ga-rmse').textContent = formatNumber(data.rmse);
 
                 // Check if complete
                 if (data.status === 'complete') {
@@ -1793,9 +1805,6 @@ function showGALoadingScreen(event) {
         });
     }
 
-    // Start polling every 200ms
-    pollInterval = setInterval(pollProgress, 200);
-
     // Send AJAX request to start GA in background
     fetch(`{{ url_for('mlr_ga.mlr_ga_start') }}`, {
         method: 'POST',
@@ -1805,7 +1814,10 @@ function showGALoadingScreen(event) {
     .then(data => {
         if (data.status === 'started') {
             console.log('GA started successfully');
-            // Polling will continue until complete
+            sessionId = data.session_id || 'default';
+            // Start polling every 200ms
+            pollInterval = setInterval(pollProgress, 200);
+            pollProgress();
         } else {
             clearInterval(pollInterval);
             alert('Error starting GA: ' + (data.message || 'Unknown error'));

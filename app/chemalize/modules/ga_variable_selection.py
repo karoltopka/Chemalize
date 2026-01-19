@@ -3,7 +3,7 @@ Genetic Algorithm for Variable Selection in Multiple Linear Regression
 """
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import cross_val_score, train_test_split, LeaveOneOut
+from sklearn.model_selection import cross_val_score, train_test_split, LeaveOneOut, KFold
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_selection import VarianceThreshold
@@ -31,6 +31,11 @@ class GeneticAlgorithmSelector:
                  max_retries=3,
                  cv_folds=5,
                  cv_folds_validation=3,
+                 early_stop_rounds=20,
+                 early_stop_min_delta=1e-4,
+                 metrics_interval=5,
+                 shuffle_cv=True,
+                 cv_n_jobs=-1,
                  use_validation=False,
                  test_normality=True,
                  normality_alpha=0.05,
@@ -62,6 +67,16 @@ class GeneticAlgorithmSelector:
             Number of cross-validation folds (default: 5)
         cv_folds_validation : int
             Number of CV folds for validation set (default: 3)
+        early_stop_rounds : int
+            Stop if no improvement for this many generations (default: 20)
+        early_stop_min_delta : float
+            Minimum improvement to reset early stop counter (default: 1e-4)
+        metrics_interval : int
+            Compute detailed metrics every N generations (default: 5)
+        shuffle_cv : bool
+            Whether to shuffle CV splits (default: True)
+        cv_n_jobs : int
+            Parallel jobs for CV scoring (default: -1)
         use_validation : bool
             Whether to use validation set (default: False)
         test_normality : bool
@@ -87,6 +102,11 @@ class GeneticAlgorithmSelector:
         self.max_retries = max_retries
         self.cv_folds = cv_folds
         self.cv_folds_validation = cv_folds_validation
+        self.early_stop_rounds = early_stop_rounds
+        self.early_stop_min_delta = early_stop_min_delta
+        self.metrics_interval = metrics_interval
+        self.shuffle_cv = shuffle_cv
+        self.cv_n_jobs = cv_n_jobs
         self.use_validation = use_validation
         self.test_normality = test_normality
         self.normality_alpha = normality_alpha
@@ -101,18 +121,45 @@ class GeneticAlgorithmSelector:
         self.fitness_history_ = []
         self.feature_names_ = None
         self.best_models_ = []  # List to store top N models
+        self._corr_matrix = None
+        self._cv = None
+        self._cv_validation = None
 
         np.random.seed(random_state)
         random.seed(random_state)
 
+    def _make_cv(self, n_samples, n_splits):
+        """Create a CV splitter safe for small sample sizes."""
+        if n_samples is None:
+            return None
+        n_samples = int(n_samples)
+        n_splits = int(n_splits)
+        if n_samples < 2:
+            return None
+        n_splits = min(n_splits, n_samples)
+        if n_splits < 2:
+            return None
+        if self.shuffle_cv:
+            return KFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
+        return KFold(n_splits=n_splits, shuffle=False)
+
     def _check_correlation(self, X, feature_mask):
         """Check if selected features meet correlation threshold"""
+        if self.correlation_threshold >= 1.0:
+            return True
+
         selected_indices = np.where(feature_mask)[0]
         if len(selected_indices) < 2:
             return True
 
+        if self._corr_matrix is not None:
+            corr_matrix = self._corr_matrix[np.ix_(selected_indices, selected_indices)]
+            upper = corr_matrix[np.triu_indices_from(corr_matrix, k=1)]
+            return not np.any(upper > self.correlation_threshold)
+
         X_selected = X[:, selected_indices]
         corr_matrix = np.corrcoef(X_selected.T)
+        corr_matrix = np.nan_to_num(corr_matrix, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Check upper triangle of correlation matrix
         for i in range(len(selected_indices)):
@@ -224,59 +271,71 @@ class GeneticAlgorithmSelector:
         try:
             model = LinearRegression()
 
-            # Calculate R2 using cross-validation
-            cv_scores = cross_val_score(
-                model, X_selected, y_train,
-                cv=self.cv_folds,
-                scoring='r2',
-                n_jobs=-1
-            )
-            r2 = np.mean(cv_scores)
-
-            # Calculate Q2loo (Leave-One-Out Cross-Validation)
-            # For small datasets or when requested
-            if len(y_train) <= 100:
-                loo = LeaveOneOut()
-                loo_predictions = []
-                loo_actuals = []
-
-                for train_idx, test_idx in loo.split(X_selected):
-                    X_train_fold = X_selected[train_idx]
-                    y_train_fold = y_train[train_idx]
-                    X_test_fold = X_selected[test_idx]
-                    y_test_fold = y_train[test_idx]
-
-                    model_loo = LinearRegression()
-                    model_loo.fit(X_train_fold, y_train_fold)
-                    y_pred = model_loo.predict(X_test_fold)
-
-                    loo_predictions.extend(y_pred)
-                    loo_actuals.extend(y_test_fold)
-
-                # Calculate Q2loo = 1 - PRESS/TSS
-                loo_predictions = np.array(loo_predictions)
-                loo_actuals = np.array(loo_actuals)
-                press = np.sum((loo_actuals - loo_predictions) ** 2)
-                tss = np.sum((loo_actuals - np.mean(loo_actuals)) ** 2)
-                q2loo = 1 - (press / tss) if tss > 0 else 0.0
+            cv = self._cv or self._make_cv(len(y_train), self.cv_folds)
+            if cv is None:
+                model.fit(X_selected, y_train)
+                y_pred = model.predict(X_selected)
+                r2 = float(model.score(X_selected, y_train))
+                rmse = float(mean_squared_error(y_train, y_pred, squared=False))
+                q2loo = r2
             else:
-                # For large datasets, use 5-fold CV as approximation
-                q2loo_scores = cross_val_score(
+                # Calculate R2 using cross-validation
+                cv_scores = cross_val_score(
                     model, X_selected, y_train,
-                    cv=min(5, len(y_train)),
+                    cv=cv,
                     scoring='r2',
-                    n_jobs=-1
+                    n_jobs=self.cv_n_jobs
                 )
-                q2loo = np.mean(q2loo_scores)
+                r2 = np.mean(cv_scores)
 
-            # Calculate RMSE using cross-validation
-            rmse_scores = -cross_val_score(
-                model, X_selected, y_train,
-                cv=self.cv_folds,
-                scoring='neg_root_mean_squared_error',
-                n_jobs=-1
-            )
-            rmse = np.mean(rmse_scores)
+                # Calculate Q2loo (Leave-One-Out Cross-Validation)
+                # For small datasets or when requested
+                if len(y_train) <= 100:
+                    loo = LeaveOneOut()
+                    loo_predictions = []
+                    loo_actuals = []
+
+                    for train_idx, test_idx in loo.split(X_selected):
+                        X_train_fold = X_selected[train_idx]
+                        y_train_fold = y_train[train_idx]
+                        X_test_fold = X_selected[test_idx]
+                        y_test_fold = y_train[test_idx]
+
+                        model_loo = LinearRegression()
+                        model_loo.fit(X_train_fold, y_train_fold)
+                        y_pred = model_loo.predict(X_test_fold)
+
+                        loo_predictions.extend(y_pred)
+                        loo_actuals.extend(y_test_fold)
+
+                    # Calculate Q2loo = 1 - PRESS/TSS
+                    loo_predictions = np.array(loo_predictions)
+                    loo_actuals = np.array(loo_actuals)
+                    press = np.sum((loo_actuals - loo_predictions) ** 2)
+                    tss = np.sum((loo_actuals - np.mean(loo_actuals)) ** 2)
+                    q2loo = 1 - (press / tss) if tss > 0 else 0.0
+                else:
+                    # For large datasets, use 5-fold CV as approximation
+                    q2loo_cv = self._make_cv(len(y_train), min(5, len(y_train)))
+                    if q2loo_cv is None:
+                        q2loo = r2
+                    else:
+                        q2loo_scores = cross_val_score(
+                            model, X_selected, y_train,
+                            cv=q2loo_cv,
+                            scoring='r2',
+                            n_jobs=self.cv_n_jobs
+                        )
+                        q2loo = np.mean(q2loo_scores)
+
+                # Calculate RMSE using cross-validation
+                rmse_scores = -cross_val_score(
+                    model, X_selected, y_train,
+                    cv=cv,
+                    scoring='neg_root_mean_squared_error',
+                    n_jobs=self.cv_n_jobs
+                )
+                rmse = np.mean(rmse_scores)
 
             # Calculate AD coverage
             ad_coverage = self._calculate_ad_coverage(X_train, y_train, feature_mask)
@@ -336,11 +395,15 @@ class GeneticAlgorithmSelector:
             model = LinearRegression()
 
             # Cross-validation on training set
+            cv = self._cv or self._make_cv(len(y_train), self.cv_folds)
+            if cv is None:
+                return -np.inf
+
             cv_scores = cross_val_score(
                 model, X_selected, y_train,
-                cv=self.cv_folds,
+                cv=cv,
                 scoring='r2',
-                n_jobs=-1
+                n_jobs=self.cv_n_jobs
             )
             train_score = np.mean(cv_scores)
 
@@ -349,13 +412,17 @@ class GeneticAlgorithmSelector:
                 X_val_selected = X_val[:, selected_indices]
 
                 # Cross-validation on validation set
-                val_scores = cross_val_score(
-                    model, X_val_selected, y_val,
-                    cv=self.cv_folds_validation,
-                    scoring='r2',
-                    n_jobs=-1
-                )
-                val_score = np.mean(val_scores)
+                cv_val = self._cv_validation or self._make_cv(len(y_val), self.cv_folds_validation)
+                if cv_val is None:
+                    val_score = train_score
+                else:
+                    val_scores = cross_val_score(
+                        model, X_val_selected, y_val,
+                        cv=cv_val,
+                        scoring='r2',
+                        n_jobs=self.cv_n_jobs
+                    )
+                    val_score = np.mean(val_scores)
 
                 # Return worse score as final score
                 final_score = min(train_score, val_score)
@@ -363,17 +430,19 @@ class GeneticAlgorithmSelector:
                 final_score = train_score
 
             # Test residuals normality if requested
-            if self.test_normality:
+            if self.test_normality and len(y_train) >= 8:
                 model.fit(X_selected, y_train)
                 y_pred = model.predict(X_selected)
                 residuals = y_train - y_pred
 
                 # D'Agostino and Pearson's test
-                _, p_value = stats.normaltest(residuals)
-
-                # Penalize if residuals are not normal
-                if p_value < self.normality_alpha:
-                    final_score -= 0.05  # Small penalty
+                try:
+                    _, p_value = stats.normaltest(residuals)
+                    # Penalize if residuals are not normal
+                    if p_value < self.normality_alpha:
+                        final_score -= 0.05  # Small penalty
+                except Exception:
+                    pass
 
             return final_score
 
@@ -540,6 +609,23 @@ class GeneticAlgorithmSelector:
 
         n_features = X.shape[1]
 
+        # Precompute correlation matrix for faster checks
+        if self.correlation_threshold < 1.0 and n_features > 1:
+            corr_matrix = np.corrcoef(X, rowvar=False)
+            corr_matrix = np.nan_to_num(corr_matrix, nan=0.0, posinf=0.0, neginf=0.0)
+            self._corr_matrix = np.abs(corr_matrix)
+        else:
+            self._corr_matrix = None
+
+        # Prepare CV splitters
+        self._cv = self._make_cv(len(y), self.cv_folds)
+        if self.use_validation and y_val is not None:
+            self._cv_validation = self._make_cv(len(y_val), self.cv_folds_validation)
+        else:
+            self._cv_validation = None
+
+        fitness_cache = {}
+
         # Dictionary to store all unique models with their scores
         all_models = {}  # key: tuple of feature indices, value: fitness score
 
@@ -552,13 +638,21 @@ class GeneticAlgorithmSelector:
 
             # Evolution loop
             generation_best_scores = []
+            best_score_this_retry = -np.inf
+            no_improve = 0
+            last_metrics = {'r2': 0.0, 'q2loo': 0.0, 'rmse': 0.0}
 
             for generation in range(self.n_iterations):
-                # Calculate fitness for all individuals
-                fitness_scores = [
-                    self._fitness_function(ind, X, y, X_val, y_val)
-                    for ind in population
-                ]
+                # Calculate fitness for all individuals with caching
+                fitness_scores = []
+                for ind in population:
+                    feature_key = tuple(np.where(ind)[0])
+                    if feature_key in fitness_cache:
+                        score = fitness_cache[feature_key]
+                    else:
+                        score = self._fitness_function(ind, X, y, X_val, y_val)
+                        fitness_cache[feature_key] = score
+                    fitness_scores.append(score)
 
                 # Store all unique models with valid fitness
                 for ind, score in zip(population, fitness_scores):
@@ -582,10 +676,27 @@ class GeneticAlgorithmSelector:
                     best_idx = fitness_scores.index(max_fitness)
                     self.best_features_ = population[best_idx].copy()
 
+                if max_fitness > best_score_this_retry + self.early_stop_min_delta:
+                    best_score_this_retry = max_fitness
+                    no_improve = 0
+                else:
+                    no_improve += 1
+
                 # Calculate detailed metrics for best individual in current generation
                 best_idx_current = fitness_scores.index(max_fitness)
                 best_individual_current = population[best_idx_current]
-                detailed_metrics = self._calculate_detailed_metrics(best_individual_current, X, y)
+                compute_metrics = True
+                if self.metrics_interval and self.metrics_interval > 0:
+                    compute_metrics = (
+                        generation == 0
+                        or generation == self.n_iterations - 1
+                        or generation % self.metrics_interval == 0
+                    )
+                if compute_metrics:
+                    detailed_metrics = self._calculate_detailed_metrics(best_individual_current, X, y)
+                    last_metrics = detailed_metrics
+                else:
+                    detailed_metrics = last_metrics
 
                 # Report progress via callback
                 if self.progress_callback:
@@ -605,6 +716,9 @@ class GeneticAlgorithmSelector:
                 elif generation % 10 == 0:
                     print(f"  Generation {generation}/{self.n_iterations}, "
                           f"Best Score: {max_fitness:.4f}")
+
+                if self.early_stop_rounds and no_improve >= self.early_stop_rounds:
+                    break
 
                 # Create next generation
                 new_population = []
