@@ -42,6 +42,12 @@ class GeneticAlgorithmSelector:
                  n_best_models=5,
                  check_ad=False,
                  ad_threshold=100.0,
+                 split_method=None,
+                 split_params=None,
+                 split_train_idx=None,
+                 split_test_idx=None,
+                 metrics_X=None,
+                 metrics_y=None,
                  progress_callback=None,
                  random_state=42):
         """
@@ -72,7 +78,7 @@ class GeneticAlgorithmSelector:
         early_stop_min_delta : float
             Minimum improvement to reset early stop counter (default: 1e-4)
         metrics_interval : int
-            Compute detailed metrics every N generations (default: 5)
+            Compute basic metrics every N generations (default: 5)
         shuffle_cv : bool
             Whether to shuffle CV splits (default: True)
         cv_n_jobs : int
@@ -90,6 +96,18 @@ class GeneticAlgorithmSelector:
         ad_threshold : float
             Minimum required AD coverage for training set in percent (default: 100.0)
             Models with AD_train < ad_threshold will be rejected
+        split_method : str or None
+            Split method for basic R2/Q2 metrics (uses user-defined split when available)
+        split_params : dict or None
+            Parameters for split_method
+        split_train_idx : list[int] or None
+            Train indices for user-defined split (relative to metrics data)
+        split_test_idx : list[int] or None
+            Test indices for user-defined split (relative to metrics data)
+        metrics_X : array-like or DataFrame or None
+            Full feature matrix to compute R2/Q2 on user split (defaults to GA training data)
+        metrics_y : array-like or Series or None
+            Full target array to compute R2/Q2 on user split (defaults to GA training data)
         random_state : int
             Random state for reproducibility
         """
@@ -113,6 +131,12 @@ class GeneticAlgorithmSelector:
         self.n_best_models = n_best_models
         self.check_ad = check_ad
         self.ad_threshold = ad_threshold
+        self.split_method = split_method
+        self.split_params = split_params or {}
+        self._split_train_idx = split_train_idx
+        self._split_test_idx = split_test_idx
+        self._metrics_X = metrics_X
+        self._metrics_y = metrics_y
         self.progress_callback = progress_callback
         self.random_state = random_state
 
@@ -142,6 +166,25 @@ class GeneticAlgorithmSelector:
         if self.shuffle_cv:
             return KFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
         return KFold(n_splits=n_splits, shuffle=False)
+
+    def _normalize_split_indices(self, n_samples):
+        """Normalize and clamp split indices to the metrics dataset size."""
+        def _normalize(indices):
+            if indices is None:
+                return None
+            try:
+                normalized = [int(i) for i in indices]
+            except TypeError:
+                return None
+            return [i for i in normalized if 0 <= i < n_samples]
+
+        self._split_train_idx = _normalize(self._split_train_idx)
+        self._split_test_idx = _normalize(self._split_test_idx)
+
+        if self._split_train_idx is not None and len(self._split_train_idx) == 0:
+            self._split_train_idx = None
+        if self._split_test_idx is None:
+            self._split_test_idx = None
 
     def _check_correlation(self, X, feature_mask):
         """Check if selected features meet correlation threshold"""
@@ -251,6 +294,142 @@ class GeneticAlgorithmSelector:
         except Exception as e:
             # If calculation fails, return 0 (model will be rejected if check_ad is True)
             return 0.0
+
+    def _calculate_basic_metrics(self, feature_mask):
+        """
+        Calculate split-based metrics for a feature subset using user-defined split:
+        R2 (train) and Q2 (test).
+        """
+        selected_indices = np.where(feature_mask)[0]
+
+        if len(selected_indices) == 0 or self._metrics_X is None or self._metrics_y is None:
+            return {
+                'r2': 0.0,
+                'q2': None,
+                'valid': False
+            }
+
+        X_metrics = self._metrics_X
+        y_metrics = self._metrics_y
+        X_selected = X_metrics[:, selected_indices]
+
+        try:
+            model = LinearRegression()
+
+            if self._split_train_idx is not None:
+                train_idx = self._split_train_idx
+                test_idx = self._split_test_idx or []
+
+                if len(train_idx) == 0:
+                    return {
+                        'r2': 0.0,
+                        'q2': None,
+                        'valid': False
+                    }
+
+                X_train = X_selected[train_idx]
+                y_train = y_metrics[train_idx]
+
+                model.fit(X_train, y_train)
+                r2 = float(model.score(X_train, y_train)) if len(y_train) > 1 else 0.0
+
+                q2 = None
+                if len(test_idx) > 0:
+                    X_test = X_selected[test_idx]
+                    y_test = y_metrics[test_idx]
+                    y_pred_test = model.predict(X_test)
+                    sse_test = np.sum((y_test - y_pred_test) ** 2)
+                    tss_test = np.sum((y_test - np.mean(y_train)) ** 2)
+                    if tss_test > 0:
+                        q2 = float(1 - (sse_test / tss_test))
+
+                return {
+                    'r2': r2,
+                    'q2': q2,
+                    'valid': True
+                }
+
+            if self.split_method == 'kfold':
+                n_folds = int(self.split_params.get('n_folds', self.cv_folds))
+                shuffle = bool(self.split_params.get('shuffle', self.shuffle_cv))
+                n_samples = len(y_metrics)
+                n_splits = min(n_folds, n_samples)
+                if n_splits < 2:
+                    raise ValueError("Not enough samples for kfold metrics")
+                if shuffle:
+                    cv = KFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
+                else:
+                    cv = KFold(n_splits=n_splits, shuffle=False)
+
+                train_r2 = []
+                test_r2 = []
+                for train_idx, test_idx in cv.split(X_selected):
+                    X_train = X_selected[train_idx]
+                    y_train = y_metrics[train_idx]
+                    X_test = X_selected[test_idx]
+                    y_test = y_metrics[test_idx]
+
+                    model.fit(X_train, y_train)
+                    train_r2.append(model.score(X_train, y_train))
+                    test_r2.append(model.score(X_test, y_test))
+
+                r2 = float(np.mean(train_r2)) if train_r2 else 0.0
+                q2 = float(np.mean(test_r2)) if test_r2 else None
+
+                return {
+                    'r2': r2,
+                    'q2': q2,
+                    'valid': True
+                }
+
+            if self.split_method == 'loocv':
+                if len(y_metrics) < 2:
+                    raise ValueError("Not enough samples for loocv metrics")
+
+                loo = LeaveOneOut()
+                loo_predictions = []
+                loo_actuals = []
+
+                for train_idx, test_idx in loo.split(X_selected):
+                    X_train = X_selected[train_idx]
+                    y_train = y_metrics[train_idx]
+                    X_test = X_selected[test_idx]
+                    y_test = y_metrics[test_idx]
+
+                    model.fit(X_train, y_train)
+                    y_pred = model.predict(X_test)
+                    loo_predictions.extend(y_pred)
+                    loo_actuals.extend(y_test)
+
+                loo_predictions = np.array(loo_predictions)
+                loo_actuals = np.array(loo_actuals)
+                press = np.sum((loo_actuals - loo_predictions) ** 2)
+                tss = np.sum((loo_actuals - np.mean(loo_actuals)) ** 2)
+                q2 = float(1 - (press / tss)) if tss > 0 else None
+
+                model.fit(X_selected, y_metrics)
+                r2 = float(model.score(X_selected, y_metrics)) if len(y_metrics) > 1 else 0.0
+                return {
+                    'r2': r2,
+                    'q2': q2,
+                    'valid': True
+                }
+
+            model.fit(X_selected, y_metrics)
+            r2 = float(model.score(X_selected, y_metrics)) if len(y_metrics) > 1 else 0.0
+
+            return {
+                'r2': r2,
+                'q2': r2,
+                'valid': True
+            }
+
+        except Exception:
+            return {
+                'r2': 0.0,
+                'q2': None,
+                'valid': False
+            }
 
     def _calculate_detailed_metrics(self, feature_mask, X_train, y_train):
         """
@@ -607,6 +786,29 @@ class GeneticAlgorithmSelector:
         if y_val is not None and isinstance(y_val, (pd.Series, pd.DataFrame)):
             y_val = y_val.values.ravel()
 
+        if self._metrics_X is None:
+            self._metrics_X = X
+        else:
+            if isinstance(self._metrics_X, pd.DataFrame):
+                self._metrics_X = self._metrics_X.values
+            else:
+                self._metrics_X = np.asarray(self._metrics_X)
+
+        if self._metrics_y is None:
+            self._metrics_y = y
+        else:
+            if isinstance(self._metrics_y, (pd.Series, pd.DataFrame)):
+                self._metrics_y = self._metrics_y.values.ravel()
+            else:
+                self._metrics_y = np.asarray(self._metrics_y).ravel()
+
+        if self._metrics_X.shape[1] != X.shape[1]:
+            self._metrics_X = X
+        if len(self._metrics_y) != len(self._metrics_X):
+            self._metrics_y = y
+
+        self._normalize_split_indices(len(self._metrics_y))
+
         n_features = X.shape[1]
 
         # Precompute correlation matrix for faster checks
@@ -640,7 +842,7 @@ class GeneticAlgorithmSelector:
             generation_best_scores = []
             best_score_this_retry = -np.inf
             no_improve = 0
-            last_metrics = {'r2': 0.0, 'q2loo': 0.0, 'rmse': 0.0}
+            last_metrics = {'r2': 0.0, 'q2': None}
 
             for generation in range(self.n_iterations):
                 # Calculate fitness for all individuals with caching
@@ -682,7 +884,7 @@ class GeneticAlgorithmSelector:
                 else:
                     no_improve += 1
 
-                # Calculate detailed metrics for best individual in current generation
+                # Calculate basic metrics for best individual in current generation
                 best_idx_current = fitness_scores.index(max_fitness)
                 best_individual_current = population[best_idx_current]
                 compute_metrics = True
@@ -693,10 +895,10 @@ class GeneticAlgorithmSelector:
                         or generation % self.metrics_interval == 0
                     )
                 if compute_metrics:
-                    detailed_metrics = self._calculate_detailed_metrics(best_individual_current, X, y)
-                    last_metrics = detailed_metrics
+                    split_metrics = self._calculate_basic_metrics(best_individual_current)
+                    last_metrics = split_metrics
                 else:
-                    detailed_metrics = last_metrics
+                    split_metrics = last_metrics
 
                 # Report progress via callback
                 if self.progress_callback:
@@ -709,9 +911,8 @@ class GeneticAlgorithmSelector:
                         'overall_best_score': float(self.best_score_),
                         'n_features': int(np.sum(self.best_features_)) if self.best_features_ is not None else 0,
                         'unique_models': int(len(all_models)),
-                        'r2': float(detailed_metrics['r2']),
-                        'q2loo': float(detailed_metrics['q2loo']),
-                        'rmse': float(detailed_metrics['rmse'])
+                        'r2': float(split_metrics['r2']),
+                        'q2': float(split_metrics['q2']) if split_metrics['q2'] is not None else None
                     })
                 elif generation % 10 == 0:
                     print(f"  Generation {generation}/{self.n_iterations}, "
@@ -749,15 +950,36 @@ class GeneticAlgorithmSelector:
 
             print(f"  Final Best Score: {self.best_score_:.4f}")
 
-        # Select top N models and calculate detailed metrics for each
-        sorted_models = sorted(all_models.items(), key=lambda x: x[1], reverse=True)
+        # Select top N models by split R2/Q2 and calculate detailed metrics
+        model_items = list(all_models.items())
+        split_metrics_cache = {}
+
+        for feature_indices, _ in model_items:
+            feature_mask = np.zeros(X.shape[1], dtype=bool)
+            feature_mask[list(feature_indices)] = True
+            split_metrics_cache[feature_indices] = self._calculate_basic_metrics(feature_mask)
+
+        def split_sort_key(item):
+            feature_indices, score = item
+            metrics = split_metrics_cache.get(feature_indices, {})
+            if not metrics or not metrics.get('valid'):
+                return (-np.inf, -np.inf, -np.inf)
+            r2 = metrics.get('r2', 0.0)
+            q2 = metrics.get('q2')
+            q2_rank = q2 if q2 is not None else r2
+            return (q2_rank, r2, score)
+
+        selected_models = sorted(model_items, key=split_sort_key, reverse=True)[:self.n_best_models]
         self.best_models_ = []
 
-        print(f"\nCalculating detailed metrics for top {self.n_best_models} models...")
-        for i, (feature_indices, score) in enumerate(sorted_models[:self.n_best_models]):
+        print(f"\nCalculating detailed metrics for top {len(selected_models)} models by split metrics...")
+        for feature_indices, score in selected_models:
             # Create feature mask for this model
             feature_mask = np.zeros(X.shape[1], dtype=bool)
             feature_mask[list(feature_indices)] = True
+
+            # Split metrics used for selection
+            split_metrics = split_metrics_cache.get(feature_indices, {'r2': 0.0, 'q2': None})
 
             # Calculate detailed metrics for this model
             detailed_metrics = self._calculate_detailed_metrics(feature_mask, X, y)
@@ -776,12 +998,12 @@ class GeneticAlgorithmSelector:
             equation = " ".join(equation_parts)
 
             self.best_models_.append({
-                'rank': i + 1,
                 'score': score,  # CV R² from fitness function
-                'r2': detailed_metrics['r2'],  # CV R²
-                'q2loo': detailed_metrics['q2loo'],  # LOO CV
-                'rmse': detailed_metrics['rmse'],  # CV RMSE
-                'ad_coverage': detailed_metrics['ad_coverage'],  # AD coverage for training set
+                'r2': split_metrics.get('r2'),  # R² on user-defined train split
+                'q2': split_metrics.get('q2'),  # Q² on user-defined test split
+                'q2loo': detailed_metrics.get('q2loo'),
+                'rmse': detailed_metrics.get('rmse'),
+                'ad_coverage': detailed_metrics.get('ad_coverage'),
                 'intercept': intercept,
                 'coefficients': coefficients,
                 'equation': equation,
@@ -790,10 +1012,22 @@ class GeneticAlgorithmSelector:
                 'feature_names': feature_names
             })
 
+        # Sort final models by GA score (as before) and assign ranks
+        self.best_models_.sort(key=lambda m: m['score'], reverse=True)
+        for idx, model in enumerate(self.best_models_):
+            model['rank'] = idx + 1
+
         print(f"\nTop {len(self.best_models_)} models identified:")
         for model in self.best_models_:
+            q2_value = model['q2']
+            q2_text = f"{q2_value:.4f}" if q2_value is not None else "N/A"
+            q2loo_value = model.get('q2loo')
+            q2loo_text = f"{q2loo_value:.4f}" if q2loo_value is not None else "N/A"
+            rmse_value = model.get('rmse')
+            rmse_text = f"{rmse_value:.4f}" if rmse_value is not None else "N/A"
             print(f"  Rank {model['rank']}: CV R²={model['score']:.4f}, "
-                  f"Q²loo={model['q2loo']:.4f}, RMSE={model['rmse']:.4f}, "
+                  f"R²={model['r2']:.4f}, Q²={q2_text}, "
+                  f"Q²loo={q2loo_text}, RMSE={rmse_text}, "
                   f"AD={model['ad_coverage']:.1f}%, "
                   f"N_features={model['n_features']}, Features={model['feature_names']}")
 

@@ -999,15 +999,14 @@
                             <div class="col-6">
                                 <p><strong>Features Selected:</strong> <span id="ga-n-features">-</span></p>
                                 <p><strong>Unique Models:</strong> <span id="ga-unique-models">-</span></p>
-                                <p><strong>R²:</strong> <strong class="text-primary" id="ga-r2">-</strong></p>
-                                <p><strong>Q²loo:</strong> <strong class="text-primary" id="ga-q2loo">-</strong></p>
-                                <p><strong>RMSE:</strong> <strong class="text-danger" id="ga-rmse">-</strong></p>
+                                <p><strong>R² (train):</strong> <strong class="text-primary" id="ga-r2">-</strong></p>
+                                <p><strong>Q² (test):</strong> <strong class="text-primary" id="ga-q2">-</strong></p>
                             </div>
                         </div>
                     </div>
 
                     <div class="mt-3">
-                        <p class="text-muted"><i class="fas fa-info-circle mr-2"></i>Real-time updates every iteration with detailed fitness metrics (R², Q²loo, RMSE)</p>
+                        <p class="text-muted"><i class="fas fa-info-circle mr-2"></i>Real-time updates every iteration with split metrics (R² train, Q² test)</p>
                     </div>
                 </div>
             </div>
@@ -1056,8 +1055,8 @@
                         <tr>
                             <th>Rank</th>
                             <th>CV R²</th>
-                            <th>Q²loo</th>
-                            <th>RMSE</th>
+                            <th>R² (train)</th>
+                            <th>Q² (test)</th>
                             <th>AD%</th>
                             <th>N Feat.</th>
                             <th>Selected Features</th>
@@ -1069,8 +1068,8 @@
                         <tr class="ga-model-row {% if model.rank == 1 %}table-success{% endif %} {% if model.rank > 5 %}ga-hidden-row{% endif %}" data-rank="{{ model.rank }}">
                             <td><strong>#{{ model.rank }}</strong></td>
                             <td><strong class="text-primary">{{ "%.4f"|format(model.score) }}</strong></td>
-                            <td><strong class="text-success">{{ "%.4f"|format(model.q2loo) if model.q2loo is defined else 'N/A' }}</strong></td>
-                            <td><strong class="text-danger">{{ "%.4f"|format(model.rmse) if model.rmse is defined else 'N/A' }}</strong></td>
+                            <td><strong class="text-success">{{ "%.4f"|format(model.r2) if model.r2 is defined else 'N/A' }}</strong></td>
+                            <td><strong class="text-danger">{{ "%.4f"|format(model.q2) if model.q2 is defined and model.q2 is not none else 'N/A' }}</strong></td>
                             <td><strong class="{% if model.ad_coverage is defined and model.ad_coverage >= 100 %}text-success{% elif model.ad_coverage is defined and model.ad_coverage >= 90 %}text-warning{% else %}text-danger{% endif %}">{{ "%.1f"|format(model.ad_coverage) if model.ad_coverage is defined else 'N/A' }}%</strong></td>
                             <td>{{ model.n_features }}</td>
                             <td>
@@ -1157,10 +1156,10 @@
                 <i class="fas fa-info-circle mr-2"></i>
                 <strong>Understanding Metrics:</strong><br>
                 • <strong>CV R²</strong> = {{ cv_folds }}-fold cross-validation R² (fitness function used by GA)<br>
-                • <strong>Q²loo</strong> = Leave-One-Out cross-validation R² (more accurate but slower)<br>
-                • <strong>RMSE</strong> = Root Mean Squared Error from cross-validation<br>
+                • <strong>R² (train)</strong> = R² on the user-defined training split<br>
+                • <strong>Q² (test)</strong> = External Q² on the user-defined test split<br>
                 • <strong>AD%</strong> = Applicability Domain coverage for training set (100% means all samples within AD)<br>
-                <em>Note: Q²loo is generally higher than CV R² because LOO is less conservative. Click "Run MLR" to see full regression equation with coefficients and diagnostic plots.</em>
+                <em>Note: Models are selected by split Q² (test), with R² (train) as tie-breaker, then displayed by GA CV R². Click "Run MLR" to compute the full set of regression metrics and diagnostic plots.</em>
             </div>
 
             {% if ga_fitness_plot %}
@@ -1762,8 +1761,7 @@ function showGALoadingScreen(event) {
 
                 // Update detailed metrics
                 if (data.r2 !== undefined) document.getElementById('ga-r2').textContent = formatNumber(data.r2);
-                if (data.q2loo !== undefined) document.getElementById('ga-q2loo').textContent = formatNumber(data.q2loo);
-                if (data.rmse !== undefined) document.getElementById('ga-rmse').textContent = formatNumber(data.rmse);
+                if (data.q2 !== undefined) document.getElementById('ga-q2').textContent = formatNumber(data.q2);
 
                 // Check if complete
                 if (data.status === 'complete') {

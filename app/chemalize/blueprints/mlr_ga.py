@@ -1097,6 +1097,34 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
         variance_threshold = session_data.get('mlr_ga_variance_threshold', 0.01)
 
         split_method = session_data.get('mlr_ga_split_method', 'random')
+        split_params = {}
+        if split_method == 'random':
+            split_params = {
+                'test_size': session_data.get('mlr_ga_test_size', 0.2),
+                'shuffle': session_data.get('mlr_ga_shuffle', True),
+                'random_state': session_data.get('mlr_ga_random_state', 42)
+            }
+        elif split_method == 'stratified':
+            split_params = {
+                'test_size': session_data.get('mlr_ga_strat_test_size', 0.2),
+                'n_bins': session_data.get('mlr_ga_strat_bins', 5)
+            }
+        elif split_method == 'time':
+            split_params = {
+                'time_column': session_data.get('mlr_ga_time_column', ''),
+                'test_size': session_data.get('mlr_ga_time_test_size', 0.2)
+            }
+        elif split_method == 'kfold':
+            split_params = {
+                'n_folds': session_data.get('mlr_ga_n_folds', 5),
+                'shuffle': session_data.get('mlr_ga_shuffle_kfold', True)
+            }
+        elif split_method == 'systematic':
+            split_params = {
+                'step': session_data.get('mlr_ga_systematic_step', 3),
+                'include_last': session_data.get('mlr_ga_include_last_point', False)
+            }
+
         if split_method == 'time' or split_method == 'systematic':
             shuffle_cv = False
         elif split_method == 'kfold':
@@ -1119,6 +1147,26 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
             with ga_progress_lock:
                 ga_latest_progress[session_id] = {'status': 'error', 'message': 'No features remaining after preprocessing'}
             return
+
+        split_train_idx = None
+        split_test_idx = None
+        if split_method not in ['kfold', 'loocv']:
+            split_train_idx = session_data.get('mlr_ga_step2_train_idx')
+            split_test_idx = session_data.get('mlr_ga_step2_test_idx')
+            if split_train_idx is not None:
+                if split_test_idx is None:
+                    split_test_idx = []
+                if step2_clean_indices:
+                    cleaned_indices = sorted(step2_clean_indices)
+                    index_map = {orig_idx: new_pos for new_pos, orig_idx in enumerate(cleaned_indices)}
+                    split_train_idx = [index_map[i] for i in split_train_idx if i in index_map]
+                    split_test_idx = [index_map[i] for i in split_test_idx if i in index_map]
+                data_len = len(y)
+                split_train_idx = [int(i) for i in split_train_idx if 0 <= int(i) < data_len]
+                split_test_idx = [int(i) for i in split_test_idx if 0 <= int(i) < data_len]
+            else:
+                split_train_idx = None
+                split_test_idx = None
 
         # Split data for validation if requested
         X_train, X_val, y_train, y_val = None, None, None, None
@@ -1174,6 +1222,12 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
             n_best_models=n_best_models,
             check_ad=check_ad,
             ad_threshold=ad_threshold,
+            split_method=split_method,
+            split_params=split_params,
+            split_train_idx=split_train_idx,
+            split_test_idx=split_test_idx,
+            metrics_X=X,
+            metrics_y=y,
             progress_callback=progress_callback,
             shuffle_cv=shuffle_cv,
             random_state=42
