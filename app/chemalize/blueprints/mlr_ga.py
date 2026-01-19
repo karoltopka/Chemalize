@@ -1239,11 +1239,17 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
         # Get all top models
         try:
             best_models = ga.get_best_models()
-        except ValueError:
+        except ValueError as e:
+            message = str(e)
+            if not message or message == "Model not fitted yet!":
+                message = (
+                    'No valid models found. Try disabling AD check, '
+                    'lowering correlation threshold, or reducing CV folds.'
+                )
             with ga_progress_lock:
                 ga_latest_progress[session_id] = {
                     'status': 'error',
-                    'message': 'No valid models found. Try disabling AD check, lowering correlation threshold, or reducing CV folds.'
+                    'message': message
                 }
             return
 

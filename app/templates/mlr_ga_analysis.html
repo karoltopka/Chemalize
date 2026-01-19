@@ -843,8 +843,7 @@
                             <strong>Include Scoring of Validation Set</strong>
                         </label>
                         <small class="form-text text-muted">
-                            Use validation set in optimization. Both training and validation scores will be calculated,
-                            and the worse result will be treated as final score.
+                            Compute Q²cv on a holdout validation set (for top models only).
                         </small>
                     </div>
                 </div>
@@ -993,8 +992,8 @@
                             <div class="col-6">
                                 <p><strong>Retry:</strong> <span id="ga-retry">-</span> / <span id="ga-max-retries">-</span></p>
                                 <p><strong>Generation:</strong> <span id="ga-generation">-</span> / <span id="ga-total-gen">-</span></p>
-                                <p><strong>Best Score (R²):</strong> <strong class="text-success" id="ga-best-score">-</strong></p>
-                                <p><strong>Current Score:</strong> <strong class="text-info" id="ga-current-score">-</strong></p>
+                                <p><strong>Best Split Score:</strong> <strong class="text-success" id="ga-best-score">-</strong></p>
+                                <p><strong>Current Split Score:</strong> <strong class="text-info" id="ga-current-score">-</strong></p>
                             </div>
                             <div class="col-6">
                                 <p><strong>Features Selected:</strong> <span id="ga-n-features">-</span></p>
@@ -1049,17 +1048,25 @@
             {% endif %}
 
             {% if best_models %}
+            <div class="d-flex justify-content-end mb-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetGASort()">
+                    <i class="fas fa-undo mr-1"></i>Reset Sort
+                </button>
+            </div>
             <div class="table-responsive">
                 <table class="table table-hover table-bordered">
                     <thead class="thead-dark">
                         <tr>
-                            <th>Rank</th>
-                            <th>CV R²</th>
-                            <th>R² (train)</th>
-                            <th>Q² (test)</th>
-                            <th>AD%</th>
-                            <th>N Feat.</th>
-                            <th>Selected Features</th>
+                            <th class="ga-sortable" data-sort="number">Rank <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">CV R² <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">R² (train) <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">Q² (test) <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">Q²cv <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">Q²loo <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">RMSE <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">AD% <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">N Feat. <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="text">Selected Features <span class="sort-indicator"></span></th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -1070,6 +1077,9 @@
                             <td><strong class="text-primary">{{ "%.4f"|format(model.score) }}</strong></td>
                             <td><strong class="text-success">{{ "%.4f"|format(model.r2) if model.r2 is defined else 'N/A' }}</strong></td>
                             <td><strong class="text-danger">{{ "%.4f"|format(model.q2) if model.q2 is defined and model.q2 is not none else 'N/A' }}</strong></td>
+                            <td><strong class="text-success">{{ "%.4f"|format(model.q2cv) if model.q2cv is defined and model.q2cv is not none else 'N/A' }}</strong></td>
+                            <td><strong class="text-success">{{ "%.4f"|format(model.q2loo) if model.q2loo is defined else 'N/A' }}</strong></td>
+                            <td><strong class="text-danger">{{ "%.4f"|format(model.rmse) if model.rmse is defined else 'N/A' }}</strong></td>
                             <td><strong class="{% if model.ad_coverage is defined and model.ad_coverage >= 100 %}text-success{% elif model.ad_coverage is defined and model.ad_coverage >= 90 %}text-warning{% else %}text-danger{% endif %}">{{ "%.1f"|format(model.ad_coverage) if model.ad_coverage is defined else 'N/A' }}%</strong></td>
                             <td>{{ model.n_features }}</td>
                             <td>
@@ -1089,7 +1099,7 @@
                         </tr>
                         <!-- Equation details row (hidden by default) -->
                         <tr class="equation-row {% if model.rank > 5 %}ga-hidden-row{% endif %}" id="equation-row-{{ model.rank }}" style="display: none;">
-                            <td colspan="8" class="equation-cell">
+                            <td colspan="11" class="equation-cell">
                                 <div class="p-3">
                                     <h6 class="mb-3"><i class="fas fa-superscript mr-2"></i>Model #{{ model.rank }} - Equation & Coefficients</h6>
                                     <div class="card mb-3">
@@ -1155,9 +1165,12 @@
             <div class="alert alert-info mt-3">
                 <i class="fas fa-info-circle mr-2"></i>
                 <strong>Understanding Metrics:</strong><br>
-                • <strong>CV R²</strong> = {{ cv_folds }}-fold cross-validation R² (fitness function used by GA)<br>
+                • <strong>CV R²</strong> = {{ cv_folds }}-fold cross-validation R² (computed for top models)<br>
                 • <strong>R² (train)</strong> = R² on the user-defined training split<br>
                 • <strong>Q² (test)</strong> = External Q² on the user-defined test split<br>
+                • <strong>Q²cv</strong> = Cross-validated R² on the validation set (when enabled)<br>
+                • <strong>Q²loo</strong> = Leave-One-Out cross-validation R² (computed for top models)<br>
+                • <strong>RMSE</strong> = Root Mean Squared Error from cross-validation (computed for top models)<br>
                 • <strong>AD%</strong> = Applicability Domain coverage for training set (100% means all samples within AD)<br>
                 <em>Note: Models are selected by split Q² (test), with R² (train) as tie-breaker, then displayed by GA CV R². Click "Run MLR" to compute the full set of regression metrics and diagnostic plots.</em>
             </div>
@@ -1406,6 +1419,21 @@
     display: none;
 }
 
+.ga-sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.ga-sortable .sort-indicator {
+    margin-left: 6px;
+    font-size: 0.8em;
+    color: #6c757d;
+}
+
+.ga-sortable.active .sort-indicator {
+    color: #0d6efd;
+}
+
 .step {
     display: inline-block;
 }
@@ -1540,42 +1568,195 @@ let modelsVisible = 5; // Start with 5 models visible
 const modelsIncrement = 10; // Show 10 more each time
 
 function showMoreModels() {
-    // Only select model rows, not equation rows
-    const hiddenModelRows = document.querySelectorAll('.ga-model-row.ga-hidden-row');
-    const totalHidden = hiddenModelRows.length;
+    const modelRows = document.querySelectorAll('.ga-model-row');
+    if (modelRows.length === 0) {
+        return;
+    }
 
-    if (totalHidden === 0) return;
+    modelsVisible = Math.min(modelsVisible + modelsIncrement, modelRows.length);
+    applyModelVisibility();
+}
 
-    // Show next batch of models
-    let shown = 0;
-    hiddenModelRows.forEach(row => {
-        if (shown < modelsIncrement) {
+function applyModelVisibility() {
+    const modelRows = Array.from(document.querySelectorAll('.ga-model-row'));
+    const visibleCount = Math.min(modelsVisible, modelRows.length);
+
+    modelRows.forEach((row, index) => {
+        const rank = row.dataset.rank;
+        const equationRow = document.getElementById('equation-row-' + rank);
+
+        if (index < visibleCount) {
             row.classList.remove('ga-hidden-row');
-            shown++;
-            modelsVisible++;
-
-            // Also reveal the corresponding equation row (but keep it hidden with display:none)
-            const rank = row.dataset.rank;
-            const equationRow = document.getElementById('equation-row-' + rank);
             if (equationRow) {
                 equationRow.classList.remove('ga-hidden-row');
-                // Ensure equation row stays hidden until user clicks the toggle button
+                equationRow.style.display = 'none';
+            }
+        } else {
+            row.classList.add('ga-hidden-row');
+            if (equationRow) {
+                equationRow.classList.add('ga-hidden-row');
                 equationRow.style.display = 'none';
             }
         }
     });
 
-    // Update hidden count (only count model rows)
-    const remainingHidden = document.querySelectorAll('.ga-model-row.ga-hidden-row').length;
+    const remainingHidden = Math.max(modelRows.length - visibleCount, 0);
     const hiddenCountSpan = document.getElementById('hidden-count');
+    const showMoreContainer = document.getElementById('show-more-container');
 
-    if (remainingHidden === 0) {
-        // Hide the button if no more hidden rows
-        document.getElementById('show-more-container').style.display = 'none';
-    } else {
-        // Update count
+    if (showMoreContainer) {
+        showMoreContainer.style.display = remainingHidden === 0 ? 'none' : 'block';
+    }
+    if (hiddenCountSpan) {
         hiddenCountSpan.textContent = remainingHidden;
     }
+}
+
+let gaSortState = {
+    index: null,
+    direction: 'desc'
+};
+
+function getGASortValue(row, columnIndex, type) {
+    const cell = row.cells[columnIndex];
+    if (!cell) {
+        return type === 'number' ? NaN : '';
+    }
+    const text = cell.textContent.trim();
+    if (type === 'number') {
+        const cleaned = text.replace(/[%#,]/g, '');
+        const value = parseFloat(cleaned);
+        return Number.isFinite(value) ? value : NaN;
+    }
+    return text.toLowerCase();
+}
+
+function updateGASortIndicators(activeIndex, direction) {
+    document.querySelectorAll('.ga-sortable').forEach(header => {
+        const indicator = header.querySelector('.sort-indicator');
+        if (!indicator) {
+            return;
+        }
+        if (header.cellIndex === activeIndex) {
+            header.classList.add('active');
+            indicator.textContent = direction === 'asc' ? '^' : 'v';
+            header.setAttribute('aria-sort', direction === 'asc' ? 'ascending' : 'descending');
+        } else {
+            header.classList.remove('active');
+            indicator.textContent = '';
+            header.removeAttribute('aria-sort');
+        }
+    });
+}
+
+function sortGAModelsByColumn(columnIndex, type) {
+    const tbody = document.getElementById('ga-models-tbody');
+    if (!tbody) {
+        return;
+    }
+
+    let direction = 'desc';
+    if (gaSortState.index === columnIndex) {
+        direction = gaSortState.direction === 'desc' ? 'asc' : 'desc';
+    } else if (type === 'text') {
+        direction = 'asc';
+    }
+    gaSortState = { index: columnIndex, direction };
+    updateGASortIndicators(columnIndex, direction);
+
+    const modelRows = Array.from(tbody.querySelectorAll('.ga-model-row'));
+    const rowPairs = modelRows.map((row, index) => {
+        const rank = row.dataset.rank;
+        const equationRow = document.getElementById('equation-row-' + rank);
+        return {
+            row,
+            equationRow,
+            index,
+            value: getGASortValue(row, columnIndex, type)
+        };
+    });
+
+    rowPairs.sort((a, b) => {
+        const aMissing = !Number.isFinite(a.value) && type === 'number';
+        const bMissing = !Number.isFinite(b.value) && type === 'number';
+        if (aMissing && bMissing) {
+            return a.index - b.index;
+        }
+        if (aMissing) {
+            return 1;
+        }
+        if (bMissing) {
+            return -1;
+        }
+
+        if (type === 'number') {
+            const diff = a.value - b.value;
+            if (diff === 0) {
+                return a.index - b.index;
+            }
+            return direction === 'asc' ? diff : -diff;
+        }
+
+        const diff = a.value.localeCompare(b.value);
+        if (diff === 0) {
+            return a.index - b.index;
+        }
+        return direction === 'asc' ? diff : -diff;
+    });
+
+    rowPairs.forEach(item => {
+        tbody.appendChild(item.row);
+        if (item.equationRow) {
+            tbody.appendChild(item.equationRow);
+        }
+    });
+
+    applyModelVisibility();
+}
+
+function resetGASort() {
+    const tbody = document.getElementById('ga-models-tbody');
+    if (!tbody) {
+        return;
+    }
+
+    const modelRows = Array.from(tbody.querySelectorAll('.ga-model-row'));
+    const rowPairs = modelRows.map(row => {
+        const rankValue = parseInt(row.dataset.rank, 10);
+        const equationRow = document.getElementById('equation-row-' + row.dataset.rank);
+        return {
+            row,
+            equationRow,
+            rank: Number.isFinite(rankValue) ? rankValue : 0
+        };
+    });
+
+    rowPairs.sort((a, b) => a.rank - b.rank);
+
+    rowPairs.forEach(item => {
+        tbody.appendChild(item.row);
+        if (item.equationRow) {
+            tbody.appendChild(item.equationRow);
+        }
+    });
+
+    gaSortState = { index: null, direction: 'desc' };
+    updateGASortIndicators(-1, 'desc');
+    applyModelVisibility();
+}
+
+function initGASorting() {
+    const headers = document.querySelectorAll('.ga-sortable');
+    if (!headers.length) {
+        return;
+    }
+
+    headers.forEach(header => {
+        header.addEventListener('click', () => {
+            const type = header.dataset.sort || 'text';
+            sortGAModelsByColumn(header.cellIndex, type);
+        });
+    });
 }
 
 function toggleSplitOptions() {
@@ -1674,6 +1855,11 @@ function toggleEquation(rank) {
         }
     }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    initGASorting();
+    applyModelVisibility();
+});
 
 // Auto-submit form when target variable is selected
 function autoSubmitTargetForm() {

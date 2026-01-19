@@ -48,6 +48,8 @@ class GeneticAlgorithmSelector:
                  split_test_idx=None,
                  metrics_X=None,
                  metrics_y=None,
+                 min_split_r2=0.68,
+                 min_split_q2=0.68,
                  progress_callback=None,
                  random_state=42):
         """
@@ -108,6 +110,10 @@ class GeneticAlgorithmSelector:
             Full feature matrix to compute R2/Q2 on user split (defaults to GA training data)
         metrics_y : array-like or Series or None
             Full target array to compute R2/Q2 on user split (defaults to GA training data)
+        min_split_r2 : float
+            Minimum split R2 required to continue detailed evaluation (default: 0.68)
+        min_split_q2 : float
+            Minimum split Q2 required to continue detailed evaluation (default: 0.68)
         random_state : int
             Random state for reproducibility
         """
@@ -137,6 +143,8 @@ class GeneticAlgorithmSelector:
         self._split_test_idx = split_test_idx
         self._metrics_X = metrics_X
         self._metrics_y = metrics_y
+        self.min_split_r2 = min_split_r2
+        self.min_split_q2 = min_split_q2
         self.progress_callback = progress_callback
         self.random_state = random_state
 
@@ -148,6 +156,9 @@ class GeneticAlgorithmSelector:
         self._corr_matrix = None
         self._cv = None
         self._cv_validation = None
+        self._validation_X = None
+        self._validation_y = None
+        self.no_models_reason_ = None
 
         np.random.seed(random_state)
         random.seed(random_state)
@@ -538,11 +549,41 @@ class GeneticAlgorithmSelector:
             return {'r2': 0.0, 'q2loo': 0.0, 'rmse': 0.0, 'ad_coverage': 0.0,
                     'intercept': 0.0, 'coefficients': [], 'valid': False}
 
+    def _calculate_validation_q2cv(self, feature_mask):
+        """Calculate cross-validated Q2 on the validation set (if provided)."""
+        if self._validation_X is None or self._validation_y is None:
+            return None
+
+        selected_indices = np.where(feature_mask)[0]
+        if len(selected_indices) == 0:
+            return None
+
+        X_val_selected = self._validation_X[:, selected_indices]
+        y_val = self._validation_y
+
+        cv = self._cv_validation or self._make_cv(len(y_val), self.cv_folds_validation)
+        if cv is None:
+            return None
+
+        try:
+            model = LinearRegression()
+            scores = cross_val_score(
+                model, X_val_selected, y_val,
+                cv=cv,
+                scoring='r2',
+                n_jobs=self.cv_n_jobs
+            )
+            if scores is None or len(scores) == 0:
+                return None
+            return float(np.mean(scores))
+        except Exception:
+            return None
+
     def _fitness_function(self, feature_mask, X_train, y_train, X_val=None, y_val=None):
         """
         Calculate fitness of a feature subset
 
-        Returns higher score for better models
+        Returns higher score for better models based on split R2/Q2
         """
         selected_indices = np.where(feature_mask)[0]
 
@@ -561,69 +602,20 @@ class GeneticAlgorithmSelector:
         if not self._check_correlation(X_train, feature_mask):
             return -np.inf
 
-        # Check Applicability Domain constraint if enabled
-        if self.check_ad:
-            ad_coverage = self._calculate_ad_coverage(X_train, y_train, feature_mask)
-            if ad_coverage < self.ad_threshold:
-                # Reject model if training set AD coverage is below threshold
-                return -np.inf
-
-        X_selected = X_train[:, selected_indices]
-
         try:
-            model = LinearRegression()
-
-            # Cross-validation on training set
-            cv = self._cv or self._make_cv(len(y_train), self.cv_folds)
-            if cv is None:
+            split_metrics = self._calculate_basic_metrics(feature_mask)
+            if not split_metrics.get('valid'):
                 return -np.inf
 
-            cv_scores = cross_val_score(
-                model, X_selected, y_train,
-                cv=cv,
-                scoring='r2',
-                n_jobs=self.cv_n_jobs
-            )
-            train_score = np.mean(cv_scores)
+            q2 = split_metrics.get('q2')
+            if q2 is not None:
+                return float(q2)
 
-            # If using validation set
-            if self.use_validation and X_val is not None and y_val is not None:
-                X_val_selected = X_val[:, selected_indices]
+            r2 = split_metrics.get('r2')
+            if r2 is None:
+                return -np.inf
 
-                # Cross-validation on validation set
-                cv_val = self._cv_validation or self._make_cv(len(y_val), self.cv_folds_validation)
-                if cv_val is None:
-                    val_score = train_score
-                else:
-                    val_scores = cross_val_score(
-                        model, X_val_selected, y_val,
-                        cv=cv_val,
-                        scoring='r2',
-                        n_jobs=self.cv_n_jobs
-                    )
-                    val_score = np.mean(val_scores)
-
-                # Return worse score as final score
-                final_score = min(train_score, val_score)
-            else:
-                final_score = train_score
-
-            # Test residuals normality if requested
-            if self.test_normality and len(y_train) >= 8:
-                model.fit(X_selected, y_train)
-                y_pred = model.predict(X_selected)
-                residuals = y_train - y_pred
-
-                # D'Agostino and Pearson's test
-                try:
-                    _, p_value = stats.normaltest(residuals)
-                    # Penalize if residuals are not normal
-                    if p_value < self.normality_alpha:
-                        final_score -= 0.05  # Small penalty
-                except Exception:
-                    pass
-
-            return final_score
+            return float(r2)
 
         except Exception as e:
             return -np.inf
@@ -771,6 +763,9 @@ class GeneticAlgorithmSelector:
         --------
         self
         """
+        self.no_models_reason_ = None
+        self._validation_X = None
+        self._validation_y = None
         # Convert to numpy arrays
         if isinstance(X, pd.DataFrame):
             self.feature_names_ = X.columns.tolist()
@@ -785,6 +780,11 @@ class GeneticAlgorithmSelector:
             X_val = X_val.values
         if y_val is not None and isinstance(y_val, (pd.Series, pd.DataFrame)):
             y_val = y_val.values.ravel()
+
+        if X_val is not None:
+            self._validation_X = np.asarray(X_val)
+        if y_val is not None:
+            self._validation_y = np.asarray(y_val).ravel()
 
         if self._metrics_X is None:
             self._metrics_X = X
@@ -969,11 +969,13 @@ class GeneticAlgorithmSelector:
             q2_rank = q2 if q2 is not None else r2
             return (q2_rank, r2, score)
 
-        selected_models = sorted(model_items, key=split_sort_key, reverse=True)[:self.n_best_models]
+        sorted_candidates = sorted(model_items, key=split_sort_key, reverse=True)
         self.best_models_ = []
 
-        print(f"\nCalculating detailed metrics for top {len(selected_models)} models by split metrics...")
-        for feature_indices, score in selected_models:
+        print(f"\nCalculating detailed metrics for top models by split metrics...")
+        for feature_indices, score in sorted_candidates:
+            if len(self.best_models_) >= self.n_best_models:
+                break
             # Create feature mask for this model
             feature_mask = np.zeros(X.shape[1], dtype=bool)
             feature_mask[list(feature_indices)] = True
@@ -981,8 +983,26 @@ class GeneticAlgorithmSelector:
             # Split metrics used for selection
             split_metrics = split_metrics_cache.get(feature_indices, {'r2': 0.0, 'q2': None})
 
+            r2_split = split_metrics.get('r2')
+            q2_split = split_metrics.get('q2')
+            r2_below = r2_split is None or r2_split < self.min_split_r2
+            q2_below = q2_split is None or q2_split < self.min_split_q2
+            if r2_below and q2_below:
+                if not self.best_models_:
+                    self.no_models_reason_ = (
+                        f"No models met split R2/Q2 >= {self.min_split_r2:.2f}. "
+                        "Lower AD threshold or relax the split cutoff."
+                    )
+                break
+
             # Calculate detailed metrics for this model
             detailed_metrics = self._calculate_detailed_metrics(feature_mask, X, y)
+            if self.check_ad and detailed_metrics.get('ad_coverage', 0.0) < self.ad_threshold:
+                continue
+
+            q2cv = None
+            if self.use_validation and self._validation_X is not None and self._validation_y is not None:
+                q2cv = self._calculate_validation_q2cv(feature_mask)
 
             feature_names = [self.feature_names_[idx] for idx in feature_indices]
 
@@ -998,11 +1018,12 @@ class GeneticAlgorithmSelector:
             equation = " ".join(equation_parts)
 
             self.best_models_.append({
-                'score': score,  # CV R² from fitness function
+                'score': detailed_metrics.get('r2'),  # CV R² from detailed metrics
                 'r2': split_metrics.get('r2'),  # R² on user-defined train split
                 'q2': split_metrics.get('q2'),  # Q² on user-defined test split
                 'q2loo': detailed_metrics.get('q2loo'),
                 'rmse': detailed_metrics.get('rmse'),
+                'q2cv': q2cv,
                 'ad_coverage': detailed_metrics.get('ad_coverage'),
                 'intercept': intercept,
                 'coefficients': coefficients,
@@ -1017,6 +1038,16 @@ class GeneticAlgorithmSelector:
         for idx, model in enumerate(self.best_models_):
             model['rank'] = idx + 1
 
+        if self.best_models_:
+            self.best_score_ = float(self.best_models_[0]['score'])
+        elif self.no_models_reason_ is None:
+            if self.check_ad:
+                self.no_models_reason_ = (
+                    "No models met the AD threshold. Lower AD threshold or relax constraints."
+                )
+            else:
+                self.no_models_reason_ = "No valid models found for the current constraints."
+
         print(f"\nTop {len(self.best_models_)} models identified:")
         for model in self.best_models_:
             q2_value = model['q2']
@@ -1025,9 +1056,11 @@ class GeneticAlgorithmSelector:
             q2loo_text = f"{q2loo_value:.4f}" if q2loo_value is not None else "N/A"
             rmse_value = model.get('rmse')
             rmse_text = f"{rmse_value:.4f}" if rmse_value is not None else "N/A"
+            q2cv_value = model.get('q2cv')
+            q2cv_text = f"{q2cv_value:.4f}" if q2cv_value is not None else "N/A"
             print(f"  Rank {model['rank']}: CV R²={model['score']:.4f}, "
                   f"R²={model['r2']:.4f}, Q²={q2_text}, "
-                  f"Q²loo={q2loo_text}, RMSE={rmse_text}, "
+                  f"Q²loo={q2loo_text}, Q²cv={q2cv_text}, RMSE={rmse_text}, "
                   f"AD={model['ad_coverage']:.1f}%, "
                   f"N_features={model['n_features']}, Features={model['feature_names']}")
 
@@ -1044,6 +1077,8 @@ class GeneticAlgorithmSelector:
     def get_best_models(self):
         """Get list of top N models with their details"""
         if not self.best_models_:
+            if self.no_models_reason_:
+                raise ValueError(self.no_models_reason_)
             raise ValueError("Model not fitted yet!")
 
         return self.best_models_
