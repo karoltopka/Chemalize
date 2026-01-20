@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NanoTox - TiO2 Toxicity Prediction</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x2699;</text></svg>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --accent: #ff6b6b;
+            --accent-hover: #ff5252;
+            --accent-secondary: #4ecdc4;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --warning: #ffc107;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        header {
+            padding: 2rem 0;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            color: var(--accent);
+        }
+
+        main {
+            padding: 4rem 0;
+            min-height: calc(100vh - 200px);
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, var(--accent), var(--accent-secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .feature-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 15px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent);
+            box-shadow: 0 10px 30px rgba(255, 107, 107, 0.2);
+        }
+
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(45deg, var(--accent), var(--accent-secondary));
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .feature-card h3 {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 1rem 2.5rem;
+            background: linear-gradient(45deg, var(--accent), var(--accent-hover));
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin-top: 2rem;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(255, 107, 107, 0.4);
+        }
+
+        .cta-button.disabled {
+            background: #444;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .warning-banner {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid var(--warning);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            text-align: left;
+        }
+
+        .warning-banner h4 {
+            color: var(--warning);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .warning-banner p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .warning-banner code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+
+        .info-section {
+            margin-top: 4rem;
+            padding: 3rem;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 15px;
+        }
+
+        .info-section h2 {
+            margin-bottom: 1.5rem;
+            color: var(--accent);
+        }
+
+        .info-section ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .info-section li {
+            padding: 0.5rem 0;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .info-section li i {
+            color: var(--accent-secondary);
+            margin-top: 0.2rem;
+        }
+
+        footer {
+            padding: 2rem 0;
+            text-align: center;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--card-border);
+            color: var(--text-secondary);
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+
+            .nav-links {
+                gap: 1rem;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <i class="fas fa-atom"></i> NanoTox
+            </div>
+            <ul class="nav-links">
+                <li><a href="/">Home</a></li>
+                <li><a href="/nanotox">NanoTox</a></li>
+                <li><a href="/nanotox/predict">Predict</a></li>
+                <li><a href="/nanotox/batch">Batch</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="hero">
+                <h1>NanoTox</h1>
+                <p>TiO2 Nanoparticle Toxicity Prediction using Explainable Machine Learning</p>
+
+                {% if not model_available %}
+                <div class="warning-banner">
+                    <h4><i class="fas fa-exclamation-triangle"></i> Model Not Found</h4>
+                    <p>The prediction model is not yet installed. Please place the model file at:</p>
+                    <p><code>{{ model_path }}</code></p>
+                </div>
+                {% endif %}
+
+                <a href="/nanotox/predict" class="cta-button {% if not model_available %}disabled{% endif %}">
+                    <i class="fas fa-flask"></i> Start Predicting
+                </a>
+            </div>
+
+            <div class="features">
+                <a href="/nanotox/predict" class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-vial"></i>
+                    </div>
+                    <h3>Single Prediction</h3>
+                    <p>Predict cell viability for a single TiO2 nanoparticle sample with detailed explanations</p>
+                </a>
+
+                <a href="/nanotox/batch" class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-file-csv"></i>
+                    </div>
+                    <h3>Batch Prediction</h3>
+                    <p>Upload a CSV file to predict toxicity for multiple samples at once</p>
+                </a>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3>Concentration Curves</h3>
+                    <p>Generate concentration-response curves and estimate IC50 values</p>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h2>About the Model</h2>
+                <ul>
+                    <li>
+                        <i class="fas fa-check-circle"></i>
+                        <span><strong>Explainable Boosting Machine (EBM)</strong> - interpretable machine learning model</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-check-circle"></i>
+                        <span><strong>TiO2 Nanoparticles</strong> - predicts cell viability based on nanoparticle characteristics</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-check-circle"></i>
+                        <span><strong>8 Input Features</strong> - Shape, Anatase, Rutile, Diameter, Cell Type, Time, Test, Concentration</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-check-circle"></i>
+                        <span><strong>Feature Contributions</strong> - understand which factors influence the prediction</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 NanoTox.</p>
+        </div>
+    </footer>
+</body>
+</html>

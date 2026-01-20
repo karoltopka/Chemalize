@@ -23,6 +23,9 @@ from app.chemalize.blueprints import (
 # ScopeHub blueprints
 from app.scopehub.blueprints import scopehub_main_bp
 
+# NanoTox blueprints
+from app.nanotox.blueprints import nanotox_main_bp
+
 # Register blueprints with /chemalize prefix
 # Main blueprint stays at root for your homepage
 app.register_blueprint(main_bp)
@@ -42,3 +45,6 @@ app.register_blueprint(episuite_bp, url_prefix='/chemalize')
 
 # ScopeHub routes under /scopehub prefix
 app.register_blueprint(scopehub_main_bp, url_prefix='/scopehub')
+
+# NanoTox routes under /nanotox prefix
+app.register_blueprint(nanotox_main_bp, url_prefix='/nanotox')

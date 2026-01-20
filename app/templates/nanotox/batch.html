@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NanoTox - Batch Prediction</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x2699;</text></svg>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --accent: #ff6b6b;
+            --accent-hover: #ff5252;
+            --accent-secondary: #4ecdc4;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --success: #4ecdc4;
+            --warning: #ffc107;
+            --danger: #ff6b6b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        header {
+            padding: 1.5rem 0;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .nav-links a:hover, .nav-links a.active {
+            color: var(--accent);
+        }
+
+        main {
+            padding: 2rem 0;
+            min-height: calc(100vh - 150px);
+        }
+
+        .page-title {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-title h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-title p {
+            color: var(--text-secondary);
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .card h2 {
+            font-size: 1.3rem;
+            margin-bottom: 1.5rem;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--card-border);
+            border-radius: 12px;
+            padding: 3rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--accent);
+            background: rgba(255, 107, 107, 0.05);
+        }
+
+        .upload-zone i {
+            font-size: 3rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+
+        .upload-zone p {
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-zone .file-name {
+            color: var(--accent);
+            font-weight: 600;
+            margin-top: 1rem;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, var(--accent), var(--accent-hover));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--bg-primary);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent-secondary);
+            color: var(--accent-secondary);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .alert {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .alert-danger {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            white-space: pre-line;
+        }
+
+        .alert-success {
+            background: rgba(78, 205, 196, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .results-summary {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .summary-stat {
+            text-align: center;
+            padding: 1rem 2rem;
+            background: var(--bg-primary);
+            border-radius: 8px;
+        }
+
+        .summary-stat .value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .summary-stat .label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .results-table-container {
+            overflow-x: auto;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .results-table th,
+        .results-table td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .results-table th {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        .results-table tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .viability-cell {
+            font-weight: 600;
+        }
+
+        .viability-cell.high {
+            color: var(--success);
+        }
+
+        .viability-cell.medium {
+            color: var(--warning);
+        }
+
+        .viability-cell.low {
+            color: var(--danger);
+        }
+
+        .template-section {
+            background: var(--bg-primary);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .template-section h4 {
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .template-section p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .required-columns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .column-tag {
+            padding: 0.3rem 0.8rem;
+            background: rgba(78, 205, 196, 0.1);
+            border: 1px solid rgba(78, 205, 196, 0.3);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: var(--accent-secondary);
+        }
+
+        footer {
+            padding: 1.5rem 0;
+            text-align: center;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--card-border);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .results-summary {
+                flex-direction: column;
+            }
+
+            .btn-group {
+                flex-direction: column;
+            }
+
+            .btn-group .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <a href="/nanotox" class="logo">
+                <i class="fas fa-atom"></i> NanoTox
+            </a>
+            <ul class="nav-links">
+                <li><a href="/">Home</a></li>
+                <li><a href="/nanotox">NanoTox</a></li>
+                <li><a href="/nanotox/predict">Predict</a></li>
+                <li><a href="/nanotox/batch" class="active">Batch</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="page-title">
+                <h1>Batch Prediction</h1>
+                <p>Upload a CSV file to predict toxicity for multiple samples</p>
+            </div>
+
+            {% if error %}
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle"></i> {{ error }}
+            </div>
+            {% endif %}
+
+            {% if results %}
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i> Successfully predicted {{ total_count }} samples
+            </div>
+            {% endif %}
+
+            <!-- Upload Section -->
+            <div class="card">
+                <h2><i class="fas fa-upload"></i> Upload CSV File</h2>
+
+                <form method="POST" action="/nanotox/batch" enctype="multipart/form-data" id="upload-form">
+                    <div class="upload-zone" id="upload-zone">
+                        <i class="fas fa-file-csv"></i>
+                        <p>Drag and drop your CSV file here, or click to browse</p>
+                        <p style="font-size: 0.85rem;">Supported format: .csv</p>
+                        <div class="file-name" id="file-name"></div>
+                        <input type="file" name="file" id="file-input" accept=".csv" required>
+                    </div>
+
+                    <div class="btn-group">
+                        <button type="submit" class="btn btn-primary" id="submit-btn" {% if not model_available %}disabled{% endif %}>
+                            <i class="fas fa-calculator"></i> Run Predictions
+                        </button>
+                        <a href="/nanotox/download/template" class="btn btn-secondary">
+                            <i class="fas fa-download"></i> Download Template
+                        </a>
+                    </div>
+                </form>
+
+                <div class="template-section">
+                    <h4>Required CSV Columns</h4>
+                    <p>Your CSV file must contain the following columns (case-insensitive):</p>
+                    <div class="required-columns">
+                        <span class="column-tag">Shape</span>
+                        <span class="column-tag">Anatase</span>
+                        <span class="column-tag">Rutile</span>
+                        <span class="column-tag">Diameter (nm)</span>
+                        <span class="column-tag">Cell_Type</span>
+                        <span class="column-tag">Time (hr)</span>
+                        <span class="column-tag">Test</span>
+                        <span class="column-tag">Concentration (ug/ml)</span>
+                    </div>
+                </div>
+            </div>
+
+            {% if results %}
+            <!-- Results Section -->
+            <div class="card">
+                <h2><i class="fas fa-table"></i> Prediction Results</h2>
+
+                <div class="results-summary">
+                    <div class="summary-stat">
+                        <div class="value">{{ total_count }}</div>
+                        <div class="label">Total Samples</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="value">{{ results|selectattr('Predicted Viability (%)', 'ge', 80)|list|length }}</div>
+                        <div class="label">Low Toxicity (&ge;80%)</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="value">{{ results|selectattr('Predicted Viability (%)', 'lt', 50)|list|length }}</div>
+                        <div class="label">High Toxicity (&lt;50%)</div>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <a href="/nanotox/download/results" class="btn btn-secondary">
+                        <i class="fas fa-download"></i> Download Results CSV
+                    </a>
+                </div>
+
+                <div class="results-table-container" style="margin-top: 1.5rem; max-height: 500px; overflow-y: auto;">
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Shape</th>
+                                <th>Anatase</th>
+                                <th>Rutile</th>
+                                <th>Diameter</th>
+                                <th>Cell Type</th>
+                                <th>Time</th>
+                                <th>Test</th>
+                                <th>Concentration</th>
+                                <th>Viability (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in results %}
+                            <tr>
+                                <td>{{ row.row_num }}</td>
+                                <td>{{ row.get('Shape', '-') }}</td>
+                                <td>{{ row.get('Anatase', '-') }}</td>
+                                <td>{{ row.get('Rutile', '-') }}</td>
+                                <td>{{ row.get('Diameter (nm)', '-') }}</td>
+                                <td>{{ row.get('Cell_Type', '-') }}</td>
+                                <td>{{ row.get('Time (hr)', '-') }}</td>
+                                <td>{{ row.get('Test', '-') }}</td>
+                                <td>{{ row.get('Concentration (ug/ml)', '-') }}</td>
+                                {% set viability = row.get('Predicted Viability (%)', 0) %}
+                                <td class="viability-cell {% if viability >= 80 %}high{% elif viability >= 50 %}medium{% else %}low{% endif %}">
+                                    {{ "%.1f"|format(viability) }}%
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>NanoTox - TiO2 Nanoparticle Toxicity Prediction</p>
+        </div>
+    </footer>
+
+    <script>
+        const uploadZone = document.getElementById('upload-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileName = document.getElementById('file-name');
+        const submitBtn = document.getElementById('submit-btn');
+
+        // Click to upload
+        uploadZone.addEventListener('click', () => fileInput.click());
+
+        // File selected
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                fileName.textContent = e.target.files[0].name;
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Drag and drop
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                fileName.textContent = e.dataTransfer.files[0].name;
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

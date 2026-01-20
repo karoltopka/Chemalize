@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NanoTox - Single Prediction</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x2699;</text></svg>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --accent: #ff6b6b;
+            --accent-hover: #ff5252;
+            --accent-secondary: #4ecdc4;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --success: #4ecdc4;
+            --warning: #ffc107;
+            --danger: #ff6b6b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        header {
+            padding: 1.5rem 0;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .nav-links a:hover, .nav-links a.active {
+            color: var(--accent);
+        }
+
+        main {
+            padding: 2rem 0;
+            min-height: calc(100vh - 150px);
+        }
+
+        .page-title {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-title h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-title p {
+            color: var(--text-secondary);
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 992px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 15px;
+            padding: 2rem;
+        }
+
+        .card h2 {
+            font-size: 1.3rem;
+            margin-bottom: 1.5rem;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg-primary);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, var(--accent), var(--accent-hover));
+            color: white;
+            width: 100%;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--bg-primary);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent-secondary);
+            color: var(--accent-secondary);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .alert {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .alert-danger {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+        }
+
+        .alert-success {
+            background: rgba(78, 205, 196, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .result-card {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .result-value {
+            font-size: 4rem;
+            font-weight: bold;
+            margin: 1rem 0;
+        }
+
+        .result-value.high {
+            color: var(--success);
+        }
+
+        .result-value.medium {
+            color: var(--warning);
+        }
+
+        .result-value.low {
+            color: var(--danger);
+        }
+
+        .result-label {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .result-interpretation {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            color: var(--text-secondary);
+        }
+
+        .input-summary {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .input-summary h4 {
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.3rem 0;
+        }
+
+        .summary-item .label {
+            color: var(--text-secondary);
+        }
+
+        .summary-item .value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .curve-section {
+            margin-top: 2rem;
+        }
+
+        .curve-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+            margin-bottom: 1rem;
+        }
+
+        .curve-controls .form-group {
+            margin-bottom: 0;
+            flex: 1;
+        }
+
+        #curve-plot {
+            width: 100%;
+            height: 400px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .ic50-display {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .ic50-display .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .contribution-plot {
+            width: 100%;
+            height: 350px;
+            margin-top: 1rem;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--card-border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        footer {
+            padding: 1.5rem 0;
+            text-align: center;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--card-border);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <a href="/nanotox" class="logo">
+                <i class="fas fa-atom"></i> NanoTox
+            </a>
+            <ul class="nav-links">
+                <li><a href="/">Home</a></li>
+                <li><a href="/nanotox">NanoTox</a></li>
+                <li><a href="/nanotox/predict" class="active">Predict</a></li>
+                <li><a href="/nanotox/batch">Batch</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="page-title">
+                <h1>Single Prediction</h1>
+                <p>Enter TiO2 nanoparticle parameters to predict cell viability</p>
+            </div>
+
+            {% if error %}
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle"></i> {{ error }}
+            </div>
+            {% endif %}
+
+            <div class="content-grid">
+                <!-- Input Form -->
+                <div class="card">
+                    <h2><i class="fas fa-edit"></i> Input Parameters</h2>
+
+                    <form method="POST" action="/nanotox/predict" id="prediction-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="shape">Shape</label>
+                                <select name="shape" id="shape" required>
+                                    <option value="">Select shape...</option>
+                                    {% for shape in options.shape_options %}
+                                    <option value="{{ shape }}" {% if form_data and form_data.get('Shape') == shape %}selected{% endif %}>{{ shape }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="cell_type">Cell Type</label>
+                                <select name="cell_type" id="cell_type" required>
+                                    <option value="">Select cell type...</option>
+                                    {% for cell in options.cell_type_options %}
+                                    <option value="{{ cell }}" {% if form_data and form_data.get('Cell_Type') == cell %}selected{% endif %}>{{ cell }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="anatase">Anatase</label>
+                                <select name="anatase" id="anatase" required>
+                                    {% for value, label in options.yes_no_options %}
+                                    <option value="{{ value }}" {% if form_data and form_data.get('Anatase') == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="rutile">Rutile</label>
+                                <select name="rutile" id="rutile" required>
+                                    {% for value, label in options.yes_no_options %}
+                                    <option value="{{ value }}" {% if form_data and form_data.get('Rutile') == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="diameter">Diameter (nm)</label>
+                                <input type="number" name="diameter" id="diameter"
+                                       min="{{ options.numeric_constraints['Diameter (nm)'].min }}"
+                                       max="{{ options.numeric_constraints['Diameter (nm)'].max }}"
+                                       step="{{ options.numeric_constraints['Diameter (nm)'].step }}"
+                                       value="{{ form_data.get('Diameter (nm)', options.numeric_constraints['Diameter (nm)'].default) if form_data else options.numeric_constraints['Diameter (nm)'].default }}"
+                                       required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="time">Exposure Time (hr)</label>
+                                <input type="number" name="time" id="time"
+                                       min="{{ options.numeric_constraints['Time (hr)'].min }}"
+                                       max="{{ options.numeric_constraints['Time (hr)'].max }}"
+                                       step="{{ options.numeric_constraints['Time (hr)'].step }}"
+                                       value="{{ form_data.get('Time (hr)', options.numeric_constraints['Time (hr)'].default) if form_data else options.numeric_constraints['Time (hr)'].default }}"
+                                       required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="test">Test/Assay</label>
+                                <select name="test" id="test" required>
+                                    <option value="">Select test...</option>
+                                    {% for test in options.test_options %}
+                                    <option value="{{ test }}" {% if form_data and form_data.get('Test') == test %}selected{% endif %}>{{ test }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="concentration">Concentration (ug/ml)</label>
+                                <input type="number" name="concentration" id="concentration"
+                                       min="{{ options.numeric_constraints['Concentration (ug/ml)'].min }}"
+                                       max="{{ options.numeric_constraints['Concentration (ug/ml)'].max }}"
+                                       step="{{ options.numeric_constraints['Concentration (ug/ml)'].step }}"
+                                       value="{{ form_data.get('Concentration (ug/ml)', options.numeric_constraints['Concentration (ug/ml)'].default) if form_data else options.numeric_constraints['Concentration (ug/ml)'].default }}"
+                                       required>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" {% if not model_available %}disabled{% endif %}>
+                            <i class="fas fa-calculator"></i> Predict Viability
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Results -->
+                <div class="card">
+                    <h2><i class="fas fa-chart-bar"></i> Prediction Results</h2>
+
+                    {% if result %}
+                    <div class="result-card">
+                        {% set viability = result.prediction %}
+                        {% if viability >= 80 %}
+                            {% set viability_class = 'high' %}
+                        {% elif viability >= 50 %}
+                            {% set viability_class = 'medium' %}
+                        {% else %}
+                            {% set viability_class = 'low' %}
+                        {% endif %}
+
+                        <div class="result-label">Predicted Cell Viability</div>
+                        <div class="result-value {{ viability_class }}">{{ "%.1f"|format(viability) }}%</div>
+
+                        <div class="result-interpretation">
+                            {% if viability >= 80 %}
+                            <i class="fas fa-check-circle" style="color: var(--success)"></i>
+                            <strong>Low Toxicity</strong> - Cells are largely viable
+                            {% elif viability >= 50 %}
+                            <i class="fas fa-exclamation-triangle" style="color: var(--warning)"></i>
+                            <strong>Moderate Toxicity</strong> - Significant cell death observed
+                            {% else %}
+                            <i class="fas fa-times-circle" style="color: var(--danger)"></i>
+                            <strong>High Toxicity</strong> - Majority of cells affected
+                            {% endif %}
+                        </div>
+
+                        <div class="input-summary">
+                            <h4>Input Parameters</h4>
+                            <div class="summary-grid">
+                                <div class="summary-item">
+                                    <span class="label">Shape:</span>
+                                    <span class="value">{{ result.data.get('Shape') }}</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="label">Cell Type:</span>
+                                    <span class="value">{{ result.data.get('Cell_Type') }}</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="label">Anatase:</span>
+                                    <span class="value">{{ result.data.get('Anatase') }}</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="label">Rutile:</span>
+                                    <span class="value">{{ result.data.get('Rutile') }}</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="label">Diameter:</span>
+                                    <span class="value">{{ result.data.get('Diameter (nm)') }} nm</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="label">Time:</span>
+                                    <span class="value">{{ result.data.get('Time (hr)') }} hr</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="label">Test:</span>
+                                    <span class="value">{{ result.data.get('Test') }}</span>
+                                </div>
+                                <div class="summary-item">
+                                    <span class="label">Concentration:</span>
+                                    <span class="value">{{ result.data.get('Concentration (ug/ml)') }} ug/ml</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if result.contribution_plot %}
+                    <div class="contribution-plot" id="contribution-plot"></div>
+                    {% endif %}
+
+                    {% else %}
+                    <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                        <i class="fas fa-flask" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.3;"></i>
+                        <p>Enter parameters and click "Predict" to see results</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if result %}
+            <!-- Concentration Curve Section -->
+            <div class="card curve-section">
+                <h2><i class="fas fa-chart-line"></i> Concentration-Response Curve</h2>
+
+                <div class="curve-controls">
+                    <div class="form-group">
+                        <label for="min-conc">Min Concentration (ug/ml)</label>
+                        <input type="number" id="min-conc" value="1" min="0.1" step="0.1">
+                    </div>
+                    <div class="form-group">
+                        <label for="max-conc">Max Concentration (ug/ml)</label>
+                        <input type="number" id="max-conc" value="1000" min="1" step="10">
+                    </div>
+                    <button class="btn btn-secondary" onclick="generateCurve()">
+                        <i class="fas fa-sync-alt"></i> Generate Curve
+                    </button>
+                </div>
+
+                <div class="loading" id="curve-loading">
+                    <div class="spinner"></div>
+                    <p>Generating concentration-response curve...</p>
+                </div>
+
+                <div id="curve-plot"></div>
+
+                <div class="ic50-display" id="ic50-display" style="display: none;">
+                    <span class="label">Estimated IC50:</span>
+                    <span class="value" id="ic50-value">-</span>
+                    <span class="unit">ug/ml</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>NanoTox - TiO2 Nanoparticle Toxicity Prediction</p>
+        </div>
+    </footer>
+
+    <script>
+        {% if result and result.contribution_plot %}
+        // Render contribution plot
+        const contributionData = {{ result.contribution_plot | safe }};
+        Plotly.newPlot('contribution-plot', contributionData.data, contributionData.layout, {responsive: true});
+        {% endif %}
+
+        {% if result %}
+        // Concentration curve generation
+        async function generateCurve() {
+            const minConc = document.getElementById('min-conc').value;
+            const maxConc = document.getElementById('max-conc').value;
+            const loading = document.getElementById('curve-loading');
+            const plotDiv = document.getElementById('curve-plot');
+            const ic50Display = document.getElementById('ic50-display');
+
+            loading.classList.add('active');
+            plotDiv.innerHTML = '';
+            ic50Display.style.display = 'none';
+
+            try {
+                const response = await fetch('/nanotox/concentration-curve', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        min_conc: parseFloat(minConc),
+                        max_conc: parseFloat(maxConc),
+                        n_points: 50
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const plotData = JSON.parse(data.plot);
+                    Plotly.newPlot('curve-plot', plotData.data, plotData.layout, {responsive: true});
+
+                    if (data.ic50 !== null) {
+                        document.getElementById('ic50-value').textContent = data.ic50.toFixed(3);
+                        ic50Display.style.display = 'block';
+                    }
+                } else {
+                    plotDiv.innerHTML = '<p style="color: var(--danger); text-align: center; padding: 2rem;">Error: ' + data.error + '</p>';
+                }
+            } catch (error) {
+                plotDiv.innerHTML = '<p style="color: var(--danger); text-align: center; padding: 2rem;">Error generating curve: ' + error.message + '</p>';
+            } finally {
+                loading.classList.remove('active');
+            }
+        }
+
+        // Auto-generate curve on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            generateCurve();
+        });
+        {% endif %}
+    </script>
+</body>
+</html>
