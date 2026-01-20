@@ -57,6 +57,7 @@ def mlr_analysis():
         'time_test_size': session.get('time_test_size', 0.2),
         'n_folds': session.get('n_folds', 5),
         'shuffle_kfold': session.get('shuffle_kfold', True),
+        'ratio_n': session.get('ratio_n', 3),
 
         # Other options
         'scale_data': session.get('scale_data', False),
@@ -70,38 +71,50 @@ def mlr_analysis():
     if session.get('mlr_performed'):
         # Add MLR results if analysis was performed
         mlr_results = {
+            # Main metrics
             'train_r2': session.get('train_r2'),
-            'adj_r2': session.get('adj_r2'),
-            'test_r2': session.get('test_r2'),
-            'q2_loo': session.get('q2_loo'),
             'q2_test': session.get('q2_test'),
-            'train_rmse': session.get('train_rmse'),
-            'test_rmse': session.get('test_rmse'),
+            # CV metrics (5-fold)
+            'r2cv': session.get('r2cv'),
+            'q2cv': session.get('q2cv'),
+            # LOO metrics
+            'q2_loo': session.get('q2_loo'),
             'rmse_loo': session.get('rmse_loo'),
+            # Error metrics
+            'train_rmse': session.get('train_rmse'),
             'train_mae': session.get('train_mae'),
+            'test_rmse': session.get('test_rmse'),
             'test_mae': session.get('test_mae'),
+            # Statistical metrics
             'f_statistic': session.get('f_statistic'),
             'f_pvalue': session.get('f_pvalue'),
             'aic': session.get('aic'),
             'bic': session.get('bic'),
             'dw_stat': session.get('dw_stat'),
-            'vif_values': session.get('vif_values'),
+            # Other metrics
             'ccc_ext': session.get('ccc_ext'),
+            'vif_values': session.get('vif_values'),
+            # Legacy (for compatibility)
+            'adj_r2': session.get('adj_r2'),
+            'test_r2': session.get('test_r2'),
+            # Coefficients
             'coefficients': session.get('coefficients'),
             'std_errors': session.get('std_errors'),
             't_values': session.get('t_values'),
             'p_values': session.get('p_values'),
             'feature_names': session.get('feature_names'),
+            # Plots
             'mlr_pred_actual_plot': session.get('mlr_pred_actual_plot'),
             'mlr_residuals_plot': session.get('mlr_residuals_plot'),
             'mlr_residuals_hist': session.get('mlr_residuals_hist'),
             'mlr_qq_plot': session.get('mlr_qq_plot'),
             'mlr_williams_plot': session.get('mlr_williams_plot'),
+            # Williams plot
             'AD_train': session.get('AD_train'),
             'AD_test': session.get('AD_test'),
             'h_star': session.get('h_star'),
             'williams_outliers': session.get('williams_outliers', []),
-            # Cross-validation specific metrics
+            # Cross-validation specific metrics (legacy)
             'cv_train_r2_mean': session.get('cv_train_r2_mean'),
             'cv_test_r2_mean': session.get('cv_test_r2_mean'),
             'cv_train_rmse_mean': session.get('cv_train_rmse_mean'),
@@ -173,6 +186,9 @@ def perform_mlr():
     # Parameters for systematic sampling (nowy kod)
     systematic_step = int(request.form.get('systematic_step', 3))
     include_last_point = 'include_last_point' in request.form
+
+    # Parameters for stratified sorted split (1:n ratio)
+    ratio_n = int(request.form.get('ratio_n', 3))
     
     if not target_var:
         flash('Please select a target variable!', 'danger')
@@ -206,6 +222,7 @@ def perform_mlr():
     session['random_state_onevn'] = random_state_onevn
     session['systematic_step'] = systematic_step
     session['include_last_point'] = include_last_point
+    session['ratio_n'] = ratio_n
 
     # Mark session as modified
     session.modified = True
@@ -260,6 +277,10 @@ def perform_mlr():
             split_params = {
                 'step': systematic_step,
                 'include_last_point': include_last_point
+            }
+        elif split_method == 'stratified_endpoints':
+            split_params = {
+                'ratio_n': ratio_n
             }
         # LOOCV doesn't need additional parameters
 

@@ -144,8 +144,160 @@ class MLRModel:
         self.variables = variables
         self.include_intercept = include_intercept
 
+
+def stratified_split_with_endpoints(X, y, ratio_n=3):
+    """
+    Stratified sorted split with min/max Y values always in test set.
+
+    Data is sorted by Y values (descending). Min and max Y observations are
+    forced into test set. Remaining samples are systematically assigned
+    using 1:n ratio (every nth sample goes to test).
+
+    Parameters:
+    -----------
+    X : DataFrame - features
+    y : Series - target
+    ratio_n : int - ratio denominator for 1:n split (default 3 for 1:3 = 25% test)
+              1:2 = 50% test, 1:3 = 25% test, 1:4 = 20% test, etc.
+
+    Returns:
+    --------
+    train_idx, test_idx : lists of original DataFrame indices
+    """
+    n_samples = len(y)
+
+    # Sort by Y values (ascending - from smallest to largest) and get sorted indices
+    sorted_indices = y.sort_values(ascending=True).index.tolist()
+
+    # Find indices of min and max Y values (in original DataFrame)
+    min_y_idx = y.idxmin()
+    max_y_idx = y.idxmax()
+    forced_test = [min_y_idx, max_y_idx]  # Min first (smallest), max last (largest)
+
+    # Remove forced test indices from sorted list
+    remaining_sorted = [idx for idx in sorted_indices if idx not in forced_test]
+
+    # Systematic sampling: every nth sample goes to test (1:n ratio)
+    # For 1:3 ratio, take every 3rd sample starting from position ratio_n-1
+    additional_test = []
+    train_idx = []
+
+    for i, idx in enumerate(remaining_sorted):
+        # Position in 1:n cycle (0, 1, 2, ... n-1, 0, 1, 2, ...)
+        position_in_cycle = i % ratio_n
+
+        # Last position in cycle goes to test (e.g., for 1:3, position 2 goes to test)
+        if position_in_cycle == ratio_n - 1:
+            additional_test.append(idx)
+        else:
+            train_idx.append(idx)
+
+    test_idx = forced_test + additional_test
+
+    return train_idx, test_idx
+
+
+def calculate_ccc(y_true, y_pred):
+    """Calculate Concordance Correlation Coefficient (CCC)"""
+    y_true = np.asarray(y_true).flatten()
+    y_pred = np.asarray(y_pred).flatten()
+
+    mean_true = np.mean(y_true)
+    mean_pred = np.mean(y_pred)
+    var_true = np.var(y_true)
+    var_pred = np.var(y_pred)
+
+    covariance = np.mean((y_true - mean_true) * (y_pred - mean_pred))
+
+    ccc = (2 * covariance) / (var_true + var_pred + (mean_true - mean_pred)**2)
+    return ccc
+
+
+def calculate_cv_metrics(X, y, n_folds=5, include_intercept=True):
+    """
+    Calculate cross-validation metrics: R²cv and Q²cv (5-fold)
+
+    Returns dict with r2cv_train, r2cv_test (Q²cv)
+    """
+    kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
+
+    r2_train_scores = []
+    r2_test_scores = []
+    rmse_train_scores = []
+    rmse_test_scores = []
+
+    for train_idx, test_idx in kf.split(X):
+        X_train_cv, X_test_cv = X.iloc[train_idx], X.iloc[test_idx]
+        y_train_cv, y_test_cv = y.iloc[train_idx], y.iloc[test_idx]
+
+        if include_intercept:
+            X_train_sm = sm.add_constant(X_train_cv)
+            X_test_sm = sm.add_constant(X_test_cv)
+        else:
+            X_train_sm = X_train_cv
+            X_test_sm = X_test_cv
+
+        model_cv = sm.OLS(y_train_cv, X_train_sm).fit()
+
+        y_pred_train = model_cv.predict(X_train_sm)
+        y_pred_test = model_cv.predict(X_test_sm)
+
+        r2_train_scores.append(r2_score(y_train_cv, y_pred_train))
+        r2_test_scores.append(r2_score(y_test_cv, y_pred_test))
+        rmse_train_scores.append(np.sqrt(mean_squared_error(y_train_cv, y_pred_train)))
+        rmse_test_scores.append(np.sqrt(mean_squared_error(y_test_cv, y_pred_test)))
+
+    return {
+        'r2cv_train': np.mean(r2_train_scores),
+        'q2cv': np.mean(r2_test_scores),  # Q²cv is R² on test folds
+        'rmse_cv_train': np.mean(rmse_train_scores),
+        'rmse_cv_test': np.mean(rmse_test_scores)
+    }
+
+
+def calculate_loo_metrics(X, y, include_intercept=True):
+    """
+    Calculate Leave-One-Out metrics: Q²loo and RMSEloo
+    """
+    loo = LeaveOneOut()
+    y_true_all = []
+    y_pred_all = []
+
+    for train_idx, test_idx in loo.split(X):
+        X_train_loo, X_test_loo = X.iloc[train_idx], X.iloc[test_idx]
+        y_train_loo, y_test_loo = y.iloc[train_idx], y.iloc[test_idx]
+
+        if include_intercept:
+            X_train_sm = sm.add_constant(X_train_loo)
+            X_test_sm = sm.add_constant(X_test_loo)
+        else:
+            X_train_sm = X_train_loo
+            X_test_sm = X_test_loo
+
+        model_loo = sm.OLS(y_train_loo, X_train_sm).fit()
+        y_pred = model_loo.predict(X_test_sm)
+
+        y_true_all.append(y_test_loo.values[0])
+        y_pred_all.append(y_pred[0])
+
+    y_true_all = np.array(y_true_all)
+    y_pred_all = np.array(y_pred_all)
+
+    # Q²loo = 1 - SS_res / SS_tot
+    ss_res = np.sum((y_true_all - y_pred_all)**2)
+    ss_tot = np.sum((y_true_all - np.mean(y_true_all))**2)
+    q2_loo = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0
+
+    rmse_loo = np.sqrt(mean_squared_error(y_true_all, y_pred_all))
+
+    return {
+        'q2_loo': q2_loo,
+        'rmse_loo': rmse_loo
+    }
+
+
 def perform_mlr(df, target_var, selected_features, include_intercept=True,
-                split_method='random', split_params=None, scale_data=False,
+                split_method='stratified_endpoints', split_params=None, scale_data=False,
                 check_assumptions=True, detect_outliers=False, temp_path='temp/',
                 predefined_train_idx=None, predefined_test_idx=None):
     """
@@ -161,8 +313,9 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         List of feature names to use in the model
     include_intercept : bool, default=True
         Whether to include an intercept in the model
-    split_method : str, default='random'
-        Method to split the data ('random', 'stratified', 'time', 'kfold', 'loocv', 'predefined')
+    split_method : str, default='stratified_endpoints'
+        Method to split the data ('stratified_endpoints', 'random', 'stratified', 'time', 'kfold', 'loocv', 'predefined')
+        Default 'stratified_endpoints' uses 1:3 split with first/last values in test set
     split_params : dict, default=None
         Parameters for the splitting method
     scale_data : bool, default=False
@@ -206,8 +359,45 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     # Split data based on the selected method
     result_df = None
 
+    # Handle stratified split with endpoints (min/max Y in test) - DEFAULT method
+    if split_method == 'stratified_endpoints':
+        # Stratified sorted split with 1:n ratio (default 1:3)
+        ratio_n = split_params.get('ratio_n', 3)  # 1:3 ratio by default
+
+        train_idx, test_idx = stratified_split_with_endpoints(X, y, ratio_n=ratio_n)
+
+        X_train = X.iloc[train_idx]
+        X_test = X.iloc[test_idx]
+        y_train = y.iloc[train_idx]
+        y_test = y.iloc[test_idx]
+
+        # Fit model using statsmodels for detailed statistics
+        if include_intercept:
+            X_train_sm = sm.add_constant(X_train)
+            X_test_sm = sm.add_constant(X_test)
+        else:
+            X_train_sm = X_train
+            X_test_sm = X_test
+
+        sm_model = sm.OLS(y_train, X_train_sm).fit()
+
+        # Get predictions
+        y_pred_train = sm_model.predict(X_train_sm)
+        y_pred_test = sm_model.predict(X_test_sm)
+
+        # Create result DataFrame for all calculations
+        result_df = pd.DataFrame({
+            'dataset': ['train'] * len(y_train) + ['test'] * len(y_test),
+            target_var: pd.concat([y_train, y_test]).reset_index(drop=True),
+            'predictions': np.concatenate([y_pred_train, y_pred_test])
+        })
+
+        # Add feature columns
+        for feature in selected_features:
+            result_df[feature] = pd.concat([X_train[feature], X_test[feature]]).reset_index(drop=True)
+
     # Handle predefined indices (from GA or other sources)
-    if split_method == 'predefined' or (predefined_train_idx is not None and predefined_test_idx is not None):
+    elif split_method == 'predefined' or (predefined_train_idx is not None and predefined_test_idx is not None):
         # Use predefined train/test indices
         train_idx = predefined_train_idx
         test_idx = predefined_test_idx
@@ -671,7 +861,15 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     loo_metrics = Q2loo_calc(result_df, model)
     Q2loo = loo_metrics["Q2loo"]
     RMSEloo = loo_metrics["RMSEloo"]
-    
+
+    # 5-fold Cross-validation metrics (R²cv, Q²cv)
+    train_data_for_cv = result_df[result_df['dataset'] == 'train']
+    X_train_cv = train_data_for_cv[selected_features]
+    y_train_cv = train_data_for_cv.iloc[:, 1]  # Second column is target
+    cv_metrics = calculate_cv_metrics(X_train_cv, y_train_cv, n_folds=5, include_intercept=include_intercept)
+    R2cv = cv_metrics['r2cv_train']
+    Q2cv = cv_metrics['q2cv']
+
     # Test set metrics
     y_test = y_all[test_mask]
     y_pred_test = y_pred_all[test_mask]
@@ -856,34 +1054,46 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     
     # Compile results
     results = {
-        'train_r2': R2tr,
+        # Main metrics - R² and Q² with stratified 1:3 split (first/last in test)
+        'train_r2': R2tr,           # R² on training set
+        'q2_test': Q2_test,         # Q² on test set (external validation)
+        # Cross-validation metrics (5-fold)
+        'r2cv': R2cv,               # R²cv (5-fold) on training data
+        'q2cv': Q2cv,               # Q²cv (5-fold) on training data
+        # Leave-One-Out metrics
+        'q2_loo': Q2loo,            # Q²loo
+        'rmse_loo': RMSEloo,        # RMSEloo
+        # Error metrics
+        'train_rmse': RMSEtr,       # RMSE on training
+        'train_mae': MAEtr,         # MAE on training
+        'test_rmse': RMSEp,         # RMSEp (prediction RMSE on test)
+        'test_mae': MAEp,           # MAEp (prediction MAE on test)
+        # Statistical tests
+        'f_statistic': F_stat,      # F-statistic
+        'f_pvalue': F_p_value,      # F p-value
+        'aic': AIC,                 # AIC
+        'bic': BIC,                 # BIC
+        'dw_stat': dw_stat,         # Durbin-Watson
+        # Other metrics
+        'ccc_ext': CCCext,          # CCCext (Concordance Correlation Coefficient)
+        'vif_values': vif_values,   # VIF values
+        # Legacy metrics (kept for compatibility)
         'adj_r2': AdjR2tr,
         'test_r2': R2ext,
-        'q2_loo': Q2loo,
-        'q2_test': Q2_test,
-        'train_rmse': RMSEtr,
-        'test_rmse': RMSEp,
-        'rmse_loo': RMSEloo,
-        'train_mae': MAEtr,
-        'test_mae': MAEp,
-        'f_statistic': F_stat,
-        'f_pvalue': F_p_value,
-        'aic': AIC,
-        'bic': BIC,
-        'dw_stat': dw_stat,
-        'vif_values': vif_values,
-        'ccc_ext': CCCext,
+        # Coefficients and statistics
         'coefficients': coefficients,
         'std_errors': std_errors,
         't_values': t_values,
         'p_values': p_values,
         'feature_names': feature_names,
         'split_method': split_method,
+        # Plots
         'mlr_pred_actual_plot': pred_actual_plot_path,
         'mlr_residuals_plot': residuals_plot_path,
         'mlr_residuals_hist': residuals_hist_path,
         'mlr_qq_plot': qq_plot_path,
         'mlr_williams_plot': williams_plot_path,
+        # Williams plot metrics
         'AD_train': AD_train,
         'AD_test': AD_test,
         'h_star': h_star,

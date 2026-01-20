@@ -121,14 +121,21 @@
                         <div class="form-group mt-4">
                             <label>Dataset Split Method:</label>
                             <div class="custom-control custom-radio">
-                                <input type="radio" id="split_random" name="split_method" value="random" class="custom-control-input" 
-                                    {% if split_method == 'random' or not split_method %}checked{% endif %} onchange="toggleSplitOptions()">
+                                <input type="radio" id="split_stratified_endpoints" name="split_method" value="stratified_endpoints" class="custom-control-input"
+                                    {% if split_method == 'stratified_endpoints' or not split_method %}checked{% endif %} onchange="toggleSplitOptions()">
+                                <label class="custom-control-label" for="split_stratified_endpoints"><strong>Stratified 1:3 (Recommended)</strong></label>
+                                <small class="form-text text-muted">Stratified split with first/last values in test set (75% train, 25% test)</small>
+                            </div>
+
+                            <div class="custom-control custom-radio mt-2">
+                                <input type="radio" id="split_random" name="split_method" value="random" class="custom-control-input"
+                                    {% if split_method == 'random' %}checked{% endif %} onchange="toggleSplitOptions()">
                                 <label class="custom-control-label" for="split_random">Random Split</label>
                                 <small class="form-text text-muted">Simple random split based on percentage</small>
                             </div>
-                            
+
                             <div class="custom-control custom-radio mt-2">
-                                <input type="radio" id="split_stratified" name="split_method" value="stratified" class="custom-control-input" 
+                                <input type="radio" id="split_stratified" name="split_method" value="stratified" class="custom-control-input"
                                     {% if split_method == 'stratified' %}checked{% endif %} onchange="toggleSplitOptions()">
                                 <label class="custom-control-label" for="split_stratified">Stratified Split</label>
                                 <small class="form-text text-muted">Maintains target variable distribution in train/test sets</small>
@@ -164,7 +171,29 @@
                         </div>
                         
                         <!-- Method-specific split options -->
-                        <div id="random_split_options" class="split-options" {% if split_method != 'random' and split_method %}style="display: none;"{% endif %}>
+                        <div id="stratified_endpoints_split_options" class="split-options" {% if split_method != 'stratified_endpoints' and split_method %}style="display: none;"{% endif %}>
+                            <div class="form-group mt-3">
+                                <label for="ratio_n">Split Ratio 1:n</label>
+                                <select class="form-control" id="ratio_n" name="ratio_n" onchange="updateRatioDescription()">
+                                    <option value="2" {% if ratio_n == 2 %}selected{% endif %}>1:2 (50% test)</option>
+                                    <option value="3" {% if ratio_n == 3 or not ratio_n %}selected{% endif %}>1:3 (25% test) - Default</option>
+                                    <option value="4" {% if ratio_n == 4 %}selected{% endif %}>1:4 (20% test)</option>
+                                    <option value="5" {% if ratio_n == 5 %}selected{% endif %}>1:5 (17% test)</option>
+                                </select>
+                            </div>
+                            <div class="alert alert-info mt-3">
+                                <h6><i class="fas fa-info-circle mr-2"></i>Stratified Sorted Split</h6>
+                                <p class="mb-0">This split method:</p>
+                                <ul class="mb-0">
+                                    <li>Sorts data by Y values (from smallest to largest)</li>
+                                    <li>Min and max Y observations are always in the test set</li>
+                                    <li>Systematic sampling: every n-th sample goes to test (1:n ratio)</li>
+                                    <li id="ratio-description">Current: 1:3 ratio = ~25% test, ~75% train</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div id="random_split_options" class="split-options" {% if split_method != 'random' %}style="display: none;"{% endif %}>
                             <div class="form-group mt-3">
                                 <label for="test_size">Test Set Size:</label>
                                 <input type="range" class="custom-range" id="test_size" name="test_size" 
@@ -467,30 +496,30 @@
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-header bg-info text-white">
-                            <h6 class="mb-0">Key Metrics</h6>
+                            <h6 class="mb-0">Key Metrics (Stratified 1:3 Split)</h6>
                         </div>
                         <div class="card-body">
                             <table class="table table-sm table-bordered">
                                 <tbody>
                                     <tr>
-                                        <th>Training R²</th>
+                                        <th>R²</th>
                                         <td>{{ "%.4f" | format(train_r2) }}</td>
                                     </tr>
                                     <tr>
-                                        <th>Adjusted R²</th>
-                                        <td>{{ "%.4f" | format(adj_r2) }}</td>
+                                        <th>Q²</th>
+                                        <td>{{ "%.4f" | format(q2_test) if q2_test is not none else "N/A" }}</td>
                                     </tr>
                                     <tr>
-                                        <th>Test R²</th>
-                                        <td>{{ "%.4f" | format(test_r2) }}</td>
+                                        <th>R²<sub>cv</sub> (5-fold)</th>
+                                        <td>{{ "%.4f" | format(r2cv) if r2cv is defined and r2cv is not none else "N/A" }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Q²<sub>cv</sub> (5-fold)</th>
+                                        <td>{{ "%.4f" | format(q2cv) if q2cv is defined and q2cv is not none else "N/A" }}</td>
                                     </tr>
                                     <tr>
                                         <th>Q²<sub>LOO</sub></th>
                                         <td>{{ "%.4f" | format(q2_loo) }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>F-statistic</th>
-                                        <td>{{ "%.4f" | format(f_statistic) }} (p={{ "%.6f" | format(f_pvalue) }})</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -562,18 +591,59 @@
                         <div class="col-md-6">
                             <div class="card mb-3">
                                 <div class="card-header bg-info text-white">
-                                    <h6 class="mb-0">Training Set Metrics</h6>
+                                    <h6 class="mb-0">Fit Metrics (Stratified 1:3 Split)</h6>
                                 </div>
                                 <div class="card-body">
                                     <table class="table table-sm table-bordered">
                                         <tbody>
+                                            <tr class="table-primary">
+                                                <th colspan="2">Main Metrics</th>
+                                            </tr>
                                             <tr>
                                                 <th>R²</th>
                                                 <td>{{ "%.4f" | format(train_r2) }}</td>
                                             </tr>
                                             <tr>
-                                                <th>Adjusted R²</th>
-                                                <td>{{ "%.4f" | format(adj_r2) }}</td>
+                                                <th>Q²</th>
+                                                <td>{{ "%.4f" | format(q2_test) if q2_test is not none else "N/A" }}</td>
+                                            </tr>
+                                            <tr class="table-secondary">
+                                                <th colspan="2">Cross-Validation (5-fold)</th>
+                                            </tr>
+                                            <tr>
+                                                <th>R²<sub>cv</sub></th>
+                                                <td>{{ "%.4f" | format(r2cv) if r2cv is defined and r2cv is not none else "N/A" }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Q²<sub>cv</sub></th>
+                                                <td>{{ "%.4f" | format(q2cv) if q2cv is defined and q2cv is not none else "N/A" }}</td>
+                                            </tr>
+                                            <tr class="table-secondary">
+                                                <th colspan="2">Leave-One-Out</th>
+                                            </tr>
+                                            <tr>
+                                                <th>Q²<sub>LOO</sub></th>
+                                                <td>{{ "%.4f" | format(q2_loo) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>RMSE<sub>LOO</sub></th>
+                                                <td>{{ "%.4f" | format(rmse_loo) }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0">Error & Statistical Metrics</h6>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm table-bordered">
+                                        <tbody>
+                                            <tr class="table-primary">
+                                                <th colspan="2">Error Metrics</th>
                                             </tr>
                                             <tr>
                                                 <th>RMSE</th>
@@ -582,6 +652,21 @@
                                             <tr>
                                                 <th>MAE</th>
                                                 <td>{{ "%.4f" | format(train_mae) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>RMSEp</th>
+                                                <td>{{ "%.4f" | format(test_rmse) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>MAEp</th>
+                                                <td>{{ "%.4f" | format(test_mae) }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>CCC<sub>ext</sub></th>
+                                                <td>{{ "%.4f" | format(ccc_ext) }}</td>
+                                            </tr>
+                                            <tr class="table-secondary">
+                                                <th colspan="2">Statistical Tests</th>
                                             </tr>
                                             <tr>
                                                 <th>F-statistic</th>
@@ -603,60 +688,6 @@
                                                 <th>Durbin-Watson</th>
                                                 <td>{{ "%.4f" | format(dw_stat) }}</td>
                                             </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="card mb-3">
-                                <div class="card-header bg-info text-white">
-                                    <h6 class="mb-0">Test Set & CV Metrics</h6>
-                                </div>
-                                <div class="card-body">
-                                    <table class="table table-sm table-bordered">
-                                        <tbody>
-                                            <tr>
-                                                <th>R²ext</th>
-                                                <td>{{ "%.4f" | format(test_r2) }}</td>
-                                            </tr>
-                                            <tr>
-                                                <th>Q²ext</th>
-                                                <td>{{ "%.4f" | format(q2_test) }}</td>
-                                            </tr>
-                                            <tr>
-                                                <th>RMSEp</th>
-                                                <td>{{ "%.4f" | format(test_rmse) }}</td>
-                                            </tr>
-                                            <tr>
-                                                <th>MAEp</th>
-                                                <td>{{ "%.4f" | format(test_mae) }}</td>
-                                            </tr>
-                                            <tr>
-                                                <th>CCCext</th>
-                                                <td>{{ "%.4f" | format(ccc_ext) }}</td>
-                                            </tr>
-                                            <tr>
-                                                <th colspan="2" class="bg-light">Cross-Validation</th>
-                                            </tr>
-                                            <tr>
-                                                <th>Q²<sub>LOO</sub></th>
-                                                <td>{{ "%.4f" | format(q2_loo) }}</td>
-                                            </tr>
-                                            <tr>
-                                                <th>RMSE<sub>LOO</sub></th>
-                                                <td>{{ "%.4f" | format(rmse_loo) }}</td>
-                                            </tr>
-                                            {% if split_method == 'kfold' and cv_train_r2_mean is not none %}
-                                            <tr>
-                                                <th>CV R² (train)</th>
-                                                <td>{{ "%.4f" | format(cv_train_r2_mean) }}</td>
-                                            </tr>
-                                            <tr>
-                                                <th>CV R² (test)</th>
-                                                <td>{{ "%.4f" | format(cv_test_r2_mean) }}</td>
-                                            </tr>
-                                            {% endif %}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1023,7 +1054,16 @@
         const testSize = document.getElementById('time_test_size').value;
         document.getElementById('time_test_size_display').innerText = Math.round(testSize * 100) + '%';
     }
-    
+
+    // Update ratio description for stratified sorted split
+    function updateRatioDescription() {
+        const ratioN = document.getElementById('ratio_n').value;
+        const testPercent = Math.round(100 / ratioN);
+        const trainPercent = 100 - testPercent;
+        document.getElementById('ratio-description').innerText =
+            `Current: 1:${ratioN} ratio = ~${testPercent}% test, ~${trainPercent}% train`;
+    }
+
     // Toggle all feature checkboxes
     function toggleAllFeatures() {
         const selectAll = document.getElementById('select_all_features');
@@ -1067,31 +1107,33 @@
         updateSelectAllStatus();
     }
     
-    // Toggle split method options// Toggle split method options
+    // Toggle split method options
     function toggleSplitOptions() {
-    // Hide all split method options
-    const splitOptions = document.querySelectorAll('.split-options');
-    splitOptions.forEach(option => {
-        option.style.display = 'none';
-    });
-    
-    // Show the appropriate options based on selected method
-    const selectedMethod = document.querySelector('input[name="split_method"]:checked').value;
-    
-    if (selectedMethod === 'random') {
-        document.getElementById('random_split_options').style.display = 'block';
-    } else if (selectedMethod === 'stratified') {
-        document.getElementById('stratified_split_options').style.display = 'block';
-    } else if (selectedMethod === 'time') {
-        document.getElementById('time_split_options').style.display = 'block';
-    } else if (selectedMethod === 'kfold') {
-        document.getElementById('kfold_split_options').style.display = 'block';
-    } else if (selectedMethod === 'one_vs_n') {
-        document.getElementById('onevn_split_options').style.display = 'block';
-    } else if (selectedMethod === 'systematic') {
-        document.getElementById('systematic_split_options').style.display = 'block';
-    }
-    // LOOCV nie potrzebuje dodatkowych opcji
+        // Hide all split method options
+        const splitOptions = document.querySelectorAll('.split-options');
+        splitOptions.forEach(option => {
+            option.style.display = 'none';
+        });
+
+        // Show the appropriate options based on selected method
+        const selectedMethod = document.querySelector('input[name="split_method"]:checked').value;
+
+        if (selectedMethod === 'stratified_endpoints') {
+            document.getElementById('stratified_endpoints_split_options').style.display = 'block';
+        } else if (selectedMethod === 'random') {
+            document.getElementById('random_split_options').style.display = 'block';
+        } else if (selectedMethod === 'stratified') {
+            document.getElementById('stratified_split_options').style.display = 'block';
+        } else if (selectedMethod === 'time') {
+            document.getElementById('time_split_options').style.display = 'block';
+        } else if (selectedMethod === 'kfold') {
+            document.getElementById('kfold_split_options').style.display = 'block';
+        } else if (selectedMethod === 'one_vs_n') {
+            document.getElementById('onevn_split_options').style.display = 'block';
+        } else if (selectedMethod === 'systematic') {
+            document.getElementById('systematic_split_options').style.display = 'block';
+        }
+        // LOOCV nie potrzebuje dodatkowych opcji
     }
 
     // Toggle Williams Plot outliers display
