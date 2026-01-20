@@ -789,7 +789,7 @@
 
     <!-- Step 4: GA Parameters -->
     {% if current_step == 'ga_parameters' %}
-    <div class="card mb-4">
+    <div class="card mb-4" style="position: relative;">
         <div class="card-header bg-primary text-white">
             <h5 class="mb-0">Step 4: Genetic Algorithm Parameters</h5>
         </div>
@@ -971,7 +971,7 @@
 
             <!-- GA Loading Overlay -->
             <div id="ga-loading-overlay" style="display: none;">
-                <div class="ga-loading-content">
+                <div class="ga-loading-content" style="border-radius: 1rem;">
                     <div class="spinner-border text-primary" role="status" style="width: 4rem; height: 4rem;">
                         <span class="sr-only">Loading...</span>
                     </div>
@@ -1487,7 +1487,7 @@
 
 /* GA Loading Overlay */
 #ga-loading-overlay {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
     width: 100%;
@@ -1497,15 +1497,17 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    border-radius: 0.375rem;
 }
 
 .ga-loading-content {
-    background: white;
+    background: var(--bg-white, white);
     padding: 50px;
-    border-radius: 15px;
+    border-radius: 1rem !important;
     text-align: center;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
     max-width: 600px;
+    overflow: hidden;
 }
 
 .ga-loading-content h3 {
@@ -1555,6 +1557,7 @@ body.dark-theme .split-options {
 body.dark-theme .ga-loading-content {
     background: #1f2937 !important;
     color: #f9fafb !important;
+    border-radius: 1rem !important;
 }
 
 body.dark-theme .ga-loading-content p {

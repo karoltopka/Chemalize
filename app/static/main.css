@@ -1114,6 +1114,12 @@ html {
     overflow: hidden;
     box-shadow: var(--shadow);
     margin-bottom: 2rem;
+    border: 1px solid var(--border-color);
+}
+
+body.dark-theme .modern-table-container {
+    background: var(--bg-card);
+    border-color: var(--border-color);
 }
 
 .modern-table-header {
@@ -1125,6 +1131,7 @@ html {
     align-items: center;
     gap: 0.5rem;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+    border-radius: 1rem 1rem 0 0;
 }
 
 /* =================================================================== */
@@ -1615,6 +1622,37 @@ html {
 
 .table-responsive::-webkit-scrollbar-thumb:hover {
     background-color: var(--primary-hover);
+}
+
+/* Fix table-responsive inside modern-table-container for rounded corners */
+.modern-table-container .table-responsive {
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
+.modern-table-container .table-responsive::after {
+    display: none !important;
+}
+
+.modern-table-container .p-3 {
+    background: transparent !important;
+}
+
+.modern-table-container table,
+.modern-table-container table[border] {
+    border: none !important;
+    border-collapse: collapse !important;
+}
+
+.modern-table-container table tr:last-child td:first-child {
+    border-bottom-left-radius: 0.75rem;
+}
+
+.modern-table-container table tr:last-child td:last-child {
+    border-bottom-right-radius: 0.75rem;
 }
 
 /* Force high contrast for all table headers */
