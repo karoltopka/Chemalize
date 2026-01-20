@@ -46,7 +46,7 @@ NUMERIC_CONSTRAINTS = {
     'Diameter (nm)': {
         'min': 5,
         'max': 100,
-        'step': 0.5,
+        'step': 0.1,
         'default': 25,
         'label': 'Diameter (nm)',
         'description': 'Nanoparticle diameter in nanometers (model trained on 5-100nm)'
@@ -60,9 +60,9 @@ NUMERIC_CONSTRAINTS = {
         'description': 'Exposure time in hours (model trained on 3-72 hr)'
     },
     'Concentration (ug/ml)': {
-        'min': 0.1,
+        'min': 0.01,
         'max': 1000,
-        'step': 0.1,
+        'step': 0.01,
         'default': 10,
         'label': 'Concentration (ug/ml)',
         'description': 'Nanoparticle concentration in micrograms per milliliter (log-transformed internally)'

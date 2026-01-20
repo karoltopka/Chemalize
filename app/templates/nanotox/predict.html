@@ -512,19 +512,6 @@
                         <div class="result-label">Predicted Cell Viability</div>
                         <div class="result-value {{ viability_class }}">{{ "%.1f"|format(viability) }}%</div>
 
-                        <div class="result-interpretation">
-                            {% if viability >= 80 %}
-                            <i class="fas fa-check-circle" style="color: var(--success)"></i>
-                            <strong>Low Toxicity</strong> - Cells are largely viable
-                            {% elif viability >= 50 %}
-                            <i class="fas fa-exclamation-triangle" style="color: var(--warning)"></i>
-                            <strong>Moderate Toxicity</strong> - Significant cell death observed
-                            {% else %}
-                            <i class="fas fa-times-circle" style="color: var(--danger)"></i>
-                            <strong>High Toxicity</strong> - Majority of cells affected
-                            {% endif %}
-                        </div>
-
                         <div class="input-summary">
                             <h4>Input Parameters</h4>
                             <div class="summary-grid">
