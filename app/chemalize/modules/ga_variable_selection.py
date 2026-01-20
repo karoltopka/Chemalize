@@ -6,6 +6,7 @@ import pandas as pd
 from sklearn.model_selection import cross_val_score, train_test_split, LeaveOneOut, KFold
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
+import statsmodels.api as sm
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.metrics import mean_squared_error
 from scipy import stats
@@ -530,10 +531,11 @@ class GeneticAlgorithmSelector:
             # Calculate AD coverage
             ad_coverage = self._calculate_ad_coverage(X_train, y_train, feature_mask)
 
-            # Fit final model on all data to get coefficients
-            model.fit(X_selected, y_train)
-            intercept = float(model.intercept_)
-            coefficients = [float(c) for c in model.coef_]
+            # Fit final model using statsmodels OLS (same as MLR module)
+            X_with_const = sm.add_constant(X_selected)
+            sm_model = sm.OLS(y_train, X_with_const).fit()
+            intercept = float(sm_model.params[0])  # First param is intercept
+            coefficients = [float(c) for c in sm_model.params[1:]]  # Rest are coefficients
 
             return {
                 'r2': float(r2),

@@ -299,7 +299,8 @@ def calculate_loo_metrics(X, y, include_intercept=True):
 def perform_mlr(df, target_var, selected_features, include_intercept=True,
                 split_method='stratified_endpoints', split_params=None, scale_data=False,
                 check_assumptions=True, detect_outliers=False, temp_path='temp/',
-                predefined_train_idx=None, predefined_test_idx=None):
+                predefined_train_idx=None, predefined_test_idx=None,
+                ga_coefficients=None, ga_intercept=None):
     """
     Perform Multiple Linear Regression analysis with various splitting methods
 
@@ -330,6 +331,10 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         Predefined training indices (used when split_method='predefined')
     predefined_test_idx : list, default=None
         Predefined test indices (used when split_method='predefined')
+    ga_coefficients : list, default=None
+        Pre-calculated coefficients from GA (skips model fitting if provided)
+    ga_intercept : float, default=None
+        Pre-calculated intercept from GA (skips model fitting if provided)
 
     Returns:
     --------
