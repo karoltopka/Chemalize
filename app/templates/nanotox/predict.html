@@ -314,20 +314,6 @@
             overflow: hidden;
         }
 
-        .ic50-display {
-            margin-top: 1rem;
-            padding: 1rem;
-            background: var(--bg-primary);
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .ic50-display .value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--accent);
-        }
-
         .contribution-plot {
             width: 100%;
             height: 350px;
@@ -589,12 +575,6 @@
                 </div>
 
                 <div id="curve-plot"></div>
-
-                <div class="ic50-display" id="ic50-display" style="display: none;">
-                    <span class="label">Estimated IC50:</span>
-                    <span class="value" id="ic50-value">-</span>
-                    <span class="unit">ug/ml</span>
-                </div>
             </div>
             {% endif %}
         </div>
@@ -602,7 +582,7 @@
 
     <footer>
         <div class="container">
-            <p>NanoTox - TiO2 Nanoparticle Toxicity Prediction</p>
+            <p>NanoTox</p>
         </div>
     </footer>
 
@@ -620,11 +600,9 @@
             const maxConc = document.getElementById('max-conc').value;
             const loading = document.getElementById('curve-loading');
             const plotDiv = document.getElementById('curve-plot');
-            const ic50Display = document.getElementById('ic50-display');
 
             loading.classList.add('active');
             plotDiv.innerHTML = '';
-            ic50Display.style.display = 'none';
 
             try {
                 const response = await fetch('/nanotox/concentration-curve', {
@@ -644,11 +622,6 @@
                 if (data.success) {
                     const plotData = JSON.parse(data.plot);
                     Plotly.newPlot('curve-plot', plotData.data, plotData.layout, {responsive: true});
-
-                    if (data.ic50 !== null) {
-                        document.getElementById('ic50-value').textContent = data.ic50.toFixed(3);
-                        ic50Display.style.display = 'block';
-                    }
                 } else {
                     plotDiv.innerHTML = '<p style="color: var(--danger); text-align: center; padding: 2rem;">Error: ' + data.error + '</p>';
                 }
