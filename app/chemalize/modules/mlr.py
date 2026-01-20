@@ -144,12 +144,13 @@ class MLRModel:
         self.variables = variables
         self.include_intercept = include_intercept
 
-def perform_mlr(df, target_var, selected_features, include_intercept=True, 
+def perform_mlr(df, target_var, selected_features, include_intercept=True,
                 split_method='random', split_params=None, scale_data=False,
-                check_assumptions=True, detect_outliers=False, temp_path='temp/'):
+                check_assumptions=True, detect_outliers=False, temp_path='temp/',
+                predefined_train_idx=None, predefined_test_idx=None):
     """
     Perform Multiple Linear Regression analysis with various splitting methods
-    
+
     Parameters:
     -----------
     df : DataFrame
@@ -161,7 +162,7 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     include_intercept : bool, default=True
         Whether to include an intercept in the model
     split_method : str, default='random'
-        Method to split the data ('random', 'stratified', 'time', 'kfold', 'loocv')
+        Method to split the data ('random', 'stratified', 'time', 'kfold', 'loocv', 'predefined')
     split_params : dict, default=None
         Parameters for the splitting method
     scale_data : bool, default=False
@@ -172,7 +173,11 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         Whether to detect outliers and influential points
     temp_path : str, default='temp/'
         Path to store temporary files
-        
+    predefined_train_idx : list, default=None
+        Predefined training indices (used when split_method='predefined')
+    predefined_test_idx : list, default=None
+        Predefined test indices (used when split_method='predefined')
+
     Returns:
     --------
     dict
@@ -200,8 +205,44 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     
     # Split data based on the selected method
     result_df = None
-    
-    if split_method == 'random':
+
+    # Handle predefined indices (from GA or other sources)
+    if split_method == 'predefined' or (predefined_train_idx is not None and predefined_test_idx is not None):
+        # Use predefined train/test indices
+        train_idx = predefined_train_idx
+        test_idx = predefined_test_idx
+
+        X_train = X.iloc[train_idx]
+        X_test = X.iloc[test_idx]
+        y_train = y.iloc[train_idx]
+        y_test = y.iloc[test_idx]
+
+        # Fit model using statsmodels for detailed statistics
+        if include_intercept:
+            X_train_sm = sm.add_constant(X_train)
+            X_test_sm = sm.add_constant(X_test)
+        else:
+            X_train_sm = X_train
+            X_test_sm = X_test
+
+        sm_model = sm.OLS(y_train, X_train_sm).fit()
+
+        # Get predictions
+        y_pred_train = sm_model.predict(X_train_sm)
+        y_pred_test = sm_model.predict(X_test_sm)
+
+        # Create result DataFrame for all calculations
+        result_df = pd.DataFrame({
+            'dataset': ['train'] * len(y_train) + ['test'] * len(y_test),
+            target_var: pd.concat([y_train, y_test]).reset_index(drop=True),
+            'predictions': np.concatenate([y_pred_train, y_pred_test])
+        })
+
+        # Add feature columns
+        for feature in selected_features:
+            result_df[feature] = pd.concat([X_train[feature], X_test[feature]]).reset_index(drop=True)
+
+    elif split_method == 'random':
         # Random split
         test_size = split_params.get('test_size', 0.2)
         shuffle = split_params.get('shuffle', True)

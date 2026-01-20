@@ -21,8 +21,18 @@ def mlr_analysis():
     if not check_dataset():
         return redirect(url_for('preprocessing.preprocess'))
 
-    clean_path = get_clean_path(session["csv_name"])
-    df = read_dataset(clean_path)
+    # Check if coming from GA - use GA preprocessed data
+    from_ga = session.get('from_ga', False)
+    ga_data_path = session.get('ga_preprocessed_data_path')
+
+    if from_ga and ga_data_path and os.path.exists(ga_data_path):
+        # Use GA preprocessed data
+        df = read_dataset(ga_data_path)
+    else:
+        # Use original clean data
+        clean_path = get_clean_path(session["csv_name"])
+        df = read_dataset(clean_path)
+
     info = get_dataset_info(df)
 
     # Get all data columns (avoiding the name 'columns' to prevent conflict)
@@ -95,7 +105,11 @@ def mlr_analysis():
             'cv_train_r2_mean': session.get('cv_train_r2_mean'),
             'cv_test_r2_mean': session.get('cv_test_r2_mean'),
             'cv_train_rmse_mean': session.get('cv_train_rmse_mean'),
-            'cv_test_rmse_mean': session.get('cv_test_rmse_mean')
+            'cv_test_rmse_mean': session.get('cv_test_rmse_mean'),
+            # GA-specific info
+            'from_ga': session.get('from_ga', False),
+            'ga_model_rank': session.get('ga_model_rank'),
+            'ga_best_score': session.get('ga_best_score')
         }
         return render_template('mlr_analysis.html', title='MLR Analysis', active="analyze", zip=zip, **info, **mlr_params, **mlr_results)
 
@@ -197,8 +211,17 @@ def perform_mlr():
     session.modified = True
 
     # Perform MLR using the module
-    clean_path = get_clean_path(session["csv_name"])
-    df = read_dataset(clean_path)
+    # Check if coming from GA - use GA preprocessed data
+    from_ga = session.get('from_ga', False)
+    ga_data_path = session.get('ga_preprocessed_data_path')
+
+    if from_ga and ga_data_path and os.path.exists(ga_data_path):
+        # Use GA preprocessed data
+        df = read_dataset(ga_data_path)
+    else:
+        # Use original clean data
+        clean_path = get_clean_path(session["csv_name"])
+        df = read_dataset(clean_path)
     
     try:
         # Create temp directory if it doesn't exist
@@ -239,7 +262,11 @@ def perform_mlr():
                 'include_last_point': include_last_point
             }
         # LOOCV doesn't need additional parameters
-        
+
+        # Check for predefined indices from GA
+        predefined_train_idx = session.get('predefined_train_idx')
+        predefined_test_idx = session.get('predefined_test_idx')
+
         # Call the MLR module with the split method and parameters
         results = mlr.perform_mlr(
             df,
@@ -251,7 +278,9 @@ def perform_mlr():
             scale_data=scale_data,
             check_assumptions=check_assumptions,
             detect_outliers=detect_outliers,
-            temp_path=ensure_temp_dir()
+            temp_path=ensure_temp_dir(),
+            predefined_train_idx=predefined_train_idx if split_method == 'predefined' else None,
+            predefined_test_idx=predefined_test_idx if split_method == 'predefined' else None
         )
         
         # Store results in session

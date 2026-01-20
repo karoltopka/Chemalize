@@ -1421,6 +1421,34 @@ def mlr_ga_run_mlr():
         split_method = session.get('mlr_ga_split_method', 'random')
         split_params = {}
 
+        # Get predefined train/test indices from GA
+        predefined_train_idx = None
+        predefined_test_idx = None
+
+        if split_method not in ['kfold', 'loocv']:
+            # Get original indices from step 2
+            split_train_idx = session.get('mlr_ga_step2_train_idx')
+            split_test_idx = session.get('mlr_ga_step2_test_idx')
+
+            if split_train_idx is not None:
+                if split_test_idx is None:
+                    split_test_idx = []
+
+                # Get clean indices from preprocessing steps
+                step2_clean_indices = session.get('mlr_ga_step2_clean_indices')
+
+                if step2_clean_indices:
+                    # Remap indices to match preprocessed data
+                    cleaned_indices = sorted(step2_clean_indices)
+                    index_map = {orig_idx: new_pos for new_pos, orig_idx in enumerate(cleaned_indices)}
+                    split_train_idx = [index_map[i] for i in split_train_idx if i in index_map]
+                    split_test_idx = [index_map[i] for i in split_test_idx if i in index_map]
+
+                # Further remap if GA preprocessing removed more samples
+                data_len = len(y)
+                predefined_train_idx = [int(i) for i in split_train_idx if 0 <= int(i) < data_len]
+                predefined_test_idx = [int(i) for i in split_test_idx if 0 <= int(i) < data_len]
+
         if split_method == 'random':
             split_params = {
                 'test_size': session.get('mlr_ga_test_size', 0.2),
@@ -1455,18 +1483,26 @@ def mlr_ga_run_mlr():
         # Get temp path
         temp_path = ensure_temp_dir()
 
-        # Run MLR
+        # Save GA preprocessed data to file for MLR to use
+        ga_data_filename = 'ga_preprocessed_data.csv'
+        ga_data_path = os.path.join(temp_path, ga_data_filename)
+        df_for_mlr.to_csv(ga_data_path, index=False)
+        session['ga_preprocessed_data_path'] = ga_data_path
+
+        # Run MLR with predefined indices from GA (if available)
         results = mlr.perform_mlr(
             df=df_for_mlr,
             target_var=target_var,
             selected_features=selected_features,
             include_intercept=True,
-            split_method=split_method,
+            split_method='predefined' if predefined_train_idx else split_method,
             split_params=split_params,
             scale_data=False,  # Already scaled
             check_assumptions=True,
             detect_outliers=True,
-            temp_path=temp_path
+            temp_path=temp_path,
+            predefined_train_idx=predefined_train_idx,
+            predefined_test_idx=predefined_test_idx
         )
 
         # Store MLR results in session (compatible with standard MLR module)
@@ -1477,7 +1513,12 @@ def mlr_ga_run_mlr():
         session['scale_data'] = False  # Already scaled in GA preprocessing
         session['check_assumptions'] = True
         session['detect_outliers'] = True
-        session['split_method'] = split_method
+        session['split_method'] = 'predefined' if predefined_train_idx else split_method
+
+        # Store predefined indices for MLR to use
+        if predefined_train_idx:
+            session['predefined_train_idx'] = predefined_train_idx
+            session['predefined_test_idx'] = predefined_test_idx
 
         # Add timestamp to prevent browser caching of images
         timestamp = int(time.time() * 1000)
