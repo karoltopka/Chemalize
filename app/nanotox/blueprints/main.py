@@ -332,7 +332,7 @@ def download_template():
     # Example data
     example_rows = [
         ['Spherical', 'Yes', 'No', '25', 'A549', '24', 'MTT', '10'],
-        ['Rod', 'No', 'Yes', '50', 'HepG2', '48', 'WST-1', '50'],
+        ['Spehical', 'Yes', 'Yes', '15,84', 'HEK293', '72', 'MTT', '200'],
         ['Irregular', 'Yes', 'Yes', '100', 'BEAS-2B', '24', 'LDH', '100']
     ]
 
