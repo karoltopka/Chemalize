@@ -1281,8 +1281,12 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
                     'fitness_plot': fitness_plot,
                     'removed_features': removed_features,
                     'preprocessing_info': preprocessing_info,
-                    'X_data': X.to_json(),
-                    'y_data': y.tolist(),
+                    # Save X_train/y_train (data used for GA fitting) for MLR to use
+                    'X_data': X_train.to_json() if hasattr(X_train, 'to_json') else pd.DataFrame(X_train).to_json(),
+                    'y_data': y_train.tolist() if hasattr(y_train, 'tolist') else list(y_train),
+                    # Also save full data for reference
+                    'X_full': X.to_json(),
+                    'y_full': y.tolist(),
                     'n_variables': n_variables if n_variables else '',
                     'correlation_threshold': correlation_threshold,
                     'mutation_rate': mutation_rate,
@@ -1341,6 +1345,8 @@ def mlr_ga_complete():
         session['mlr_ga_preprocessing_info'] = results['preprocessing_info']
         session['mlr_ga_X_data'] = results['X_data']
         session['mlr_ga_y_data'] = results['y_data']
+        session['mlr_ga_X_full'] = results.get('X_full', results['X_data'])  # Full data for MLR
+        session['mlr_ga_y_full'] = results.get('y_full', results['y_data'])  # Full data for MLR
 
         # Store GA parameters
         session['mlr_ga_n_variables'] = results['n_variables']
@@ -1412,69 +1418,45 @@ def mlr_ga_run_mlr():
 
         flash(f'Running MLR for Model {selected_rank} with {len(selected_features)} features...', 'info')
 
-        # Load preprocessed data
-        X = pd.read_json(session['mlr_ga_X_data'])
-        y = np.array(session['mlr_ga_y_data'])
+        # Load full preprocessed data (X_full contains all data, X_data contains training data)
+        X_full_json = session.get('mlr_ga_X_full')
+        y_full_list = session.get('mlr_ga_y_full')
+
+        # Fallback to X_data if X_full not available (backward compatibility)
+        if X_full_json is None:
+            X_full_json = session.get('mlr_ga_X_data')
+            y_full_list = session.get('mlr_ga_y_data')
+
+        X = pd.read_json(X_full_json)
+        y = np.array(y_full_list)
         target_var = session.get('mlr_ga_target_var')
 
-        # Prepare split parameters
-        split_method = session.get('mlr_ga_split_method', 'random')
-        split_params = {}
+        # Check if GA used validation split
+        use_validation = session.get('mlr_ga_use_validation', False)
 
-        # Get predefined train/test indices from GA
+        # Prepare predefined indices - replicate EXACT split that GA used
         predefined_train_idx = None
         predefined_test_idx = None
+        split_params = {}
 
-        if split_method not in ['kfold', 'loocv']:
-            # Get original indices from step 2
-            split_train_idx = session.get('mlr_ga_step2_train_idx')
-            split_test_idx = session.get('mlr_ga_step2_test_idx')
-
-            if split_train_idx is not None:
-                if split_test_idx is None:
-                    split_test_idx = []
-
-                # Get clean indices from preprocessing steps
-                step2_clean_indices = session.get('mlr_ga_step2_clean_indices')
-
-                if step2_clean_indices:
-                    # Remap indices to match preprocessed data
-                    cleaned_indices = sorted(step2_clean_indices)
-                    index_map = {orig_idx: new_pos for new_pos, orig_idx in enumerate(cleaned_indices)}
-                    split_train_idx = [index_map[i] for i in split_train_idx if i in index_map]
-                    split_test_idx = [index_map[i] for i in split_test_idx if i in index_map]
-
-                # Further remap if GA preprocessing removed more samples
-                data_len = len(y)
-                predefined_train_idx = [int(i) for i in split_train_idx if 0 <= int(i) < data_len]
-                predefined_test_idx = [int(i) for i in split_test_idx if 0 <= int(i) < data_len]
-
-        if split_method == 'random':
-            split_params = {
-                'test_size': session.get('mlr_ga_test_size', 0.2),
-                'shuffle': session.get('mlr_ga_shuffle', True),
-                'random_state': session.get('mlr_ga_random_state', 42)
-            }
-        elif split_method == 'stratified':
-            split_params = {
-                'test_size': session.get('mlr_ga_strat_test_size', 0.2),
-                'n_bins': session.get('mlr_ga_strat_bins', 5)
-            }
-        elif split_method == 'time':
-            split_params = {
-                'time_column': session.get('mlr_ga_time_column', ''),
-                'test_size': session.get('mlr_ga_time_test_size', 0.2)
-            }
-        elif split_method == 'kfold':
-            split_params = {
-                'n_folds': session.get('mlr_ga_n_folds', 5),
-                'shuffle': session.get('mlr_ga_shuffle_kfold', True)
-            }
-        elif split_method == 'systematic':
-            split_params = {
-                'step': session.get('mlr_ga_systematic_step', 3),
-                'include_last': session.get('mlr_ga_include_last_point', False)
-            }
+        if use_validation:
+            # GA used train_test_split(X, y, test_size=0.2, random_state=42)
+            # Replicate the EXACT same split to get matching indices
+            from sklearn.model_selection import train_test_split
+            n_samples = len(y)
+            all_indices = list(range(n_samples))
+            train_indices, test_indices = train_test_split(
+                all_indices, test_size=0.2, random_state=42
+            )
+            predefined_train_idx = sorted(train_indices)
+            predefined_test_idx = sorted(test_indices)
+            split_method = 'predefined'
+        else:
+            # GA used all data for training (no validation split)
+            # Use all indices as training, empty test
+            predefined_train_idx = list(range(len(y)))
+            predefined_test_idx = []
+            split_method = 'predefined'
 
         # Prepare dataframe with preprocessed data and selected features
         df_for_mlr = X[selected_features].copy()
