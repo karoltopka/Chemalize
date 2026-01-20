@@ -7,7 +7,7 @@ from threading import Lock
 
 # Path to the model file
 MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'data', 'models')
-MODEL_PATH = os.path.join(MODEL_DIR, 'tio2_model_package_kompromisowy.pkl')
+MODEL_PATH = os.path.join(MODEL_DIR, 'tio2_model_train_only_best_model.pkl')
 
 # Singleton cache
 _model_cache = {}
