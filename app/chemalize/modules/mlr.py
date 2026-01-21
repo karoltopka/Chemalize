@@ -47,19 +47,49 @@ def williams_plot(result_df, model):
     y_train = train_data[target_col].values
     y_test = test_data[target_col].values
     
-    X_combined = pd.concat([X_train, X_test], ignore_index=True)
-    H_combined = hat_matrix(X_combined.values)
-    
+    # Calculate hat matrix based on training data only
+    H_train = hat_matrix(X_train.values)
+    leverage_train = np.diag(H_train)
+
+    # For test data, calculate leverage using training data hat matrix
+    # leverage_test = diag(X_test @ (X_train'X_train)^-1 @ X_test')
+    X_train_np = X_train.values
+    X_test_np = X_test.values
+    XtX = X_train_np.T @ X_train_np
+    # Add regularization for numerical stability
+    reg_factor = 1e-8 * np.trace(XtX) / XtX.shape[0] if XtX.shape[0] > 0 else 1e-8
+    XtX_reg = XtX + reg_factor * np.eye(XtX.shape[0])
+    try:
+        XtX_inv = np.linalg.inv(XtX_reg)
+    except np.linalg.LinAlgError:
+        XtX_inv = np.linalg.pinv(XtX_reg)
+    leverage_test = np.sum((X_test_np @ XtX_inv) * X_test_np, axis=1)
+
     y_pred_train = model.predict(X_train)
     y_pred_test = model.predict(X_test)
-    
-    residual_train = np.abs(y_train - y_pred_train)
-    residual_test = np.abs(y_test - y_pred_test)
-    s_residual_train = (residual_train - np.mean(residual_train)) / np.std(residual_train)
-    s_residual_test = (residual_test - np.mean(residual_test)) / np.std(residual_test)
-    
-    leverage_train = np.diag(H_combined)[:len(X_train)]
-    leverage_test = np.diag(H_combined)[len(X_train):]
+
+    # Calculate residuals
+    residual_train = y_train - y_pred_train
+    residual_test = y_test - y_pred_test
+
+    # Calculate internally studentized residuals: r_i = e_i / (s * sqrt(1 - h_i))
+    # s = sqrt(MSE) based on training data
+    n_train = len(y_train)
+    p = len(model.variables)
+    SSE_train = np.sum(residual_train ** 2)
+    df = n_train - p - 1  # degrees of freedom (n - p - 1 for intercept)
+    if df <= 0:
+        df = 1
+    MSE = SSE_train / df
+    s = np.sqrt(MSE)
+
+    # Studentized residuals for training data
+    leverage_factor_train = np.sqrt(np.maximum(1 - leverage_train, 1e-10))
+    s_residual_train = residual_train / (s * leverage_factor_train)
+
+    # Studentized residuals for test data (using training MSE)
+    leverage_factor_test = np.sqrt(np.maximum(1 - leverage_test, 1e-10))
+    s_residual_test = residual_test / (s * leverage_factor_test)
     
     p = len(model.variables)
     n = len(X_train)

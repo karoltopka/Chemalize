@@ -260,40 +260,44 @@ class GeneticAlgorithmSelector:
             return 0.0
 
         try:
-            # Fit model
-            model = LinearRegression()
-            model.fit(X_selected, y)
-            y_pred = model.predict(X_selected)
+            # Fit model using statsmodels OLS (same as coefficient calculation)
+            X_with_const = sm.add_constant(X_selected)
+            sm_model = sm.OLS(y, X_with_const).fit()
+            y_pred = sm_model.predict(X_with_const)
 
-            # Calculate residuals
-            residuals = y - y_pred
-
-            # Standardize residuals
-            residual_std = np.std(residuals)
-            if residual_std == 0:
-                return 100.0  # Perfect fit, all within AD
-
-            std_residuals = (residuals - np.mean(residuals)) / residual_std
-
-            # Calculate hat matrix for leverage
-            # H = X(X'X)^(-1)X'
+            # Calculate hat matrix for leverage FIRST (needed for studentized residuals)
+            # H = X(X'X)^(-1)X' - use X without constant for leverage calculation
             # Add small regularization for numerical stability
             XtX = X_selected.T @ X_selected
-            # Add small values to diagonal for stability
             reg_factor = 1e-8 * np.trace(XtX) / n_features if n_features > 0 else 1e-8
             XtX_reg = XtX + reg_factor * np.eye(n_features)
 
             try:
                 XtX_inv = np.linalg.inv(XtX_reg)
             except np.linalg.LinAlgError:
-                # If matrix is still singular, use pseudo-inverse
                 XtX_inv = np.linalg.pinv(XtX_reg)
 
             # Calculate leverage (diagonal of hat matrix)
             leverage = np.sum((X_selected @ XtX_inv) * X_selected, axis=1)
 
-            # Calculate h* threshold
-            # h* = 3(p+1)/n where p is number of predictors
+            # Calculate residuals
+            residuals = y - y_pred
+
+            # Calculate internally studentized residuals: r_i = e_i / (s * sqrt(1 - h_i))
+            # s = sqrt(MSE) = sqrt(SSE / (n - p - 1))
+            SSE = np.sum(residuals ** 2)
+            df = n_samples - n_features - 1  # degrees of freedom (n - p - 1 for intercept)
+            if df <= 0:
+                df = 1  # Avoid division by zero
+            MSE = SSE / df
+            s = np.sqrt(MSE)
+
+            # Studentized residuals
+            # Avoid division by zero when leverage is close to 1
+            leverage_factor = np.sqrt(np.maximum(1 - leverage, 1e-10))
+            std_residuals = residuals / (s * leverage_factor)
+
+            # Calculate h* threshold: h* = 3(p+1)/n where p is number of predictors
             h_star = 3 * (n_features + 1) / n_samples
 
             # Count samples within AD
