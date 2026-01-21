@@ -1302,6 +1302,10 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
                     'n_best_models': n_best_models,
                     'check_ad': check_ad,
                     'ad_threshold': ad_threshold,
+                    # Store split indices used by GA for MLR to use
+                    'split_method': split_method,
+                    'split_train_idx': split_train_idx,
+                    'split_test_idx': split_test_idx,
                 }
             }
 
@@ -1364,6 +1368,11 @@ def mlr_ga_complete():
         session['mlr_ga_n_best_models'] = results['n_best_models']
         session['mlr_ga_check_ad'] = results['check_ad']
         session['mlr_ga_ad_threshold'] = results['ad_threshold']
+
+        # Store split indices used by GA (mapped to preprocessed data)
+        session['mlr_ga_final_split_method'] = results.get('split_method')
+        session['mlr_ga_final_train_idx'] = results.get('split_train_idx')
+        session['mlr_ga_final_test_idx'] = results.get('split_test_idx')
 
         session['mlr_ga_step'] = 'model_selection'
 
@@ -1431,31 +1440,43 @@ def mlr_ga_run_mlr():
         y = np.array(y_full_list)
         target_var = session.get('mlr_ga_target_var')
 
-        # Check if GA used validation split
-        use_validation = session.get('mlr_ga_use_validation', False)
+        # Get split indices that GA actually used (mapped to preprocessed data)
+        ga_split_method = session.get('mlr_ga_final_split_method')
+        ga_train_idx = session.get('mlr_ga_final_train_idx')
+        ga_test_idx = session.get('mlr_ga_final_test_idx')
 
-        # Prepare predefined indices - replicate EXACT split that GA used
+        # Prepare predefined indices - use EXACT split that GA used
         predefined_train_idx = None
         predefined_test_idx = None
         split_params = {}
 
-        if use_validation:
-            # GA used train_test_split(X, y, test_size=0.2, random_state=42)
-            # Replicate the EXACT same split to get matching indices
-            from sklearn.model_selection import train_test_split
-            n_samples = len(y)
-            all_indices = list(range(n_samples))
-            train_indices, test_indices = train_test_split(
-                all_indices, test_size=0.2, random_state=42
-            )
-            predefined_train_idx = sorted(train_indices)
-            predefined_test_idx = sorted(test_indices)
+        if ga_train_idx is not None and ga_split_method not in ['kfold', 'loocv']:
+            # Use the exact indices GA used for train/test split
+            predefined_train_idx = [int(i) for i in ga_train_idx if 0 <= int(i) < len(y)]
+            predefined_test_idx = [int(i) for i in (ga_test_idx or []) if 0 <= int(i) < len(y)]
             split_method = 'predefined'
-        else:
-            # GA used all data for training (no validation split)
-            # Use all indices as training, empty test
+        elif ga_split_method in ['kfold', 'loocv']:
+            # For K-Fold/LOOCV, use all data as train (MLR will show training metrics)
             predefined_train_idx = list(range(len(y)))
             predefined_test_idx = []
+            split_method = 'predefined'
+        else:
+            # Fallback: check if GA used validation split
+            use_validation = session.get('mlr_ga_use_validation', False)
+            if use_validation:
+                # GA used train_test_split(X, y, test_size=0.2, random_state=42)
+                from sklearn.model_selection import train_test_split
+                n_samples = len(y)
+                all_indices = list(range(n_samples))
+                train_indices, test_indices = train_test_split(
+                    all_indices, test_size=0.2, random_state=42
+                )
+                predefined_train_idx = sorted(train_indices)
+                predefined_test_idx = sorted(test_indices)
+            else:
+                # GA used all data for training (no validation split)
+                predefined_train_idx = list(range(len(y)))
+                predefined_test_idx = []
             split_method = 'predefined'
 
         # Prepare dataframe with preprocessed data and selected features
