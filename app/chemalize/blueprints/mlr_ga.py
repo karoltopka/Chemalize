@@ -856,10 +856,22 @@ def mlr_ga_step2():
             train_idx = list(range(split_point))
             test_idx = list(range(split_point, len(y)))
         elif split_method == 'systematic':
-            # Systematic sampling: every nth observation goes to test
+            # Sorted systematic sampling: sort by Y, then every nth observation goes to test
+            # This ensures equal distribution of Y values in both train and test sets
+            # Min and max Y values always go to TEST set (endpoints for validation)
             step = session.get('mlr_ga_systematic_step', 3)
-            test_idx = list(range(0, len(y), step))
-            train_idx = [i for i in range(len(y)) if i not in test_idx]
+
+            # Get indices sorted by Y value
+            sorted_indices = y.argsort().tolist() if hasattr(y, 'argsort') else list(np.argsort(y))
+
+            # Keep min (first) and max (last) for TEST
+            min_idx = sorted_indices[0]
+            max_idx = sorted_indices[-1]
+            middle_indices = sorted_indices[1:-1]  # exclude first and last
+
+            # Take every nth from middle indices for test, add min/max
+            test_idx = [min_idx, max_idx] + [middle_indices[i] for i in range(0, len(middle_indices), step)]
+            train_idx = [idx for idx in middle_indices if idx not in test_idx]
         else:
             flash(f'Unsupported split method: {split_method}', 'danger')
             return redirect(url_for('mlr_ga.mlr_ga_analysis'))
