@@ -1002,7 +1002,14 @@ class GeneticAlgorithmSelector:
                 break
 
             # Calculate detailed metrics for this model
-            detailed_metrics = self._calculate_detailed_metrics(feature_mask, X, y)
+            # Use training data from split (if available) for coefficient calculation
+            if self._split_train_idx is not None and len(self._split_train_idx) > 0:
+                X_for_metrics = self._metrics_X[self._split_train_idx]
+                y_for_metrics = self._metrics_y[self._split_train_idx]
+            else:
+                X_for_metrics = X
+                y_for_metrics = y
+            detailed_metrics = self._calculate_detailed_metrics(feature_mask, X_for_metrics, y_for_metrics)
             if self.check_ad and detailed_metrics.get('ad_coverage', 0.0) < self.ad_threshold:
                 continue
 
