@@ -452,9 +452,18 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
 
         sm_model = sm.OLS(y_train, X_train_sm).fit()
 
-        # Get predictions
-        y_pred_train = sm_model.predict(X_train_sm)
-        y_pred_test = sm_model.predict(X_test_sm)
+        # Get predictions - use GA coefficients if provided, otherwise use fitted model
+        if ga_coefficients is not None and ga_intercept is not None:
+            # Use GA coefficients for predictions
+            ga_coef_array = np.array(ga_coefficients)
+            y_pred_train = ga_intercept + X_train.values @ ga_coef_array
+            if len(X_test) > 0:
+                y_pred_test = ga_intercept + X_test.values @ ga_coef_array
+            else:
+                y_pred_test = np.array([])
+        else:
+            y_pred_train = sm_model.predict(X_train_sm)
+            y_pred_test = sm_model.predict(X_test_sm)
 
         # Create result DataFrame for all calculations
         result_df = pd.DataFrame({
@@ -1086,7 +1095,14 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         std_errors = sm_model.bse.tolist()
         t_values = sm_model.tvalues.tolist()
         p_values = sm_model.pvalues.tolist()
-    
+
+    # Override coefficients with GA values if provided
+    if ga_coefficients is not None and ga_intercept is not None:
+        if include_intercept:
+            coefficients = [ga_intercept] + list(ga_coefficients)
+        else:
+            coefficients = list(ga_coefficients)
+
     # Compile results
     results = {
         # Main metrics - R² and Q² with stratified 1:3 split (first/last in test)

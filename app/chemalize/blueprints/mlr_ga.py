@@ -1504,7 +1504,11 @@ def mlr_ga_run_mlr():
         df_for_mlr.to_csv(ga_data_path, index=False)
         session['ga_preprocessed_data_path'] = ga_data_path
 
-        # Run MLR with predefined indices from GA (if available)
+        # Get coefficients from selected GA model
+        ga_intercept = selected_model.get('intercept')
+        ga_coefficients = selected_model.get('coefficients')
+
+        # Run MLR with predefined indices and GA coefficients
         results = mlr.perform_mlr(
             df=df_for_mlr,
             target_var=target_var,
@@ -1517,7 +1521,9 @@ def mlr_ga_run_mlr():
             detect_outliers=True,
             temp_path=temp_path,
             predefined_train_idx=predefined_train_idx,
-            predefined_test_idx=predefined_test_idx
+            predefined_test_idx=predefined_test_idx,
+            ga_coefficients=ga_coefficients,
+            ga_intercept=ga_intercept
         )
 
         # Store MLR results in session (compatible with standard MLR module)
