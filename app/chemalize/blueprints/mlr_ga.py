@@ -76,11 +76,14 @@ def mlr_ga_analysis():
         'systematic_step': session.get('mlr_ga_systematic_step', 3),
         'include_last_point': session.get('mlr_ga_include_last_point', False),
 
-        # Step 3: Standardization and variance check
+        # Step 3: Standardization, variance check, and internal CV type
         'autoscale': session.get('mlr_ga_autoscale', True),
         'remove_zero_variance': session.get('mlr_ga_remove_zero_variance', True),
         'remove_low_variance': session.get('mlr_ga_remove_low_variance', False),
         'variance_threshold': session.get('mlr_ga_variance_threshold', 0.01),
+        'internal_cv_type': session.get('mlr_ga_internal_cv_type', 'kfold'),
+        'sorted_step': session.get('mlr_ga_sorted_step', 5),
+        'sorted_iterations': session.get('mlr_ga_sorted_iterations', 5),
 
         # Step 4: GA parameters
         'n_variables': session.get('mlr_ga_n_variables', ''),
@@ -751,6 +754,67 @@ def mlr_ga_advance_step():
     return redirect(url_for('mlr_ga.mlr_ga_analysis'))
 
 
+@mlr_ga_bp.route("/mlr_ga_back_to_target", methods=['POST'])
+def mlr_ga_back_to_target():
+    """Go back to target selection step"""
+    if not check_dataset():
+        return redirect(url_for('preprocessing.preprocess'))
+
+    session['mlr_ga_step'] = 'target_selection'
+    flash('Returned to target variable selection.', 'info')
+    return redirect(url_for('mlr_ga.mlr_ga_analysis'))
+
+
+@mlr_ga_bp.route("/mlr_ga_back_to_split", methods=['POST'])
+def mlr_ga_back_to_split():
+    """Go back to split selection step"""
+    if not check_dataset():
+        return redirect(url_for('preprocessing.preprocess'))
+
+    session['mlr_ga_step'] = 'split_selection'
+    flash('Returned to split method configuration.', 'info')
+    return redirect(url_for('mlr_ga.mlr_ga_analysis'))
+
+
+@mlr_ga_bp.route("/mlr_ga_back_to_preprocessing", methods=['POST'])
+def mlr_ga_back_to_preprocessing():
+    """Go back to preprocessing step"""
+    if not check_dataset():
+        return redirect(url_for('preprocessing.preprocess'))
+
+    session['mlr_ga_step'] = 'preprocessing'
+    flash('Returned to preprocessing configuration.', 'info')
+    return redirect(url_for('mlr_ga.mlr_ga_analysis'))
+
+
+@mlr_ga_bp.route("/mlr_ga_back_to_ga_params", methods=['POST'])
+def mlr_ga_back_to_ga_params():
+    """Go back to GA parameters step"""
+    if not check_dataset():
+        return redirect(url_for('preprocessing.preprocess'))
+
+    session['mlr_ga_step'] = 'ga_parameters'
+    flash('Returned to GA parameters configuration.', 'info')
+    return redirect(url_for('mlr_ga.mlr_ga_analysis'))
+
+
+@mlr_ga_bp.route("/mlr_ga_back_to_model_selection", methods=['POST'])
+def mlr_ga_back_to_model_selection():
+    """Go back to model selection step (after GA results)"""
+    if not check_dataset():
+        return redirect(url_for('preprocessing.preprocess'))
+
+    # Check if GA results exist
+    if not session.get('mlr_ga_best_models'):
+        flash('No GA results available. Please run GA first.', 'warning')
+        session['mlr_ga_step'] = 'ga_parameters'
+        return redirect(url_for('mlr_ga.mlr_ga_analysis'))
+
+    session['mlr_ga_step'] = 'model_selection'
+    flash('Returned to model selection.', 'info')
+    return redirect(url_for('mlr_ga.mlr_ga_analysis'))
+
+
 @mlr_ga_bp.route("/mlr_ga_step2", methods=['POST'])
 def mlr_ga_step2():
     """Step 2: Configure split method and generate train/test histograms"""
@@ -940,6 +1004,24 @@ def mlr_ga_step3():
         except (ValueError, TypeError) as e:
             print(f"DEBUG: Error parsing variance_threshold: {e}")
             session['mlr_ga_variance_threshold'] = 0.01
+
+        # Parse internal CV type parameters
+        internal_cv_type = request.form.get('internal_cv_type', 'kfold')
+        session['mlr_ga_internal_cv_type'] = internal_cv_type
+        print(f"DEBUG: internal_cv_type = '{internal_cv_type}'")
+
+        # Parse sorted CV parameters
+        try:
+            sorted_step = int(request.form.get('sorted_step', 5))
+            session['mlr_ga_sorted_step'] = sorted_step
+        except (ValueError, TypeError):
+            session['mlr_ga_sorted_step'] = 5
+
+        try:
+            sorted_iterations = int(request.form.get('sorted_iterations', 5))
+            session['mlr_ga_sorted_iterations'] = sorted_iterations
+        except (ValueError, TypeError):
+            session['mlr_ga_sorted_iterations'] = 5
 
         session['mlr_ga_step'] = 'ga_parameters'
         print("DEBUG: Step set to 'ga_parameters'")
@@ -1146,6 +1228,11 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
         else:
             shuffle_cv = True
 
+        # Get internal CV type parameters
+        internal_cv_type = session_data.get('mlr_ga_internal_cv_type', 'kfold')
+        sorted_step = session_data.get('mlr_ga_sorted_step', 5)
+        sorted_iterations = session_data.get('mlr_ga_sorted_iterations', 5)
+
         X, y, removed_features, preprocessing_info = preprocess_for_ga(
             df_clean, target_var,
             y_transformation=y_transformation,
@@ -1242,6 +1329,9 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
             metrics_y=y,
             progress_callback=progress_callback,
             shuffle_cv=shuffle_cv,
+            internal_cv_type=internal_cv_type,
+            sorted_step=sorted_step,
+            sorted_iterations=sorted_iterations,
             random_state=42
         )
 
@@ -1318,6 +1408,10 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
                     'split_method': split_method,
                     'split_train_idx': split_train_idx,
                     'split_test_idx': split_test_idx,
+                    # Store internal CV type settings
+                    'internal_cv_type': internal_cv_type,
+                    'sorted_step': sorted_step,
+                    'sorted_iterations': sorted_iterations,
                 }
             }
 
@@ -1385,6 +1479,11 @@ def mlr_ga_complete():
         session['mlr_ga_final_split_method'] = results.get('split_method')
         session['mlr_ga_final_train_idx'] = results.get('split_train_idx')
         session['mlr_ga_final_test_idx'] = results.get('split_test_idx')
+
+        # Store internal CV type settings used by GA
+        session['mlr_ga_final_internal_cv_type'] = results.get('internal_cv_type', 'kfold')
+        session['mlr_ga_final_sorted_step'] = results.get('sorted_step', 5)
+        session['mlr_ga_final_sorted_iterations'] = results.get('sorted_iterations', 5)
 
         session['mlr_ga_step'] = 'model_selection'
 
@@ -1562,10 +1661,53 @@ def mlr_ga_run_mlr():
                 # Store other values as-is
                 session[key] = value
 
+        # Calculate Q²ext and RMSE_ext on TEST set (external validation)
+        # These are calculated AFTER model selection, on the external test set
+        q2_ext = None
+        rmse_ext = None
+        if predefined_test_idx and len(predefined_test_idx) > 0:
+            try:
+                from sklearn.linear_model import LinearRegression
+                X_train_data = X[selected_features].iloc[predefined_train_idx].values
+                y_train_data = y[predefined_train_idx]
+                X_test_data = X[selected_features].iloc[predefined_test_idx].values
+                y_test_data = y[predefined_test_idx]
+
+                # Fit model on TRAIN
+                model_ext = LinearRegression()
+                model_ext.fit(X_train_data, y_train_data)
+
+                # Predict on TEST
+                y_pred_test = model_ext.predict(X_test_data)
+
+                # Calculate Q²ext = 1 - SSE/TSS (using train mean for TSS)
+                y_train_mean = np.mean(y_train_data)
+                sse_test = np.sum((y_test_data - y_pred_test) ** 2)
+                tss_test = np.sum((y_test_data - y_train_mean) ** 2)
+                if tss_test > 0:
+                    q2_ext = float(1 - (sse_test / tss_test))
+
+                # Calculate RMSE_ext
+                rmse_ext = float(np.sqrt(np.mean((y_test_data - y_pred_test) ** 2)))
+            except Exception as e:
+                print(f"Error calculating Q²ext/RMSE_ext: {e}")
+
+        # Store external validation metrics
+        session['q2_ext'] = q2_ext
+        session['rmse_ext'] = rmse_ext
+
         # Store GA-specific info for reference
         session['from_ga'] = True
         session['ga_model_rank'] = selected_rank
-        session['ga_best_score'] = selected_model['score']
+        session['ga_best_score'] = selected_model.get('r2cv', selected_model.get('score', 0))  # Use r2cv (new) or score (old)
+
+        # Store GA model metrics for display
+        session['ga_r2cv'] = selected_model.get('r2cv')
+        session['ga_r2'] = selected_model.get('r2')
+        session['ga_r2loo'] = selected_model.get('r2loo')
+        session['ga_rmse_tr'] = selected_model.get('rmse_tr')
+        session['ga_ad_coverage'] = selected_model.get('ad_coverage')
+        session['ga_internal_cv_type'] = session.get('mlr_ga_internal_cv_type', 'kfold')
 
         flash(f'MLR analysis completed for GA Model #{selected_rank}! Viewing full results with visualizations...', 'success')
 

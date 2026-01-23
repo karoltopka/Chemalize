@@ -77,32 +77,67 @@
         <div class="card-body">
             <div class="row">
                 <div class="col text-center">
-                    <div class="step {% if current_step == 'target_selection' %}active{% elif current_step != 'target_selection' %}completed{% endif %}">
+                    {% set step1_completed = current_step in ['split_selection', 'preprocessing', 'ga_parameters', 'model_selection', 'results'] %}
+                    <div class="step {% if current_step == 'target_selection' %}active{% elif step1_completed %}completed{% endif %}">
+                        {% if step1_completed and current_step != 'target_selection' %}
+                        <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_back_to_target') }}" class="d-inline">
+                            <button type="submit" class="step-circle step-clickable" title="Go back to Step 1">1</button>
+                        </form>
+                        {% else %}
                         <div class="step-circle">1</div>
+                        {% endif %}
                         <div class="step-label">Target Analysis</div>
                     </div>
                 </div>
                 <div class="col text-center">
-                    <div class="step {% if current_step == 'split_selection' %}active{% elif current_step in ['preprocessing', 'ga_parameters', 'results'] %}completed{% endif %}">
+                    {% set step2_completed = current_step in ['preprocessing', 'ga_parameters', 'model_selection', 'results'] %}
+                    <div class="step {% if current_step == 'split_selection' %}active{% elif step2_completed %}completed{% endif %}">
+                        {% if step2_completed and current_step != 'split_selection' %}
+                        <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_back_to_split') }}" class="d-inline">
+                            <button type="submit" class="step-circle step-clickable" title="Go back to Step 2">2</button>
+                        </form>
+                        {% else %}
                         <div class="step-circle">2</div>
+                        {% endif %}
                         <div class="step-label">Split Method</div>
                     </div>
                 </div>
                 <div class="col text-center">
-                    <div class="step {% if current_step == 'preprocessing' %}active{% elif current_step in ['ga_parameters', 'results'] %}completed{% endif %}">
+                    {% set step3_completed = current_step in ['ga_parameters', 'model_selection', 'results'] %}
+                    <div class="step {% if current_step == 'preprocessing' %}active{% elif step3_completed %}completed{% endif %}">
+                        {% if step3_completed and current_step != 'preprocessing' %}
+                        <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_back_to_preprocessing') }}" class="d-inline">
+                            <button type="submit" class="step-circle step-clickable" title="Go back to Step 3">3</button>
+                        </form>
+                        {% else %}
                         <div class="step-circle">3</div>
+                        {% endif %}
                         <div class="step-label">Preprocessing</div>
                     </div>
                 </div>
                 <div class="col text-center">
-                    <div class="step {% if current_step == 'ga_parameters' %}active{% elif current_step == 'results' %}completed{% endif %}">
+                    {% set step4_completed = current_step in ['model_selection', 'results'] %}
+                    <div class="step {% if current_step == 'ga_parameters' %}active{% elif step4_completed %}completed{% endif %}">
+                        {% if step4_completed and current_step != 'ga_parameters' %}
+                        <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_back_to_ga_params') }}" class="d-inline">
+                            <button type="submit" class="step-circle step-clickable" title="Go back to Step 4" onclick="return confirm('Going back will discard GA results. Continue?')">4</button>
+                        </form>
+                        {% else %}
                         <div class="step-circle">4</div>
+                        {% endif %}
                         <div class="step-label">GA Parameters</div>
                     </div>
                 </div>
                 <div class="col text-center">
-                    <div class="step {% if current_step == 'results' %}active{% endif %}">
+                    {% set step5_active = current_step in ['model_selection', 'results'] %}
+                    <div class="step {% if step5_active %}active{% endif %}">
+                        {% if current_step == 'results' %}
+                        <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_back_to_model_selection') }}" class="d-inline">
+                            <button type="submit" class="step-circle step-clickable" title="Go back to Model Selection">5</button>
+                        </form>
+                        {% else %}
                         <div class="step-circle">5</div>
+                        {% endif %}
                         <div class="step-label">Results</div>
                     </div>
                 </div>
@@ -383,8 +418,13 @@
     <!-- Step 2: Split Method Selection -->
     {% if current_step == 'split_selection' %}
     <div class="card mb-4">
-        <div class="card-header bg-primary text-white">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Step 2: Split Method Configuration</h5>
+            <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_back_to_target') }}" class="mb-0">
+                <button type="submit" class="btn btn-sm btn-outline-light">
+                    <i class="fas fa-arrow-left mr-1"></i>Back to Step 1
+                </button>
+            </form>
         </div>
         <div class="card-body">
             <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_step2') }}" id="splitForm">
@@ -730,8 +770,13 @@
     <!-- Step 3: Preprocessing (Standardization and Variance Check) -->
     {% if current_step == 'preprocessing' %}
     <div class="card mb-4">
-        <div class="card-header bg-primary text-white">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Step 3: Standardization and Variance Check</h5>
+            <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_back_to_split') }}" class="mb-0">
+                <button type="submit" class="btn btn-sm btn-outline-light">
+                    <i class="fas fa-arrow-left mr-1"></i>Back to Step 2
+                </button>
+            </form>
         </div>
         <div class="card-body">
             <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_step3') }}">
@@ -777,6 +822,56 @@
                     </div>
                 </div>
 
+                <!-- Internal CV Type Selection -->
+                <div class="card mt-4 border-info">
+                    <div class="card-header bg-info text-white">
+                        <strong>Internal Cross-Validation Type</strong>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">
+                            Select the cross-validation method used for fitness evaluation (R²cv) during GA optimization.
+                        </p>
+
+                        <div class="form-group">
+                            <label for="internal_cv_type">CV Method:</label>
+                            <select class="form-control" id="internal_cv_type" name="internal_cv_type" onchange="toggleInternalCVOptions()">
+                                <option value="kfold" {% if internal_cv_type == 'kfold' %}selected{% endif %}>K-Fold Cross-Validation</option>
+                                <option value="sorted" {% if internal_cv_type == 'sorted' %}selected{% endif %}>Sorted Stratified CV</option>
+                            </select>
+                        </div>
+
+                        <!-- K-Fold Parameters -->
+                        <div id="kfold_cv_params" class="mt-3" {% if internal_cv_type == 'sorted' %}style="display:none;"{% endif %}>
+                            <div class="alert alert-light">
+                                <small>
+                                    <strong>K-Fold CV:</strong> Standard k-fold cross-validation. Data is split into k equal folds,
+                                    and each fold is used once as validation while the remaining folds are used for training.
+                                </small>
+                            </div>
+                            <p class="text-muted mb-0">
+                                <small><i class="fas fa-info-circle mr-1"></i>Number of folds can be configured in Step 4 (GA Parameters).</small>
+                            </p>
+                        </div>
+
+                        <!-- Sorted Stratified CV Parameters -->
+                        <div id="sorted_cv_params" class="mt-3" {% if internal_cv_type != 'sorted' %}style="display:none;"{% endif %}>
+                            <div class="alert alert-light">
+                                <small>
+                                    <strong>Sorted Stratified CV:</strong> Data is sorted by Y values, then every n-th element
+                                    goes to the test set. Multiple iterations are performed with different starting offsets.
+                                    This ensures representative sampling across the full range of Y values.
+                                </small>
+                            </div>
+                            <div class="form-group">
+                                <label for="sorted_step">Step (every n-th element to test):</label>
+                                <input type="number" class="form-control" id="sorted_step" name="sorted_step"
+                                       value="{{ sorted_step }}" min="2" max="20">
+                                <small class="form-text text-muted">e.g., 5 means ~20% of data goes to test set per iteration. Number of iterations is set in Step 4.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="mt-4">
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-arrow-right mr-2"></i>Continue to GA Parameters
@@ -790,8 +885,13 @@
     <!-- Step 4: GA Parameters -->
     {% if current_step == 'ga_parameters' %}
     <div class="card mb-4" style="position: relative;">
-        <div class="card-header bg-primary text-white">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Step 4: Genetic Algorithm Parameters</h5>
+            <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_back_to_preprocessing') }}" class="mb-0">
+                <button type="submit" class="btn btn-sm btn-outline-light">
+                    <i class="fas fa-arrow-left mr-1"></i>Back to Step 3
+                </button>
+            </form>
         </div>
         <div class="card-body">
             <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_start') }}">
@@ -880,10 +980,12 @@
 
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label for="cv_folds">Cross-Validation Folds:</label>
+                            <label for="cv_folds">Cross-Validation Iterations:</label>
                             <input type="number" class="form-control" id="cv_folds" name="cv_folds"
                                    value="{{ cv_folds }}" min="2" max="20">
-                            <small class="form-text text-muted">Number of CV folds for training set</small>
+                            <small class="form-text text-muted">
+                                For K-Fold: number of folds. For Sorted CV: number of iterations (offsets).
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -998,14 +1100,14 @@
                             <div class="col-6">
                                 <p><strong>Features Selected:</strong> <span id="ga-n-features">-</span></p>
                                 <p><strong>Unique Models:</strong> <span id="ga-unique-models">-</span></p>
-                                <p><strong>R² (train):</strong> <strong class="text-primary" id="ga-r2">-</strong></p>
-                                <p><strong>Q² (test):</strong> <strong class="text-primary" id="ga-q2">-</strong></p>
+                                <p><strong>R²cv (fitness):</strong> <strong class="text-primary" id="ga-r2cv">-</strong></p>
+                                <p><strong>CV Type:</strong> <span id="ga-cv-type">-</span></p>
                             </div>
                         </div>
                     </div>
 
                     <div class="mt-3">
-                        <p class="text-muted"><i class="fas fa-info-circle mr-2"></i>Real-time updates every iteration with split metrics (R² train, Q² test)</p>
+                        <p class="text-muted"><i class="fas fa-info-circle mr-2"></i>Real-time updates showing R²cv (internal CV fitness metric)</p>
                     </div>
                 </div>
             </div>
@@ -1016,8 +1118,15 @@
     <!-- Step 4.5: Model Selection -->
     {% if current_step == 'model_selection' %}
     <div class="card mb-4">
-        <div class="card-header bg-info text-white">
+        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Select Model for MLR Analysis</h5>
+            <div>
+                <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_back_to_ga_params') }}" class="d-inline mb-0">
+                    <button type="submit" class="btn btn-sm btn-outline-light" onclick="return confirm('Going back will discard GA results. Continue?')">
+                        <i class="fas fa-arrow-left mr-1"></i>Back to Step 4
+                    </button>
+                </form>
+            </div>
         </div>
         <div class="card-body">
             <p class="lead">The Genetic Algorithm has identified {{ best_models|length }} candidate models. Select one to perform full MLR analysis with detailed regression equation and coefficients.</p>
@@ -1058,12 +1167,10 @@
                     <thead class="thead-dark">
                         <tr>
                             <th class="ga-sortable" data-sort="number">Rank <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="number">CV R² <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="number">R² (train) <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="number">Q² (test) <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="number">Q²cv <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="number">Q²loo <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="number">RMSE <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">R²cv <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">R² <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">R²loo <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">RMSE_tr <span class="sort-indicator"></span></th>
                             <th class="ga-sortable" data-sort="number">AD% <span class="sort-indicator"></span></th>
                             <th class="ga-sortable" data-sort="number">N Feat. <span class="sort-indicator"></span></th>
                             <th class="ga-sortable" data-sort="text">Selected Features <span class="sort-indicator"></span></th>
@@ -1074,12 +1181,10 @@
                         {% for model in best_models %}
                         <tr class="ga-model-row {% if model.rank == 1 %}table-success{% endif %} {% if model.rank > 5 %}ga-hidden-row{% endif %}" data-rank="{{ model.rank }}">
                             <td><strong>#{{ model.rank }}</strong></td>
-                            <td><strong class="text-primary">{{ "%.4f"|format(model.score) }}</strong></td>
-                            <td><strong class="text-success">{{ "%.4f"|format(model.r2) if model.r2 is defined else 'N/A' }}</strong></td>
-                            <td><strong class="text-danger">{{ "%.4f"|format(model.q2) if model.q2 is defined and model.q2 is not none else 'N/A' }}</strong></td>
-                            <td><strong class="text-success">{{ "%.4f"|format(model.q2cv) if model.q2cv is defined and model.q2cv is not none else 'N/A' }}</strong></td>
-                            <td><strong class="text-success">{{ "%.4f"|format(model.q2loo) if model.q2loo is defined else 'N/A' }}</strong></td>
-                            <td><strong class="text-danger">{{ "%.4f"|format(model.rmse) if model.rmse is defined else 'N/A' }}</strong></td>
+                            <td><strong class="text-primary">{{ "%.4f"|format(model.r2cv) if model.r2cv is defined and model.r2cv is not none else ("%.4f"|format(model.score) if model.score is defined else 'N/A') }}</strong></td>
+                            <td><strong class="text-success">{{ "%.4f"|format(model.r2) if model.r2 is defined and model.r2 is not none else 'N/A' }}</strong></td>
+                            <td><strong class="text-info">{{ "%.4f"|format(model.r2loo) if model.r2loo is defined and model.r2loo is not none else 'N/A' }}</strong></td>
+                            <td><strong class="text-warning">{{ "%.4f"|format(model.rmse_tr) if model.rmse_tr is defined and model.rmse_tr is not none else 'N/A' }}</strong></td>
                             <td><strong class="{% if model.ad_coverage is defined and model.ad_coverage >= 100 %}text-success{% elif model.ad_coverage is defined and model.ad_coverage >= 90 %}text-warning{% else %}text-danger{% endif %}">{{ "%.1f"|format(model.ad_coverage) if model.ad_coverage is defined else 'N/A' }}%</strong></td>
                             <td>{{ model.n_features }}</td>
                             <td>
@@ -1099,7 +1204,7 @@
                         </tr>
                         <!-- Equation details row (hidden by default) -->
                         <tr class="equation-row {% if model.rank > 5 %}ga-hidden-row{% endif %}" id="equation-row-{{ model.rank }}" style="display: none;">
-                            <td colspan="11" class="equation-cell">
+                            <td colspan="9" class="equation-cell">
                                 <div class="p-3">
                                     <h6 class="mb-3"><i class="fas fa-superscript mr-2"></i>Model #{{ model.rank }} - Equation & Coefficients</h6>
                                     <div class="card mb-3">
@@ -1164,15 +1269,18 @@
 
             <div class="alert alert-info mt-3">
                 <i class="fas fa-info-circle mr-2"></i>
-                <strong>Understanding Metrics:</strong><br>
-                • <strong>CV R²</strong> = {{ cv_folds }}-fold cross-validation R² (computed for top models)<br>
-                • <strong>R² (train)</strong> = R² on the user-defined training split<br>
-                • <strong>Q² (test)</strong> = External Q² on the user-defined test split<br>
-                • <strong>Q²cv</strong> = Cross-validated R² on the validation set (when enabled)<br>
-                • <strong>Q²loo</strong> = Leave-One-Out cross-validation R² (computed for top models)<br>
-                • <strong>RMSE</strong> = Root Mean Squared Error from cross-validation (computed for top models)<br>
+                <strong>Understanding Metrics (computed on TRAIN set):</strong><br>
+                • <strong>R²cv</strong> = Cross-validated R² using internal CV ({{ internal_cv_type|default('kfold') }}) - <em>main GA fitness metric</em><br>
+                • <strong>R²</strong> = R² on full training set<br>
+                • <strong>R²loo</strong> = Leave-One-Out R² on training set<br>
+                • <strong>RMSE_tr</strong> = Root Mean Squared Error on training set<br>
                 • <strong>AD%</strong> = Applicability Domain coverage for training set (100% means all samples within AD)<br>
-                <em>Note: Models are selected by split Q² (test), with R² (train) as tie-breaker, then displayed by GA CV R². Click "Run MLR" to compute the full set of regression metrics and diagnostic plots.</em>
+                <br>
+                <strong>External Validation (computed after model selection):</strong><br>
+                • <strong>Q²ext</strong> = External Q² on test set (computed when you click "Run MLR")<br>
+                • <strong>RMSE_ext</strong> = External RMSE on test set (computed when you click "Run MLR")<br>
+                <br>
+                <em>Note: Models are ranked by R²cv (internal CV score). Click "Run MLR" to compute external validation metrics (Q²ext, RMSE_ext) and full diagnostic plots.</em>
             </div>
 
             {% if ga_fitness_plot %}
@@ -1196,8 +1304,13 @@
     <!-- Step 5: Results -->
     {% if current_step == 'results' and mlr_ga_analysis_performed %}
     <div class="card mb-4">
-        <div class="card-header bg-success text-white">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Analysis Results</h5>
+            <form method="POST" action="{{ url_for('mlr_ga.mlr_ga_back_to_model_selection') }}" class="mb-0">
+                <button type="submit" class="btn btn-sm btn-outline-light">
+                    <i class="fas fa-arrow-left mr-1"></i>Back to Model Selection
+                </button>
+            </form>
         </div>
         <div class="card-body">
             <!-- GA Results -->
@@ -1460,6 +1573,36 @@
 .step.completed .step-circle {
     background-color: #28a745;
     color: white;
+}
+
+/* Clickable step circles */
+button.step-circle.step-clickable {
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+button.step-circle.step-clickable:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.step.completed button.step-circle.step-clickable {
+    background-color: #28a745;
+    color: white;
+}
+
+.step.completed button.step-circle.step-clickable:hover {
+    background-color: #218838;
+}
+
+.step.active button.step-circle.step-clickable {
+    background-color: #007bff;
+    color: white;
+}
+
+.step.active button.step-circle.step-clickable:hover {
+    background-color: #0056b3;
 }
 
 .step-label {
@@ -1848,6 +1991,26 @@ function toggleADThreshold() {
     }
 }
 
+function toggleInternalCVOptions() {
+    const cvType = document.getElementById('internal_cv_type').value;
+    const kfoldParams = document.getElementById('kfold_cv_params');
+    const sortedParams = document.getElementById('sorted_cv_params');
+    const sortedStep = document.getElementById('sorted_step');
+    const sortedIterations = document.getElementById('sorted_iterations');
+
+    if (cvType === 'sorted') {
+        kfoldParams.style.display = 'none';
+        sortedParams.style.display = 'block';
+        if (sortedStep) sortedStep.disabled = false;
+        if (sortedIterations) sortedIterations.disabled = false;
+    } else {
+        kfoldParams.style.display = 'block';
+        sortedParams.style.display = 'none';
+        if (sortedStep) sortedStep.disabled = true;
+        if (sortedIterations) sortedIterations.disabled = true;
+    }
+}
+
 function toggleEquation(rank) {
     const row = document.getElementById('equation-row-' + rank);
     if (row) {
@@ -1949,8 +2112,8 @@ function showGALoadingScreen(event) {
                 if (data.unique_models !== undefined) document.getElementById('ga-unique-models').textContent = data.unique_models;
 
                 // Update detailed metrics
-                if (data.r2 !== undefined) document.getElementById('ga-r2').textContent = formatNumber(data.r2);
-                if (data.q2 !== undefined) document.getElementById('ga-q2').textContent = formatNumber(data.q2);
+                if (data.r2cv !== undefined) document.getElementById('ga-r2cv').textContent = formatNumber(data.r2cv);
+                if (data.internal_cv_type !== undefined) document.getElementById('ga-cv-type').textContent = data.internal_cv_type;
 
                 // Check if complete
                 if (data.status === 'complete') {

@@ -8,7 +8,6 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 import statsmodels.api as sm
 from sklearn.feature_selection import VarianceThreshold
-from sklearn.metrics import mean_squared_error
 from scipy import stats
 import random
 import matplotlib.pyplot as plt
@@ -52,6 +51,9 @@ class GeneticAlgorithmSelector:
                  min_split_r2=0.68,
                  min_split_q2=0.68,
                  progress_callback=None,
+                 internal_cv_type='kfold',
+                 sorted_step=5,
+                 sorted_iterations=5,
                  random_state=42):
         """
         Initialize GA selector
@@ -115,6 +117,12 @@ class GeneticAlgorithmSelector:
             Minimum split R2 required to continue detailed evaluation (default: 0.68)
         min_split_q2 : float
             Minimum split Q2 required to continue detailed evaluation (default: 0.68)
+        internal_cv_type : str
+            Type of internal CV for fitness calculation: 'kfold' or 'sorted' (default: 'kfold')
+        sorted_step : int
+            For sorted CV: take every nth element for test set (default: 5)
+        sorted_iterations : int
+            For sorted CV: number of iterations with different offsets (default: 5)
         random_state : int
             Random state for reproducibility
         """
@@ -147,6 +155,9 @@ class GeneticAlgorithmSelector:
         self.min_split_r2 = min_split_r2
         self.min_split_q2 = min_split_q2
         self.progress_callback = progress_callback
+        self.internal_cv_type = internal_cv_type
+        self.sorted_step = sorted_step
+        self.sorted_iterations = sorted_iterations
         self.random_state = random_state
 
         self.best_features_ = None
@@ -178,6 +189,108 @@ class GeneticAlgorithmSelector:
         if self.shuffle_cv:
             return KFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
         return KFold(n_splits=n_splits, shuffle=False)
+
+    def _create_sorted_cv_splits(self, y, step=None, n_iterations=None):
+        """
+        Create CV splits for sorted stratified cross-validation.
+
+        The data is sorted by Y values, then every nth element goes to the test set.
+        Multiple iterations are performed with different starting offsets.
+
+        Args:
+            y: Target values (used for sorting)
+            step: Take every nth element for test set (default: self.sorted_step)
+            n_iterations: Number of iterations with different offsets (default: self.sorted_iterations)
+
+        Returns:
+            list of tuples (train_indices, test_indices)
+        """
+        if step is None:
+            step = self.sorted_step
+        if n_iterations is None:
+            n_iterations = self.sorted_iterations
+
+        y_array = np.array(y).ravel()
+        sorted_indices = np.argsort(y_array)
+        splits = []
+
+        # Limit iterations to step (can't have more offsets than step size)
+        actual_iterations = min(n_iterations, step)
+
+        for offset in range(actual_iterations):
+            # Test indices: every step-th element starting from offset
+            test_indices = sorted_indices[offset::step]
+            # Train indices: all others
+            test_set = set(test_indices)
+            train_indices = np.array([i for i in sorted_indices if i not in test_set])
+            splits.append((train_indices, test_indices))
+
+        return splits
+
+    def _calculate_r2cv(self, X, y, feature_mask):
+        """
+        Calculate cross-validated R² (R²cv) using internal CV method (k-fold or sorted).
+
+        This is the main fitness metric used during GA optimization.
+
+        Args:
+            X: Feature matrix
+            y: Target values
+            feature_mask: Boolean mask for selected features
+
+        Returns:
+            float: R²cv value, or -np.inf if calculation fails
+        """
+        selected_indices = np.where(feature_mask)[0]
+        if len(selected_indices) == 0:
+            return -np.inf
+
+        X_selected = X[:, selected_indices]
+
+        try:
+            model = LinearRegression()
+
+            if self.internal_cv_type == 'sorted':
+                # Sorted stratified CV
+                splits = self._create_sorted_cv_splits(y)
+                if not splits:
+                    return -np.inf
+
+                cv_scores = []
+                for train_idx, test_idx in splits:
+                    if len(train_idx) == 0 or len(test_idx) == 0:
+                        continue
+                    X_train = X_selected[train_idx]
+                    y_train = y[train_idx]
+                    X_test = X_selected[test_idx]
+                    y_test = y[test_idx]
+
+                    model.fit(X_train, y_train)
+                    score = model.score(X_test, y_test)
+                    cv_scores.append(score)
+
+                if not cv_scores:
+                    return -np.inf
+                return float(np.mean(cv_scores))
+
+            else:
+                # Default: k-fold CV
+                cv = self._cv or self._make_cv(len(y), self.cv_folds)
+                if cv is None:
+                    # Fallback: train on all, return R² (not ideal but avoids crash)
+                    model.fit(X_selected, y)
+                    return float(model.score(X_selected, y))
+
+                cv_scores = cross_val_score(
+                    model, X_selected, y,
+                    cv=cv,
+                    scoring='r2',
+                    n_jobs=self.cv_n_jobs
+                )
+                return float(np.mean(cv_scores))
+
+        except Exception:
+            return -np.inf
 
     def _normalize_split_indices(self, n_samples):
         """Normalize and clamp split indices to the metrics dataset size."""
@@ -449,16 +562,23 @@ class GeneticAlgorithmSelector:
 
     def _calculate_detailed_metrics(self, feature_mask, X_train, y_train):
         """
-        Calculate detailed metrics for a feature subset: R2, Q2loo, RMSE, AD coverage, coefficients
+        Calculate detailed metrics for a feature subset on TRAIN data:
+        - r2: R² on full TRAIN set
+        - r2loo: Leave-One-Out R² on TRAIN set
+        - rmse_tr: RMSE on full TRAIN set
+        - ad_coverage: AD coverage for TRAIN set
+        - intercept, coefficients: Model parameters
+
+        Note: Q²ext and RMSE_ext are calculated AFTER model selection, not here.
 
         Returns:
         --------
-        dict with keys: 'r2', 'q2loo', 'rmse', 'ad_coverage', 'intercept', 'coefficients', 'valid'
+        dict with keys: 'r2', 'r2loo', 'rmse_tr', 'ad_coverage', 'intercept', 'coefficients', 'valid'
         """
         selected_indices = np.where(feature_mask)[0]
 
         if len(selected_indices) == 0:
-            return {'r2': 0.0, 'q2loo': 0.0, 'rmse': 0.0, 'ad_coverage': 0.0,
+            return {'r2': 0.0, 'r2loo': 0.0, 'rmse_tr': 0.0, 'ad_coverage': 0.0,
                     'intercept': 0.0, 'coefficients': [], 'valid': False}
 
         X_selected = X_train[:, selected_indices]
@@ -466,71 +586,44 @@ class GeneticAlgorithmSelector:
         try:
             model = LinearRegression()
 
-            cv = self._cv or self._make_cv(len(y_train), self.cv_folds)
-            if cv is None:
-                model.fit(X_selected, y_train)
-                y_pred = model.predict(X_selected)
-                r2 = float(model.score(X_selected, y_train))
-                rmse = float(mean_squared_error(y_train, y_pred, squared=False))
-                q2loo = r2
+            # Fit model on full TRAIN set
+            model.fit(X_selected, y_train)
+            y_pred = model.predict(X_selected)
+
+            # R² on full TRAIN set
+            r2 = float(model.score(X_selected, y_train))
+
+            # RMSE on full TRAIN set
+            rmse_tr = float(np.sqrt(np.mean((y_train - y_pred) ** 2)))
+
+            # R²loo (Leave-One-Out Cross-Validation on TRAIN)
+            if len(y_train) >= 3:
+                loo = LeaveOneOut()
+                loo_predictions = []
+                loo_actuals = []
+
+                for train_idx, test_idx in loo.split(X_selected):
+                    X_train_fold = X_selected[train_idx]
+                    y_train_fold = y_train[train_idx]
+                    X_test_fold = X_selected[test_idx]
+                    y_test_fold = y_train[test_idx]
+
+                    model_loo = LinearRegression()
+                    model_loo.fit(X_train_fold, y_train_fold)
+                    y_pred_loo = model_loo.predict(X_test_fold)
+
+                    loo_predictions.extend(y_pred_loo)
+                    loo_actuals.extend(y_test_fold)
+
+                # Calculate R²loo = 1 - PRESS/TSS
+                loo_predictions = np.array(loo_predictions)
+                loo_actuals = np.array(loo_actuals)
+                press = np.sum((loo_actuals - loo_predictions) ** 2)
+                tss = np.sum((loo_actuals - np.mean(loo_actuals)) ** 2)
+                r2loo = float(1 - (press / tss)) if tss > 0 else 0.0
             else:
-                # Calculate R2 using cross-validation
-                cv_scores = cross_val_score(
-                    model, X_selected, y_train,
-                    cv=cv,
-                    scoring='r2',
-                    n_jobs=self.cv_n_jobs
-                )
-                r2 = np.mean(cv_scores)
-
-                # Calculate Q2loo (Leave-One-Out Cross-Validation)
-                # For small datasets or when requested
-                if len(y_train) <= 100:
-                    loo = LeaveOneOut()
-                    loo_predictions = []
-                    loo_actuals = []
-
-                    for train_idx, test_idx in loo.split(X_selected):
-                        X_train_fold = X_selected[train_idx]
-                        y_train_fold = y_train[train_idx]
-                        X_test_fold = X_selected[test_idx]
-                        y_test_fold = y_train[test_idx]
-
-                        model_loo = LinearRegression()
-                        model_loo.fit(X_train_fold, y_train_fold)
-                        y_pred = model_loo.predict(X_test_fold)
-
-                        loo_predictions.extend(y_pred)
-                        loo_actuals.extend(y_test_fold)
-
-                    # Calculate Q2loo = 1 - PRESS/TSS
-                    loo_predictions = np.array(loo_predictions)
-                    loo_actuals = np.array(loo_actuals)
-                    press = np.sum((loo_actuals - loo_predictions) ** 2)
-                    tss = np.sum((loo_actuals - np.mean(loo_actuals)) ** 2)
-                    q2loo = 1 - (press / tss) if tss > 0 else 0.0
-                else:
-                    # For large datasets, use 5-fold CV as approximation
-                    q2loo_cv = self._make_cv(len(y_train), min(5, len(y_train)))
-                    if q2loo_cv is None:
-                        q2loo = r2
-                    else:
-                        q2loo_scores = cross_val_score(
-                            model, X_selected, y_train,
-                            cv=q2loo_cv,
-                            scoring='r2',
-                            n_jobs=self.cv_n_jobs
-                        )
-                        q2loo = np.mean(q2loo_scores)
-
-                # Calculate RMSE using cross-validation
-                rmse_scores = -cross_val_score(
-                    model, X_selected, y_train,
-                    cv=cv,
-                    scoring='neg_root_mean_squared_error',
-                    n_jobs=self.cv_n_jobs
-                )
-                rmse = np.mean(rmse_scores)
+                # Not enough samples for LOO
+                r2loo = r2
 
             # Calculate AD coverage
             ad_coverage = self._calculate_ad_coverage(X_train, y_train, feature_mask)
@@ -542,17 +635,17 @@ class GeneticAlgorithmSelector:
             coefficients = [float(c) for c in sm_model.params[1:]]  # Rest are coefficients
 
             return {
-                'r2': float(r2),
-                'q2loo': float(q2loo),
-                'rmse': float(rmse),
+                'r2': r2,
+                'r2loo': r2loo,
+                'rmse_tr': rmse_tr,
                 'ad_coverage': float(ad_coverage),
                 'intercept': intercept,
                 'coefficients': coefficients,
                 'valid': True
             }
 
-        except Exception as e:
-            return {'r2': 0.0, 'q2loo': 0.0, 'rmse': 0.0, 'ad_coverage': 0.0,
+        except Exception:
+            return {'r2': 0.0, 'r2loo': 0.0, 'rmse_tr': 0.0, 'ad_coverage': 0.0,
                     'intercept': 0.0, 'coefficients': [], 'valid': False}
 
     def _calculate_validation_q2cv(self, feature_mask):
@@ -587,9 +680,12 @@ class GeneticAlgorithmSelector:
 
     def _fitness_function(self, feature_mask, X_train, y_train, X_val=None, y_val=None):
         """
-        Calculate fitness of a feature subset
+        Calculate fitness of a feature subset.
 
-        Returns higher score for better models based on split R2/Q2
+        Uses R²cv (cross-validated R² on TRAIN set) as the main criterion.
+        This can be calculated using k-fold CV or sorted stratified CV depending on internal_cv_type.
+
+        Returns higher score for better models.
         """
         selected_indices = np.where(feature_mask)[0]
 
@@ -609,21 +705,21 @@ class GeneticAlgorithmSelector:
             return -np.inf
 
         try:
-            split_metrics = self._calculate_basic_metrics(feature_mask)
-            if not split_metrics.get('valid'):
-                return -np.inf
+            # Calculate R²cv using internal CV (k-fold or sorted)
+            # Use the TRAIN data for internal CV
+            if self._split_train_idx is not None and len(self._split_train_idx) > 0:
+                # Use only training portion for internal CV
+                X_for_cv = self._metrics_X[self._split_train_idx]
+                y_for_cv = self._metrics_y[self._split_train_idx]
+            else:
+                # Use all data (no external split defined)
+                X_for_cv = X_train
+                y_for_cv = y_train
 
-            q2 = split_metrics.get('q2')
-            if q2 is not None:
-                return float(q2)
+            r2cv = self._calculate_r2cv(X_for_cv, y_for_cv, feature_mask)
+            return r2cv
 
-            r2 = split_metrics.get('r2')
-            if r2 is None:
-                return -np.inf
-
-            return float(r2)
-
-        except Exception as e:
+        except Exception:
             return -np.inf
 
     def _create_individual(self, n_features):
@@ -913,12 +1009,12 @@ class GeneticAlgorithmSelector:
                         'max_retries': int(self.max_retries),
                         'generation': int(generation + 1),
                         'total_generations': int(self.n_iterations),
-                        'best_score': float(max_fitness),
+                        'best_score': float(max_fitness),  # This is R²cv (fitness)
                         'overall_best_score': float(self.best_score_),
                         'n_features': int(np.sum(self.best_features_)) if self.best_features_ is not None else 0,
                         'unique_models': int(len(all_models)),
-                        'r2': float(split_metrics['r2']),
-                        'q2': float(split_metrics['q2']) if split_metrics['q2'] is not None else None
+                        'r2cv': float(max_fitness),  # R²cv is the fitness metric
+                        'internal_cv_type': self.internal_cv_type
                     })
                 elif generation % 10 == 0:
                     print(f"  Generation {generation}/{self.n_iterations}, "
@@ -1013,10 +1109,6 @@ class GeneticAlgorithmSelector:
             if self.check_ad and detailed_metrics.get('ad_coverage', 0.0) < self.ad_threshold:
                 continue
 
-            q2cv = None
-            if self.use_validation and self._validation_X is not None and self._validation_y is not None:
-                q2cv = self._calculate_validation_q2cv(feature_mask)
-
             feature_names = [self.feature_names_[idx] for idx in feature_indices]
 
             # Build equation string
@@ -1030,13 +1122,20 @@ class GeneticAlgorithmSelector:
                     equation_parts.append(f"- {abs(coef):.6f}*{fname}")
             equation = " ".join(equation_parts)
 
+            # Calculate R²cv (fitness score) for this model
+            if self._split_train_idx is not None and len(self._split_train_idx) > 0:
+                X_for_cv = self._metrics_X[self._split_train_idx]
+                y_for_cv = self._metrics_y[self._split_train_idx]
+            else:
+                X_for_cv = X
+                y_for_cv = y
+            r2cv = self._calculate_r2cv(X_for_cv, y_for_cv, feature_mask)
+
             self.best_models_.append({
-                'score': detailed_metrics.get('r2'),  # CV R² from detailed metrics
-                'r2': split_metrics.get('r2'),  # R² on user-defined train split
-                'q2': split_metrics.get('q2'),  # Q² on user-defined test split
-                'q2loo': detailed_metrics.get('q2loo'),
-                'rmse': detailed_metrics.get('rmse'),
-                'q2cv': q2cv,
+                'r2cv': r2cv,  # CV R² (k-fold or sorted) - MAIN FITNESS METRIC
+                'r2': detailed_metrics.get('r2'),  # R² on full TRAIN
+                'r2loo': detailed_metrics.get('r2loo'),  # LOO R² on TRAIN
+                'rmse_tr': detailed_metrics.get('rmse_tr'),  # RMSE on TRAIN
                 'ad_coverage': detailed_metrics.get('ad_coverage'),
                 'intercept': intercept,
                 'coefficients': coefficients,
@@ -1046,13 +1145,13 @@ class GeneticAlgorithmSelector:
                 'feature_names': feature_names
             })
 
-        # Sort final models by GA score (as before) and assign ranks
-        self.best_models_.sort(key=lambda m: m['score'], reverse=True)
+        # Sort final models by R²cv (main fitness metric) and assign ranks
+        self.best_models_.sort(key=lambda m: m['r2cv'] if m['r2cv'] is not None else -np.inf, reverse=True)
         for idx, model in enumerate(self.best_models_):
             model['rank'] = idx + 1
 
         if self.best_models_:
-            self.best_score_ = float(self.best_models_[0]['score'])
+            self.best_score_ = float(self.best_models_[0]['r2cv']) if self.best_models_[0]['r2cv'] is not None else 0.0
         elif self.no_models_reason_ is None:
             if self.check_ad:
                 self.no_models_reason_ = (
@@ -1063,17 +1162,16 @@ class GeneticAlgorithmSelector:
 
         print(f"\nTop {len(self.best_models_)} models identified:")
         for model in self.best_models_:
-            q2_value = model['q2']
-            q2_text = f"{q2_value:.4f}" if q2_value is not None else "N/A"
-            q2loo_value = model.get('q2loo')
-            q2loo_text = f"{q2loo_value:.4f}" if q2loo_value is not None else "N/A"
-            rmse_value = model.get('rmse')
-            rmse_text = f"{rmse_value:.4f}" if rmse_value is not None else "N/A"
-            q2cv_value = model.get('q2cv')
-            q2cv_text = f"{q2cv_value:.4f}" if q2cv_value is not None else "N/A"
-            print(f"  Rank {model['rank']}: CV R²={model['score']:.4f}, "
-                  f"R²={model['r2']:.4f}, Q²={q2_text}, "
-                  f"Q²loo={q2loo_text}, Q²cv={q2cv_text}, RMSE={rmse_text}, "
+            r2cv_value = model.get('r2cv')
+            r2cv_text = f"{r2cv_value:.4f}" if r2cv_value is not None else "N/A"
+            r2_value = model.get('r2')
+            r2_text = f"{r2_value:.4f}" if r2_value is not None else "N/A"
+            r2loo_value = model.get('r2loo')
+            r2loo_text = f"{r2loo_value:.4f}" if r2loo_value is not None else "N/A"
+            rmse_tr_value = model.get('rmse_tr')
+            rmse_tr_text = f"{rmse_tr_value:.4f}" if rmse_tr_value is not None else "N/A"
+            print(f"  Rank {model['rank']}: R²cv={r2cv_text}, "
+                  f"R²={r2_text}, R²loo={r2loo_text}, RMSE_tr={rmse_tr_text}, "
                   f"AD={model['ad_coverage']:.1f}%, "
                   f"N_features={model['n_features']}, Features={model['feature_names']}")
 
