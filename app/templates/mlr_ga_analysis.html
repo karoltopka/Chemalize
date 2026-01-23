@@ -940,10 +940,10 @@
                         <input type="checkbox" class="custom-control-input" id="use_validation" name="use_validation"
                                {% if use_validation %}checked{% endif %} onchange="toggleValidationOptions()">
                         <label class="custom-control-label" for="use_validation">
-                            <strong>Include Scoring of Validation Set</strong>
+                            <strong>Include Scoring of Validation Set (R²cv_ext)</strong>
                         </label>
                         <small class="form-text text-muted">
-                            Compute Q²cv on a holdout validation set (for top models only).
+                            Compute R²cv_ext - cross-validated R² on the validation/test set (for top models only).
                         </small>
                     </div>
                 </div>
@@ -993,10 +993,10 @@
                 <div id="validation_options" class="row mt-3" style="display:none;">
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label for="cv_folds_validation">CV Folds for Validation Set:</label>
+                            <label for="cv_folds_validation">CV Iterations for R²cv_ext:</label>
                             <input type="number" class="form-control" id="cv_folds_validation" name="cv_folds_validation"
                                    value="{{ cv_folds_validation }}" min="2" max="20">
-                            <small class="form-text text-muted">Number of CV folds for validation set</small>
+                            <small class="form-text text-muted">Number of CV folds/iterations for validation set scoring</small>
                         </div>
                     </div>
                 </div>
@@ -1171,6 +1171,9 @@
                             <th class="ga-sortable" data-sort="number">R² <span class="sort-indicator"></span></th>
                             <th class="ga-sortable" data-sort="number">R²loo <span class="sort-indicator"></span></th>
                             <th class="ga-sortable" data-sort="number">RMSE_tr <span class="sort-indicator"></span></th>
+                            {% if use_validation %}
+                            <th class="ga-sortable" data-sort="number">R²cv_ext <span class="sort-indicator"></span></th>
+                            {% endif %}
                             <th class="ga-sortable" data-sort="number">AD% <span class="sort-indicator"></span></th>
                             <th class="ga-sortable" data-sort="number">N Feat. <span class="sort-indicator"></span></th>
                             <th class="ga-sortable" data-sort="text">Selected Features <span class="sort-indicator"></span></th>
@@ -1185,6 +1188,9 @@
                             <td><strong class="text-success">{{ "%.4f"|format(model.r2) if model.r2 is defined and model.r2 is not none else 'N/A' }}</strong></td>
                             <td><strong class="text-info">{{ "%.4f"|format(model.r2loo) if model.r2loo is defined and model.r2loo is not none else 'N/A' }}</strong></td>
                             <td><strong class="text-warning">{{ "%.4f"|format(model.rmse_tr) if model.rmse_tr is defined and model.rmse_tr is not none else 'N/A' }}</strong></td>
+                            {% if use_validation %}
+                            <td><strong class="text-danger">{{ "%.4f"|format(model.r2cv_ext) if model.r2cv_ext is defined and model.r2cv_ext is not none else 'N/A' }}</strong></td>
+                            {% endif %}
                             <td><strong class="{% if model.ad_coverage is defined and model.ad_coverage >= 100 %}text-success{% elif model.ad_coverage is defined and model.ad_coverage >= 90 %}text-warning{% else %}text-danger{% endif %}">{{ "%.1f"|format(model.ad_coverage) if model.ad_coverage is defined else 'N/A' }}%</strong></td>
                             <td>{{ model.n_features }}</td>
                             <td>
@@ -1204,7 +1210,7 @@
                         </tr>
                         <!-- Equation details row (hidden by default) -->
                         <tr class="equation-row {% if model.rank > 5 %}ga-hidden-row{% endif %}" id="equation-row-{{ model.rank }}" style="display: none;">
-                            <td colspan="9" class="equation-cell">
+                            <td colspan="{% if use_validation %}10{% else %}9{% endif %}" class="equation-cell">
                                 <div class="p-3">
                                     <h6 class="mb-3"><i class="fas fa-superscript mr-2"></i>Model #{{ model.rank }} - Equation & Coefficients</h6>
                                     <div class="card mb-3">
@@ -1274,6 +1280,9 @@
                 • <strong>R²</strong> = R² on full training set<br>
                 • <strong>R²loo</strong> = Leave-One-Out R² on training set<br>
                 • <strong>RMSE_tr</strong> = Root Mean Squared Error on training set<br>
+                {% if use_validation %}
+                • <strong>R²cv_ext</strong> = Cross-validated R² on validation/test set (external CV)<br>
+                {% endif %}
                 • <strong>AD%</strong> = Applicability Domain coverage for training set (100% means all samples within AD)<br>
                 <br>
                 <strong>External Validation (computed after model selection):</strong><br>
@@ -1996,18 +2005,15 @@ function toggleInternalCVOptions() {
     const kfoldParams = document.getElementById('kfold_cv_params');
     const sortedParams = document.getElementById('sorted_cv_params');
     const sortedStep = document.getElementById('sorted_step');
-    const sortedIterations = document.getElementById('sorted_iterations');
 
     if (cvType === 'sorted') {
         kfoldParams.style.display = 'none';
         sortedParams.style.display = 'block';
         if (sortedStep) sortedStep.disabled = false;
-        if (sortedIterations) sortedIterations.disabled = false;
     } else {
         kfoldParams.style.display = 'block';
         sortedParams.style.display = 'none';
         if (sortedStep) sortedStep.disabled = true;
-        if (sortedIterations) sortedIterations.disabled = true;
     }
 }
 

@@ -83,7 +83,6 @@ def mlr_ga_analysis():
         'variance_threshold': session.get('mlr_ga_variance_threshold', 0.01),
         'internal_cv_type': session.get('mlr_ga_internal_cv_type', 'kfold'),
         'sorted_step': session.get('mlr_ga_sorted_step', 5),
-        'sorted_iterations': session.get('mlr_ga_sorted_iterations', 5),
 
         # Step 4: GA parameters
         'n_variables': session.get('mlr_ga_n_variables', ''),
@@ -1017,12 +1016,6 @@ def mlr_ga_step3():
         except (ValueError, TypeError):
             session['mlr_ga_sorted_step'] = 5
 
-        try:
-            sorted_iterations = int(request.form.get('sorted_iterations', 5))
-            session['mlr_ga_sorted_iterations'] = sorted_iterations
-        except (ValueError, TypeError):
-            session['mlr_ga_sorted_iterations'] = 5
-
         session['mlr_ga_step'] = 'ga_parameters'
         print("DEBUG: Step set to 'ga_parameters'")
         flash('Preprocessing configured! Proceed to GA parameters.', 'success')
@@ -1231,7 +1224,6 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
         # Get internal CV type parameters
         internal_cv_type = session_data.get('mlr_ga_internal_cv_type', 'kfold')
         sorted_step = session_data.get('mlr_ga_sorted_step', 5)
-        sorted_iterations = session_data.get('mlr_ga_sorted_iterations', 5)
 
         X, y, removed_features, preprocessing_info = preprocess_for_ga(
             df_clean, target_var,
@@ -1331,7 +1323,6 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
             shuffle_cv=shuffle_cv,
             internal_cv_type=internal_cv_type,
             sorted_step=sorted_step,
-            sorted_iterations=sorted_iterations,
             random_state=42
         )
 
@@ -1411,7 +1402,6 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
                     # Store internal CV type settings
                     'internal_cv_type': internal_cv_type,
                     'sorted_step': sorted_step,
-                    'sorted_iterations': sorted_iterations,
                 }
             }
 
@@ -1483,7 +1473,6 @@ def mlr_ga_complete():
         # Store internal CV type settings used by GA
         session['mlr_ga_final_internal_cv_type'] = results.get('internal_cv_type', 'kfold')
         session['mlr_ga_final_sorted_step'] = results.get('sorted_step', 5)
-        session['mlr_ga_final_sorted_iterations'] = results.get('sorted_iterations', 5)
 
         session['mlr_ga_step'] = 'model_selection'
 

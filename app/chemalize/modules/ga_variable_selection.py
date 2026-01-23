@@ -53,7 +53,6 @@ class GeneticAlgorithmSelector:
                  progress_callback=None,
                  internal_cv_type='kfold',
                  sorted_step=5,
-                 sorted_iterations=5,
                  random_state=42):
         """
         Initialize GA selector
@@ -121,8 +120,7 @@ class GeneticAlgorithmSelector:
             Type of internal CV for fitness calculation: 'kfold' or 'sorted' (default: 'kfold')
         sorted_step : int
             For sorted CV: take every nth element for test set (default: 5)
-        sorted_iterations : int
-            For sorted CV: number of iterations with different offsets (default: 5)
+            Number of iterations uses cv_folds parameter.
         random_state : int
             Random state for reproducibility
         """
@@ -157,7 +155,6 @@ class GeneticAlgorithmSelector:
         self.progress_callback = progress_callback
         self.internal_cv_type = internal_cv_type
         self.sorted_step = sorted_step
-        self.sorted_iterations = sorted_iterations
         self.random_state = random_state
 
         self.best_features_ = None
@@ -200,7 +197,7 @@ class GeneticAlgorithmSelector:
         Args:
             y: Target values (used for sorting)
             step: Take every nth element for test set (default: self.sorted_step)
-            n_iterations: Number of iterations with different offsets (default: self.sorted_iterations)
+            n_iterations: Number of iterations with different offsets (default: self.cv_folds)
 
         Returns:
             list of tuples (train_indices, test_indices)
@@ -208,7 +205,7 @@ class GeneticAlgorithmSelector:
         if step is None:
             step = self.sorted_step
         if n_iterations is None:
-            n_iterations = self.sorted_iterations
+            n_iterations = self.cv_folds  # Use cv_folds as number of iterations
 
         y_array = np.array(y).ravel()
         sorted_indices = np.argsort(y_array)
@@ -648,8 +645,16 @@ class GeneticAlgorithmSelector:
             return {'r2': 0.0, 'r2loo': 0.0, 'rmse_tr': 0.0, 'ad_coverage': 0.0,
                     'intercept': 0.0, 'coefficients': [], 'valid': False}
 
-    def _calculate_validation_q2cv(self, feature_mask):
-        """Calculate cross-validated Q2 on the validation set (if provided)."""
+    def _calculate_r2cv_ext(self, feature_mask):
+        """
+        Calculate cross-validated R² on the external validation/test set.
+
+        This metric (R²cv_ext) shows how well the model generalizes to unseen data
+        using CV on the validation set.
+
+        Returns:
+            float or None: R²cv on validation set, or None if not available
+        """
         if self._validation_X is None or self._validation_y is None:
             return None
 
@@ -659,6 +664,10 @@ class GeneticAlgorithmSelector:
 
         X_val_selected = self._validation_X[:, selected_indices]
         y_val = self._validation_y
+
+        # Need at least 3 samples for CV
+        if len(y_val) < 3:
+            return None
 
         cv = self._cv_validation or self._make_cv(len(y_val), self.cv_folds_validation)
         if cv is None:
@@ -1109,6 +1118,11 @@ class GeneticAlgorithmSelector:
             if self.check_ad and detailed_metrics.get('ad_coverage', 0.0) < self.ad_threshold:
                 continue
 
+            # Calculate R²cv_ext on validation set (if enabled)
+            r2cv_ext = None
+            if self.use_validation and self._validation_X is not None and self._validation_y is not None:
+                r2cv_ext = self._calculate_r2cv_ext(feature_mask)
+
             feature_names = [self.feature_names_[idx] for idx in feature_indices]
 
             # Build equation string
@@ -1136,6 +1150,7 @@ class GeneticAlgorithmSelector:
                 'r2': detailed_metrics.get('r2'),  # R² on full TRAIN
                 'r2loo': detailed_metrics.get('r2loo'),  # LOO R² on TRAIN
                 'rmse_tr': detailed_metrics.get('rmse_tr'),  # RMSE on TRAIN
+                'r2cv_ext': r2cv_ext,  # CV R² on validation/test set (if enabled)
                 'ad_coverage': detailed_metrics.get('ad_coverage'),
                 'intercept': intercept,
                 'coefficients': coefficients,
@@ -1170,9 +1185,11 @@ class GeneticAlgorithmSelector:
             r2loo_text = f"{r2loo_value:.4f}" if r2loo_value is not None else "N/A"
             rmse_tr_value = model.get('rmse_tr')
             rmse_tr_text = f"{rmse_tr_value:.4f}" if rmse_tr_value is not None else "N/A"
+            r2cv_ext_value = model.get('r2cv_ext')
+            r2cv_ext_text = f"{r2cv_ext_value:.4f}" if r2cv_ext_value is not None else "N/A"
             print(f"  Rank {model['rank']}: R²cv={r2cv_text}, "
                   f"R²={r2_text}, R²loo={r2loo_text}, RMSE_tr={rmse_tr_text}, "
-                  f"AD={model['ad_coverage']:.1f}%, "
+                  f"R²cv_ext={r2cv_ext_text}, AD={model['ad_coverage']:.1f}%, "
                   f"N_features={model['n_features']}, Features={model['feature_names']}")
 
         return self
