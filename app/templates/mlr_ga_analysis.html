@@ -1166,17 +1166,17 @@
                 <table class="table table-hover table-bordered">
                     <thead class="thead-dark">
                         <tr>
-                            <th class="ga-sortable" data-sort="number">Rank <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="number">R²cv <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="number">R²tr <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="number">R²loo <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="number">RMSEtr <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number"><span class="th-content">Rank</span><span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number"><span class="th-content">R²<sub>cv</sub></span><span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number"><span class="th-content">R²<sub>tr</sub></span><span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number"><span class="th-content">R²<sub>loo</sub></span><span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number"><span class="th-content">RMSE<sub>tr</sub></span><span class="sort-indicator"></span></th>
                             {% if use_validation %}
-                            <th class="ga-sortable" data-sort="number">Q²ext <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number"><span class="th-content">Q²<sub>ext</sub></span><span class="sort-indicator"></span></th>
                             {% endif %}
-                            <th class="ga-sortable" data-sort="number">AD% <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="number">N Feat. <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="text">Selected Features <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number"><span class="th-content">AD%</span><span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number"><span class="th-content">N Feat.</span><span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="text"><span class="th-content">Selected Features</span><span class="sort-indicator"></span></th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -1276,20 +1276,20 @@
             <div class="alert alert-info mt-3">
                 <i class="fas fa-info-circle mr-2"></i>
                 <strong>Understanding Metrics (computed on TRAIN set):</strong><br>
-                • <strong>R²cv</strong> = Cross-validated R² using internal CV ({{ internal_cv_type|default('kfold') }}) - <em>main GA fitness metric</em><br>
-                • <strong>R²tr</strong> = R² on full training set<br>
-                • <strong>R²loo</strong> = Leave-One-Out R² on training set<br>
-                • <strong>RMSEtr</strong> = Root Mean Squared Error on training set<br>
+                • <strong>R²<sub>cv</sub></strong> = Cross-validated R² using internal CV ({{ internal_cv_type|default('kfold') }}) - <em>main GA fitness metric</em><br>
+                • <strong>R²<sub>tr</sub></strong> = R² on full training set<br>
+                • <strong>R²<sub>loo</sub></strong> = Leave-One-Out R² on training set<br>
+                • <strong>RMSE<sub>tr</sub></strong> = Root Mean Squared Error on training set<br>
                 {% if use_validation %}
-                • <strong>Q²ext</strong> = Cross-validated R² on validation/test set (external CV)<br>
+                • <strong>Q²<sub>ext</sub></strong> = Cross-validated R² on validation/test set (external CV)<br>
                 {% endif %}
                 • <strong>AD%</strong> = Applicability Domain coverage for training set (100% means all samples within AD)<br>
                 <br>
                 <strong>External Validation (computed after model selection):</strong><br>
-                • <strong>Q²ext</strong> = External Q² on test set (computed when you click "Run MLR")<br>
-                • <strong>RMSEext</strong> = External RMSE on test set (computed when you click "Run MLR")<br>
+                • <strong>Q²<sub>ext</sub></strong> = External Q² on test set (computed when you click "Run MLR")<br>
+                • <strong>RMSE<sub>ext</sub></strong> = External RMSE on test set (computed when you click "Run MLR")<br>
                 <br>
-                <em>Note: Models are ranked by R²cv (internal CV score). Click "Run MLR" to compute external validation metrics (Q²ext, RMSEext) and full diagnostic plots.</em>
+                <em>Note: Models are ranked by R²<sub>cv</sub> (internal CV score). Click "Run MLR" to compute external validation metrics (Q²<sub>ext</sub>, RMSE<sub>ext</sub>) and full diagnostic plots.</em>
             </div>
 
             {% if ga_fitness_plot %}
@@ -1396,17 +1396,17 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td><strong>R²tr / R²test</strong></td>
+                                <td><strong>R²<sub>tr</sub> / R²<sub>test</sub></strong></td>
                                 <td>{{ "%.4f"|format(train_r2) if train_r2 else 'N/A' }}</td>
                                 <td>{{ "%.4f"|format(test_r2) if test_r2 else 'N/A' }}</td>
                             </tr>
                             <tr>
-                                <td><strong>RMSEtr / RMSEtest</strong></td>
+                                <td><strong>RMSE<sub>tr</sub> / RMSE<sub>test</sub></strong></td>
                                 <td>{{ "%.4f"|format(train_rmse) if train_rmse else 'N/A' }}</td>
                                 <td>{{ "%.4f"|format(test_rmse) if test_rmse else 'N/A' }}</td>
                             </tr>
                             <tr>
-                                <td><strong>MAEtr / MAEtest</strong></td>
+                                <td><strong>MAE<sub>tr</sub> / MAE<sub>test</sub></strong></td>
                                 <td>{{ "%.4f"|format(train_mae) if train_mae else 'N/A' }}</td>
                                 <td>{{ "%.4f"|format(test_mae) if test_mae else 'N/A' }}</td>
                             </tr>
@@ -1428,15 +1428,15 @@
                                 <td>{{ "%.4f"|format(adj_r2) if adj_r2 else 'N/A' }}</td>
                             </tr>
                             <tr>
-                                <td><strong>Q²ext</strong></td>
+                                <td><strong>Q²<sub>ext</sub></strong></td>
                                 <td>{{ "%.4f"|format(q2_test) if q2_test else 'N/A' }}</td>
                             </tr>
                             <tr>
-                                <td><strong>R²loo</strong></td>
+                                <td><strong>R²<sub>loo</sub></strong></td>
                                 <td>{{ "%.4f"|format(q2_loo) if q2_loo else 'N/A' }}</td>
                             </tr>
                             <tr>
-                                <td><strong>RMSEcv</strong></td>
+                                <td><strong>RMSE<sub>cv</sub></strong></td>
                                 <td>{{ "%.4f"|format(rmse_loo) if rmse_loo else 'N/A' }}</td>
                             </tr>
                             <tr>
@@ -1544,12 +1544,20 @@
 .ga-sortable {
     cursor: pointer;
     user-select: none;
+    white-space: nowrap;
+}
+
+.ga-sortable .th-content {
+    display: inline;
+    vertical-align: middle;
 }
 
 .ga-sortable .sort-indicator {
-    margin-left: 6px;
+    display: inline;
+    margin-left: 4px;
     font-size: 0.8em;
     color: #6c757d;
+    vertical-align: middle;
 }
 
 .ga-sortable.active .sort-indicator {

@@ -502,23 +502,23 @@
                             <table class="table table-sm table-bordered">
                                 <tbody>
                                     <tr>
-                                        <th>R²tr</th>
+                                        <th>R²<sub>tr</sub></th>
                                         <td>{{ "%.4f" | format(train_r2) }}</td>
                                     </tr>
                                     <tr>
-                                        <th>Q²ext</th>
+                                        <th>Q²<sub>ext</sub></th>
                                         <td>{{ "%.4f" | format(q2_test) if q2_test is not none else "N/A" }}</td>
                                     </tr>
                                     <tr>
-                                        <th>R²cv (5-fold)</th>
+                                        <th>R²<sub>cv</sub> (5-fold)</th>
                                         <td>{{ "%.4f" | format(r2cv) if r2cv is defined and r2cv is not none else "N/A" }}</td>
                                     </tr>
                                     <tr>
-                                        <th>Q²cv_ext (5-fold)</th>
+                                        <th>Q²<sub>cv_ext</sub> (5-fold)</th>
                                         <td>{{ "%.4f" | format(q2cv_ext) if q2cv_ext is defined and q2cv_ext is not none else "N/A" }}</td>
                                     </tr>
                                     <tr>
-                                        <th>R²loo</th>
+                                        <th>R²<sub>loo</sub></th>
                                         <td>{{ "%.4f" | format(q2_loo) }}</td>
                                     </tr>
                                 </tbody>
@@ -600,33 +600,33 @@
                                                 <th colspan="2">Main Metrics</th>
                                             </tr>
                                             <tr>
-                                                <th>R²tr</th>
+                                                <th>R²<sub>tr</sub></th>
                                                 <td>{{ "%.4f" | format(train_r2) }}</td>
                                             </tr>
                                             <tr>
-                                                <th>Q²ext</th>
+                                                <th>Q²<sub>ext</sub></th>
                                                 <td>{{ "%.4f" | format(q2_test) if q2_test is not none else "N/A" }}</td>
                                             </tr>
                                             <tr class="table-secondary">
                                                 <th colspan="2">Cross-Validation (5-fold)</th>
                                             </tr>
                                             <tr>
-                                                <th>R²cv</th>
+                                                <th>R²<sub>cv</sub></th>
                                                 <td>{{ "%.4f" | format(r2cv) if r2cv is defined and r2cv is not none else "N/A" }}</td>
                                             </tr>
                                             <tr>
-                                                <th>Q²cv_ext</th>
+                                                <th>Q²<sub>cv_ext</sub></th>
                                                 <td>{{ "%.4f" | format(q2cv_ext) if q2cv_ext is defined and q2cv_ext is not none else "N/A" }}</td>
                                             </tr>
                                             <tr class="table-secondary">
                                                 <th colspan="2">Leave-One-Out</th>
                                             </tr>
                                             <tr>
-                                                <th>R²loo</th>
+                                                <th>R²<sub>loo</sub></th>
                                                 <td>{{ "%.4f" | format(q2_loo) }}</td>
                                             </tr>
                                             <tr>
-                                                <th>RMSEcv</th>
+                                                <th>RMSE<sub>cv</sub></th>
                                                 <td>{{ "%.4f" | format(rmse_loo) }}</td>
                                             </tr>
                                         </tbody>
@@ -646,23 +646,23 @@
                                                 <th colspan="2">Error Metrics</th>
                                             </tr>
                                             <tr>
-                                                <th>RMSEtr</th>
+                                                <th>RMSE<sub>tr</sub></th>
                                                 <td>{{ "%.4f" | format(train_rmse) }}</td>
                                             </tr>
                                             <tr>
-                                                <th>MAEtr</th>
+                                                <th>MAE<sub>tr</sub></th>
                                                 <td>{{ "%.4f" | format(train_mae) }}</td>
                                             </tr>
                                             <tr>
-                                                <th>RMSEext</th>
+                                                <th>RMSE<sub>ext</sub></th>
                                                 <td>{{ "%.4f" | format(test_rmse) }}</td>
                                             </tr>
                                             <tr>
-                                                <th>MAEext</th>
+                                                <th>MAE<sub>ext</sub></th>
                                                 <td>{{ "%.4f" | format(test_mae) }}</td>
                                             </tr>
                                             <tr>
-                                                <th>CCCext</th>
+                                                <th>CCC<sub>ext</sub></th>
                                                 <td>{{ "%.4f" | format(ccc_ext) }}</td>
                                             </tr>
                                             <tr class="table-secondary">
