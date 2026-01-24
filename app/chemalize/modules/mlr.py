@@ -285,6 +285,63 @@ def calculate_cv_metrics(X, y, n_folds=5, include_intercept=True):
     }
 
 
+def calculate_cv_ext_metrics(X_test, y_test, n_folds=5, include_intercept=True):
+    """
+    Calculate cross-validation metrics on external test set: Q²cv_ext
+
+    This performs k-fold CV on the TEST set to estimate model performance
+    on truly external data.
+
+    Returns dict with q2cv_ext, rmse_cv_ext
+    """
+    # Need at least n_folds samples for CV
+    if len(y_test) < n_folds:
+        # If not enough samples, use LOO instead
+        n_folds = len(y_test)
+
+    if n_folds < 2:
+        return {
+            'q2cv_ext': None,
+            'rmse_cv_ext': None
+        }
+
+    kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
+
+    r2_test_scores = []
+    rmse_test_scores = []
+
+    for train_idx, test_idx in kf.split(X_test):
+        X_train_cv, X_test_cv = X_test.iloc[train_idx], X_test.iloc[test_idx]
+        y_train_cv, y_test_cv = y_test.iloc[train_idx], y_test.iloc[test_idx]
+
+        if include_intercept:
+            X_train_sm = sm.add_constant(X_train_cv)
+            X_test_sm = sm.add_constant(X_test_cv)
+        else:
+            X_train_sm = X_train_cv
+            X_test_sm = X_test_cv
+
+        try:
+            model_cv = sm.OLS(y_train_cv, X_train_sm).fit()
+            y_pred_test = model_cv.predict(X_test_sm)
+
+            r2_test_scores.append(r2_score(y_test_cv, y_pred_test))
+            rmse_test_scores.append(np.sqrt(mean_squared_error(y_test_cv, y_pred_test)))
+        except Exception:
+            continue
+
+    if not r2_test_scores:
+        return {
+            'q2cv_ext': None,
+            'rmse_cv_ext': None
+        }
+
+    return {
+        'q2cv_ext': np.mean(r2_test_scores),
+        'rmse_cv_ext': np.mean(rmse_test_scores)
+    }
+
+
 def calculate_loo_metrics(X, y, include_intercept=True):
     """
     Calculate Leave-One-Out metrics: Q²loo and RMSEloo
@@ -906,13 +963,19 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     Q2loo = loo_metrics["Q2loo"]
     RMSEloo = loo_metrics["RMSEloo"]
 
-    # 5-fold Cross-validation metrics (R²cv, Q²cv)
+    # 5-fold Cross-validation metrics on TRAINING set (R²cv)
     train_data_for_cv = result_df[result_df['dataset'] == 'train']
     X_train_cv = train_data_for_cv[selected_features]
     y_train_cv = train_data_for_cv.iloc[:, 1]  # Second column is target
     cv_metrics = calculate_cv_metrics(X_train_cv, y_train_cv, n_folds=5, include_intercept=include_intercept)
     R2cv = cv_metrics['r2cv']  # R²cv on test folds (honest, same as GA_MLR)
-    Q2cv = cv_metrics['q2cv']  # Same as R2cv
+
+    # 5-fold Cross-validation metrics on EXTERNAL TEST set (Q²cv_ext)
+    test_data_for_cv = result_df[result_df['dataset'] == 'test']
+    X_test_cv = test_data_for_cv[selected_features]
+    y_test_cv = test_data_for_cv.iloc[:, 1]  # Second column is target
+    cv_ext_metrics = calculate_cv_ext_metrics(X_test_cv, y_test_cv, n_folds=5, include_intercept=include_intercept)
+    Q2cv_ext = cv_ext_metrics['q2cv_ext']
 
     # Test set metrics
     y_test = y_all[test_mask]
@@ -1109,8 +1172,8 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         'train_r2': R2tr,           # R² on training set
         'q2_test': Q2_test,         # Q² on test set (external validation)
         # Cross-validation metrics (5-fold)
-        'r2cv': R2cv,               # R²cv (5-fold) on training data
-        'q2cv': Q2cv,               # Q²cv (5-fold) on training data
+        'r2cv': R2cv,               # R²cv (5-fold) on training data (honest, out-of-sample)
+        'q2cv_ext': Q2cv_ext,       # Q²cv_ext (5-fold) on EXTERNAL test data
         # Leave-One-Out metrics
         'q2_loo': Q2loo,            # Q²loo
         'rmse_loo': RMSEloo,        # RMSEloo

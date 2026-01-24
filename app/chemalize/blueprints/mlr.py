@@ -76,7 +76,7 @@ def mlr_analysis():
             'q2_test': session.get('q2_test'),
             # CV metrics (5-fold)
             'r2cv': session.get('r2cv'),
-            'q2cv': session.get('q2cv'),
+            'q2cv_ext': session.get('q2cv_ext'),
             # LOO metrics
             'q2_loo': session.get('q2_loo'),
             'rmse_loo': session.get('rmse_loo'),
@@ -369,6 +369,8 @@ def download_mlr_report():
             'test_r2': session.get('test_r2'),
             'q2_loo': session.get('q2_loo'),
             'q2_test': session.get('q2_test'),
+            'r2cv': session.get('r2cv'),
+            'q2cv_ext': session.get('q2cv_ext'),
             'train_rmse': session.get('train_rmse'),
             'test_rmse': session.get('test_rmse'),
             'rmse_loo': session.get('rmse_loo'),
@@ -464,6 +466,7 @@ def reset_mlr_analysis():
     # Reset MLR-specific session variables
     for key in [
         'mlr_performed', 'train_r2', 'test_r2', 'adj_r2', 'q2_loo', 'q2_test',
+        'r2cv', 'q2cv_ext',  # CV metrics
         'train_rmse', 'test_rmse', 'rmse_loo', 'train_mae', 'test_mae',
         'f_statistic', 'f_pvalue', 'aic', 'bic', 'dw_stat', 'vif_values',
         'ccc_ext', 'coefficients', 'std_errors', 't_values', 'p_values',
