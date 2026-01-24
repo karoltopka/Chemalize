@@ -1050,7 +1050,8 @@ def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_label
 
 def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_linkage='ward',
                                 col_linkage='ward', temp_path='temp/', height_scale=100, width_scale=100,
-                                row_color_column=None, show_zeros=False, custom_colors=None):
+                                row_color_column=None, show_zeros=False, custom_colors=None,
+                                x_axis_font_size=None, y_axis_font_size=None):
     """
     Generate an interactive two-way hierarchical clustering heatmap using Plotly.
 
@@ -1086,6 +1087,10 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         Dictionary mapping category names to hex color strings.
         E.g., {'TypeA': '#ff0000', 'TypeB': '#00ff00'}
         If None, uses default tab10 color palette.
+    x_axis_font_size : int, default=None
+        Font size for X-axis labels (variables). If None, auto-calculated based on number of columns.
+    y_axis_font_size : int, default=None
+        Font size for Y-axis labels (groups). If None, auto-calculated based on number of rows.
 
     Returns:
     --------
@@ -1436,7 +1441,11 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     # Update axes for main heatmap (x3/y3)
     # Always use slight angle (-45°) for X-axis labels, adjust font size based on count
     x_tickangle = -45
-    if n_cols > 50:
+
+    # X-axis font size: use custom value if provided, otherwise auto-calculate
+    if x_axis_font_size is not None:
+        x_tickfont = dict(size=x_axis_font_size)
+    elif n_cols > 50:
         x_tickfont = dict(size=8)
     elif n_cols > 30:
         x_tickfont = dict(size=9)
@@ -1450,8 +1459,12 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                      tickvals=reordered_col_positions, ticktext=reordered_col_labels, type='linear',
                      tickfont=x_tickfont, ticklabelstandoff=0, automargin=True)
 
-    # Y-axis labels (groups) - adjust font size if many groups
-    y_tickfont = dict(size=9) if n_rows > 30 else (dict(size=10) if n_rows > 15 else dict(size=11))
+    # Y-axis font size: use custom value if provided, otherwise auto-calculate
+    if y_axis_font_size is not None:
+        y_tickfont = dict(size=y_axis_font_size)
+    else:
+        y_tickfont = dict(size=9) if n_rows > 30 else (dict(size=10) if n_rows > 15 else dict(size=11))
+
     fig.update_yaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2, side='left',
                      tickmode='array', tickvals=reordered_row_positions, ticktext=reordered_row_labels,
                      autorange='reversed', type='linear', tickfont=y_tickfont, ticklabelstandoff=0, automargin=False)

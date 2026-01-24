@@ -453,6 +453,12 @@ def generate_twoway_hca():
         # Get show zeros option
         show_zeros = request.form.get('hca_show_zeros') == '1'
 
+        # Get axis font sizes (optional)
+        x_axis_font_size_str = request.form.get('hca_x_axis_font_size', '').strip()
+        y_axis_font_size_str = request.form.get('hca_y_axis_font_size', '').strip()
+        x_axis_font_size = int(x_axis_font_size_str) if x_axis_font_size_str else None
+        y_axis_font_size = int(y_axis_font_size_str) if y_axis_font_size_str else None
+
         # Load the clustering results (which includes the Cluster column)
         results_path = os.path.join(ensure_temp_dir(), 'clustering_results.csv')
 
@@ -501,7 +507,9 @@ def generate_twoway_hca():
             width_scale=width_scale,
             row_color_column=row_color_column,
             show_zeros=show_zeros,
-            custom_colors=custom_colors
+            custom_colors=custom_colors,
+            x_axis_font_size=x_axis_font_size,
+            y_axis_font_size=y_axis_font_size
         )
 
         # Store the heatmap HTML in session
@@ -513,6 +521,8 @@ def generate_twoway_hca():
         session['twoway_hca_height_scale'] = height_scale
         session['twoway_hca_width_scale'] = width_scale
         session['twoway_hca_dendro_color_column'] = row_color_column
+        session['twoway_hca_x_axis_font_size'] = x_axis_font_size
+        session['twoway_hca_y_axis_font_size'] = y_axis_font_size
         # Save custom colors per column for persistence
         if custom_colors and row_color_column:
             saved_colors = session.get('twoway_hca_custom_colors', {})
