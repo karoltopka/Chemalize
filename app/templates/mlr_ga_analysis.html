@@ -1168,11 +1168,11 @@
                         <tr>
                             <th class="ga-sortable" data-sort="number">Rank <span class="sort-indicator"></span></th>
                             <th class="ga-sortable" data-sort="number">R²cv <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="number">R² <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">R²tr <span class="sort-indicator"></span></th>
                             <th class="ga-sortable" data-sort="number">R²loo <span class="sort-indicator"></span></th>
-                            <th class="ga-sortable" data-sort="number">RMSE_tr <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">RMSEtr <span class="sort-indicator"></span></th>
                             {% if use_validation %}
-                            <th class="ga-sortable" data-sort="number">R²cv_ext <span class="sort-indicator"></span></th>
+                            <th class="ga-sortable" data-sort="number">Q²ext <span class="sort-indicator"></span></th>
                             {% endif %}
                             <th class="ga-sortable" data-sort="number">AD% <span class="sort-indicator"></span></th>
                             <th class="ga-sortable" data-sort="number">N Feat. <span class="sort-indicator"></span></th>
@@ -1277,19 +1277,19 @@
                 <i class="fas fa-info-circle mr-2"></i>
                 <strong>Understanding Metrics (computed on TRAIN set):</strong><br>
                 • <strong>R²cv</strong> = Cross-validated R² using internal CV ({{ internal_cv_type|default('kfold') }}) - <em>main GA fitness metric</em><br>
-                • <strong>R²</strong> = R² on full training set<br>
+                • <strong>R²tr</strong> = R² on full training set<br>
                 • <strong>R²loo</strong> = Leave-One-Out R² on training set<br>
-                • <strong>RMSE_tr</strong> = Root Mean Squared Error on training set<br>
+                • <strong>RMSEtr</strong> = Root Mean Squared Error on training set<br>
                 {% if use_validation %}
-                • <strong>R²cv_ext</strong> = Cross-validated R² on validation/test set (external CV)<br>
+                • <strong>Q²ext</strong> = Cross-validated R² on validation/test set (external CV)<br>
                 {% endif %}
                 • <strong>AD%</strong> = Applicability Domain coverage for training set (100% means all samples within AD)<br>
                 <br>
                 <strong>External Validation (computed after model selection):</strong><br>
                 • <strong>Q²ext</strong> = External Q² on test set (computed when you click "Run MLR")<br>
-                • <strong>RMSE_ext</strong> = External RMSE on test set (computed when you click "Run MLR")<br>
+                • <strong>RMSEext</strong> = External RMSE on test set (computed when you click "Run MLR")<br>
                 <br>
-                <em>Note: Models are ranked by R²cv (internal CV score). Click "Run MLR" to compute external validation metrics (Q²ext, RMSE_ext) and full diagnostic plots.</em>
+                <em>Note: Models are ranked by R²cv (internal CV score). Click "Run MLR" to compute external validation metrics (Q²ext, RMSEext) and full diagnostic plots.</em>
             </div>
 
             {% if ga_fitness_plot %}
@@ -1396,17 +1396,17 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td><strong>R²</strong></td>
+                                <td><strong>R²tr / R²test</strong></td>
                                 <td>{{ "%.4f"|format(train_r2) if train_r2 else 'N/A' }}</td>
                                 <td>{{ "%.4f"|format(test_r2) if test_r2 else 'N/A' }}</td>
                             </tr>
                             <tr>
-                                <td><strong>RMSE</strong></td>
+                                <td><strong>RMSEtr / RMSEtest</strong></td>
                                 <td>{{ "%.4f"|format(train_rmse) if train_rmse else 'N/A' }}</td>
                                 <td>{{ "%.4f"|format(test_rmse) if test_rmse else 'N/A' }}</td>
                             </tr>
                             <tr>
-                                <td><strong>MAE</strong></td>
+                                <td><strong>MAEtr / MAEtest</strong></td>
                                 <td>{{ "%.4f"|format(train_mae) if train_mae else 'N/A' }}</td>
                                 <td>{{ "%.4f"|format(test_mae) if test_mae else 'N/A' }}</td>
                             </tr>
@@ -1428,15 +1428,15 @@
                                 <td>{{ "%.4f"|format(adj_r2) if adj_r2 else 'N/A' }}</td>
                             </tr>
                             <tr>
-                                <td><strong>Q² (Test)</strong></td>
+                                <td><strong>Q²ext</strong></td>
                                 <td>{{ "%.4f"|format(q2_test) if q2_test else 'N/A' }}</td>
                             </tr>
                             <tr>
-                                <td><strong>Q²loo (Leave-One-Out)</strong></td>
+                                <td><strong>R²loo</strong></td>
                                 <td>{{ "%.4f"|format(q2_loo) if q2_loo else 'N/A' }}</td>
                             </tr>
                             <tr>
-                                <td><strong>RMSE (LOO)</strong></td>
+                                <td><strong>RMSEcv</strong></td>
                                 <td>{{ "%.4f"|format(rmse_loo) if rmse_loo else 'N/A' }}</td>
                             </tr>
                             <tr>

@@ -247,13 +247,14 @@ def calculate_cv_metrics(X, y, n_folds=5, include_intercept=True):
     """
     Calculate cross-validation metrics: R²cv and Q²cv (5-fold)
 
-    Returns dict with r2cv_train, r2cv_test (Q²cv)
+    R²cv = mean R² on TEST folds (out-of-sample, honest estimate)
+    Q²cv = same as R²cv (kept for compatibility)
+
+    Returns dict with r2cv, q2cv, rmse_cv
     """
     kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
 
-    r2_train_scores = []
     r2_test_scores = []
-    rmse_train_scores = []
     rmse_test_scores = []
 
     for train_idx, test_idx in kf.split(X):
@@ -268,20 +269,19 @@ def calculate_cv_metrics(X, y, n_folds=5, include_intercept=True):
             X_test_sm = X_test_cv
 
         model_cv = sm.OLS(y_train_cv, X_train_sm).fit()
-
-        y_pred_train = model_cv.predict(X_train_sm)
         y_pred_test = model_cv.predict(X_test_sm)
 
-        r2_train_scores.append(r2_score(y_train_cv, y_pred_train))
         r2_test_scores.append(r2_score(y_test_cv, y_pred_test))
-        rmse_train_scores.append(np.sqrt(mean_squared_error(y_train_cv, y_pred_train)))
         rmse_test_scores.append(np.sqrt(mean_squared_error(y_test_cv, y_pred_test)))
 
+    r2cv = np.mean(r2_test_scores)
+
     return {
-        'r2cv_train': np.mean(r2_train_scores),
-        'q2cv': np.mean(r2_test_scores),  # Q²cv is R² on test folds
-        'rmse_cv_train': np.mean(rmse_train_scores),
-        'rmse_cv_test': np.mean(rmse_test_scores)
+        'r2cv': r2cv,              # R²cv on TEST folds (honest, same as GA_MLR)
+        'r2cv_train': r2cv,        # Kept for backward compatibility
+        'q2cv': r2cv,              # Q²cv = R²cv (same metric)
+        'rmse_cv': np.mean(rmse_test_scores),
+        'rmse_cv_test': np.mean(rmse_test_scores)  # Kept for backward compatibility
     }
 
 
@@ -911,8 +911,8 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     X_train_cv = train_data_for_cv[selected_features]
     y_train_cv = train_data_for_cv.iloc[:, 1]  # Second column is target
     cv_metrics = calculate_cv_metrics(X_train_cv, y_train_cv, n_folds=5, include_intercept=include_intercept)
-    R2cv = cv_metrics['r2cv_train']
-    Q2cv = cv_metrics['q2cv']
+    R2cv = cv_metrics['r2cv']  # R²cv on test folds (honest, same as GA_MLR)
+    Q2cv = cv_metrics['q2cv']  # Same as R2cv
 
     # Test set metrics
     y_test = y_all[test_mask]
