@@ -262,8 +262,9 @@ def calculate_cv_metrics(X, y, n_folds=5, include_intercept=True):
         y_train_cv, y_test_cv = y.iloc[train_idx], y.iloc[test_idx]
 
         if include_intercept:
-            X_train_sm = sm.add_constant(X_train_cv)
-            X_test_sm = sm.add_constant(X_test_cv)
+            # Use has_constant='add' to force adding constant column
+            X_train_sm = sm.add_constant(X_train_cv, has_constant='add')
+            X_test_sm = sm.add_constant(X_test_cv, has_constant='add')
         else:
             X_train_sm = X_train_cv
             X_test_sm = X_test_cv
@@ -315,8 +316,9 @@ def calculate_cv_ext_metrics(X_test, y_test, n_folds=5, include_intercept=True):
         y_train_cv, y_test_cv = y_test.iloc[train_idx], y_test.iloc[test_idx]
 
         if include_intercept:
-            X_train_sm = sm.add_constant(X_train_cv)
-            X_test_sm = sm.add_constant(X_test_cv)
+            # Use has_constant='add' to force adding constant column
+            X_train_sm = sm.add_constant(X_train_cv, has_constant='add')
+            X_test_sm = sm.add_constant(X_test_cv, has_constant='add')
         else:
             X_train_sm = X_train_cv
             X_test_sm = X_test_cv
@@ -355,8 +357,9 @@ def calculate_loo_metrics(X, y, include_intercept=True):
         y_train_loo, y_test_loo = y.iloc[train_idx], y.iloc[test_idx]
 
         if include_intercept:
-            X_train_sm = sm.add_constant(X_train_loo)
-            X_test_sm = sm.add_constant(X_test_loo)
+            # Use has_constant='add' to force adding constant column
+            X_train_sm = sm.add_constant(X_train_loo, has_constant='add')
+            X_test_sm = sm.add_constant(X_test_loo, has_constant='add')
         else:
             X_train_sm = X_train_loo
             X_test_sm = X_test_loo
