@@ -1,4 +1,8 @@
 {% extends "layout.html" %}
+{% block head %}
+<!-- Preload Plotly for Two-Way HCA Heatmap -->
+<script src="https://cdn.plot.ly/plotly-3.3.1.min.js" charset="utf-8"></script>
+{% endblock %}
 {% block content %}
 <div class="content-section">
     <legend class="border-bottom mb-4">
@@ -885,6 +889,11 @@
             container.innerHTML = html;
             const scripts = Array.from(container.querySelectorAll('script'));
             scripts.forEach(oldScript => {
+                // Skip external Plotly script - it's already loaded in page head
+                if (oldScript.src && oldScript.src.includes('plotly')) {
+                    oldScript.remove();
+                    return;
+                }
                 const newScript = document.createElement('script');
                 if (oldScript.src) {
                     newScript.src = oldScript.src;
@@ -900,13 +909,49 @@
         const hcaForm = document.getElementById('twoway_hca_form');
         const hcaStatus = document.getElementById('twoway_hca_status');
         const hcaPlotDiv = document.getElementById('twoway_hca_plot_div');
+        const hcaVariablesSelect = document.getElementById('hca_variables');
+
+        // Ensure the multi-select state is properly initialized when tab becomes visible
+        const twowayHcaTab = document.getElementById('twoway-hca-tab');
+        if (twowayHcaTab) {
+            twowayHcaTab.addEventListener('shown.bs.tab', function() {
+                // Trigger a refresh of the select element to ensure selections are registered
+                if (hcaVariablesSelect) {
+                    const event = new Event('change', { bubbles: true });
+                    hcaVariablesSelect.dispatchEvent(event);
+                }
+            });
+        }
+
         if (hcaForm) {
             hcaForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
+
+                // Explicitly collect selected variables to ensure they are included
+                const selectedVars = [];
+                if (hcaVariablesSelect) {
+                    Array.from(hcaVariablesSelect.selectedOptions).forEach(opt => {
+                        selectedVars.push(opt.value);
+                    });
+                }
+
+                // Check if variables are selected
+                if (selectedVars.length < 2) {
+                    if (hcaStatus) {
+                        hcaStatus.innerHTML = '<div class="alert alert-warning py-2 mb-2">Please select at least 2 variables for column clustering.</div>';
+                    }
+                    return;
+                }
+
                 if (hcaStatus) {
                     hcaStatus.innerHTML = '<div class="alert alert-info py-2 mb-2"><i class="fas fa-spinner fa-spin"></i> Generating heatmap...</div>';
                 }
                 const formData = new FormData(hcaForm);
+
+                // Ensure selected variables are in the FormData (override if needed)
+                formData.delete('hca_variables');
+                selectedVars.forEach(v => formData.append('hca_variables', v));
+
                 try {
                     const resp = await fetch(hcaForm.action, {
                         method: 'POST',
@@ -920,7 +965,7 @@
                     if (hcaStatus) {
                         hcaStatus.innerHTML = `<div class="alert alert-success py-2 mb-2">${data.message || 'Heatmap generated successfully.'}</div>`;
                     }
-                    if (hcaPlotDiv) {
+                    if (hcaPlotDiv && data.plot_html) {
                         const groupingInfo = data.grouping_column ? `<p class="text-muted mb-2"><strong>Row grouping:</strong> ${data.grouping_column}</p>` : '';
                         renderHtmlWithScripts(hcaPlotDiv, `<hr>${groupingInfo}${data.plot_html}`);
                     }
