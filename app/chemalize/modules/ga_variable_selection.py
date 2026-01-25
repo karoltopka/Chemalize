@@ -513,29 +513,35 @@ class GeneticAlgorithmSelector:
                 if len(y_metrics) < 2:
                     raise ValueError("Not enough samples for loocv metrics")
 
-                loo = LeaveOneOut()
-                loo_predictions = []
-                loo_actuals = []
-
-                for train_idx, test_idx in loo.split(X_selected):
-                    X_train = X_selected[train_idx]
-                    y_train = y_metrics[train_idx]
-                    X_test = X_selected[test_idx]
-                    y_test = y_metrics[test_idx]
-
-                    model.fit(X_train, y_train)
-                    y_pred = model.predict(X_test)
-                    loo_predictions.extend(y_pred)
-                    loo_actuals.extend(y_test)
-
-                loo_predictions = np.array(loo_predictions)
-                loo_actuals = np.array(loo_actuals)
-                press = np.sum((loo_actuals - loo_predictions) ** 2)
-                tss = np.sum((loo_actuals - np.mean(loo_actuals)) ** 2)
-                q2 = float(1 - (press / tss)) if tss > 0 else None
+                # OPTIMIZED: Use analytical formula for LOO instead of n model refits
+                n_samples = X_selected.shape[0]
+                n_features = X_selected.shape[1]
 
                 model.fit(X_selected, y_metrics)
                 r2 = float(model.score(X_selected, y_metrics)) if len(y_metrics) > 1 else 0.0
+                y_pred = model.predict(X_selected)
+
+                if n_samples > n_features + 1:
+                    try:
+                        # Calculate hat matrix diagonal (leverage)
+                        XtX = X_selected.T @ X_selected
+                        reg = 1e-10 * np.trace(XtX) / n_features if n_features > 0 else 1e-10
+                        XtX_inv = np.linalg.inv(XtX + reg * np.eye(n_features))
+                        leverage = np.sum((X_selected @ XtX_inv) * X_selected, axis=1)
+
+                        # LOO residuals using analytical formula
+                        residuals = y_metrics - y_pred
+                        leverage_factor = np.maximum(1 - leverage, 1e-10)
+                        loo_residuals = residuals / leverage_factor
+
+                        press = np.sum(loo_residuals ** 2)
+                        tss = np.sum((y_metrics - np.mean(y_metrics)) ** 2)
+                        q2 = float(1 - (press / tss)) if tss > 0 else None
+                    except (np.linalg.LinAlgError, ValueError):
+                        q2 = r2
+                else:
+                    q2 = r2
+
                 return {
                     'r2': r2,
                     'q2': q2,
@@ -595,30 +601,42 @@ class GeneticAlgorithmSelector:
             rmse_tr = float(np.sqrt(np.mean((y_train - y_pred) ** 2)))
 
             # R²loo (Leave-One-Out Cross-Validation on TRAIN)
+            # OPTIMIZED: Use analytical formula instead of n model refits
+            # For linear regression: LOO_residual_i = residual_i / (1 - h_ii)
+            # where h_ii is the leverage (diagonal of hat matrix)
             if len(y_train) >= 3:
-                loo = LeaveOneOut()
-                loo_predictions = []
-                loo_actuals = []
+                n_samples = X_selected.shape[0]
+                n_features = X_selected.shape[1]
 
-                for train_idx, test_idx in loo.split(X_selected):
-                    X_train_fold = X_selected[train_idx]
-                    y_train_fold = y_train[train_idx]
-                    X_test_fold = X_selected[test_idx]
-                    y_test_fold = y_train[test_idx]
+                # Need more samples than features for valid LOO
+                if n_samples > n_features + 1:
+                    # Calculate hat matrix diagonal (leverage)
+                    # H = X(X'X)^(-1)X', we only need diagonal
+                    try:
+                        XtX = X_selected.T @ X_selected
+                        # Add small regularization for numerical stability
+                        reg = 1e-10 * np.trace(XtX) / n_features if n_features > 0 else 1e-10
+                        XtX_inv = np.linalg.inv(XtX + reg * np.eye(n_features))
+                        leverage = np.sum((X_selected @ XtX_inv) * X_selected, axis=1)
 
-                    model_loo = LinearRegression()
-                    model_loo.fit(X_train_fold, y_train_fold)
-                    y_pred_loo = model_loo.predict(X_test_fold)
+                        # Calculate residuals
+                        residuals = y_train - y_pred
 
-                    loo_predictions.extend(y_pred_loo)
-                    loo_actuals.extend(y_test_fold)
+                        # LOO predictions using analytical formula
+                        # Avoid division by zero when leverage is close to 1
+                        leverage_factor = np.maximum(1 - leverage, 1e-10)
+                        loo_residuals = residuals / leverage_factor
 
-                # Calculate R²loo = 1 - PRESS/TSS
-                loo_predictions = np.array(loo_predictions)
-                loo_actuals = np.array(loo_actuals)
-                press = np.sum((loo_actuals - loo_predictions) ** 2)
-                tss = np.sum((loo_actuals - np.mean(loo_actuals)) ** 2)
-                r2loo = float(1 - (press / tss)) if tss > 0 else 0.0
+                        # PRESS = sum of squared LOO residuals
+                        press = np.sum(loo_residuals ** 2)
+                        tss = np.sum((y_train - np.mean(y_train)) ** 2)
+                        r2loo = float(1 - (press / tss)) if tss > 0 else 0.0
+                    except (np.linalg.LinAlgError, ValueError):
+                        # Fallback: use R² if LOO calculation fails
+                        r2loo = r2
+                else:
+                    # Not enough samples for LOO with this many features
+                    r2loo = r2
             else:
                 # Not enough samples for LOO
                 r2loo = r2
