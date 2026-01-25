@@ -1061,11 +1061,21 @@ class GeneticAlgorithmSelector:
 
             print(f"  Final Best Score: {self.best_score_:.4f}")
 
-        # Select top N models by split R2/Q2 and calculate detailed metrics
+        # Select top N models - OPTIMIZED: first sort by fitness, then calculate metrics only for top candidates
         model_items = list(all_models.items())
-        split_metrics_cache = {}
 
-        for feature_indices, _ in model_items:
+        # Step 1: Sort by fitness score (R²cv) - already calculated during GA, no extra computation
+        model_items_sorted_by_fitness = sorted(model_items, key=lambda x: x[1], reverse=True)
+
+        # Step 2: Take only top candidates for detailed evaluation (3x n_best_models to have margin)
+        n_candidates_to_evaluate = min(len(model_items), self.n_best_models * 3)
+        top_candidates = model_items_sorted_by_fitness[:n_candidates_to_evaluate]
+
+        print(f"\nOptimized: Evaluating {n_candidates_to_evaluate} top candidates out of {len(model_items)} unique models...")
+
+        # Step 3: Calculate basic metrics only for top candidates
+        split_metrics_cache = {}
+        for feature_indices, _ in top_candidates:
             feature_mask = np.zeros(X.shape[1], dtype=bool)
             feature_mask[list(feature_indices)] = True
             split_metrics_cache[feature_indices] = self._calculate_basic_metrics(feature_mask)
@@ -1080,7 +1090,8 @@ class GeneticAlgorithmSelector:
             q2_rank = q2 if q2 is not None else r2
             return (q2_rank, r2, score)
 
-        sorted_candidates = sorted(model_items, key=split_sort_key, reverse=True)
+        # Sort only the top candidates by split metrics
+        sorted_candidates = sorted(top_candidates, key=split_sort_key, reverse=True)
         self.best_models_ = []
 
         print(f"\nCalculating detailed metrics for top models by split metrics...")
