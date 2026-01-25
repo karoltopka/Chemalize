@@ -1067,8 +1067,8 @@ class GeneticAlgorithmSelector:
         # Step 1: Sort by fitness score (R²cv) - already calculated during GA, no extra computation
         model_items_sorted_by_fitness = sorted(model_items, key=lambda x: x[1], reverse=True)
 
-        # Step 2: Take only top candidates for detailed evaluation (3x n_best_models to have margin)
-        n_candidates_to_evaluate = min(len(model_items), self.n_best_models * 3)
+        # Step 2: Take only top candidates for detailed evaluation (10x n_best_models to have margin)
+        n_candidates_to_evaluate = min(len(model_items), self.n_best_models * 10)
         top_candidates = model_items_sorted_by_fitness[:n_candidates_to_evaluate]
 
         print(f"\nOptimized: Evaluating {n_candidates_to_evaluate} top candidates out of {len(model_items)} unique models...")
