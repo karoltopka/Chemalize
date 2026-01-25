@@ -165,6 +165,7 @@ class GeneticAlgorithmSelector:
         self._corr_matrix = None
         self._cv = None
         self._cv_validation = None
+        self._sorted_cv_splits = None  # Cache for sorted CV splits
         self._validation_X = None
         self._validation_y = None
         self.no_models_reason_ = None
@@ -209,6 +210,7 @@ class GeneticAlgorithmSelector:
 
         y_array = np.array(y).ravel()
         sorted_indices = np.argsort(y_array)
+        n_samples = len(sorted_indices)
         splits = []
 
         # Limit iterations to step (can't have more offsets than step size)
@@ -217,9 +219,10 @@ class GeneticAlgorithmSelector:
         for offset in range(actual_iterations):
             # Test indices: every step-th element starting from offset
             test_indices = sorted_indices[offset::step]
-            # Train indices: all others
-            test_set = set(test_indices)
-            train_indices = np.array([i for i in sorted_indices if i not in test_set])
+            # Train indices: use boolean mask (much faster than set lookup)
+            mask = np.ones(n_samples, dtype=bool)
+            mask[offset::step] = False
+            train_indices = sorted_indices[mask]
             splits.append((train_indices, test_indices))
 
         return splits
@@ -248,25 +251,23 @@ class GeneticAlgorithmSelector:
             model = LinearRegression()
 
             if self.internal_cv_type == 'sorted':
-                # Sorted stratified CV
-                splits = self._create_sorted_cv_splits(y)
+                # Sorted stratified CV - use cached splits if available
+                splits = self._sorted_cv_splits
+                if splits is None:
+                    splits = self._create_sorted_cv_splits(y)
                 if not splits:
                     return -np.inf
 
-                cv_scores = []
-                for train_idx, test_idx in splits:
-                    if len(train_idx) == 0 or len(test_idx) == 0:
-                        continue
-                    X_train = X_selected[train_idx]
-                    y_train = y[train_idx]
-                    X_test = X_selected[test_idx]
-                    y_test = y[test_idx]
+                # Use cross_val_score with precomputed splits for parallel execution
+                # Convert splits to sklearn-compatible CV iterator
+                cv_scores = cross_val_score(
+                    model, X_selected, y,
+                    cv=splits,  # sklearn accepts list of (train_idx, test_idx) tuples
+                    scoring='r2',
+                    n_jobs=self.cv_n_jobs
+                )
 
-                    model.fit(X_train, y_train)
-                    score = model.score(X_test, y_test)
-                    cv_scores.append(score)
-
-                if not cv_scores:
+                if len(cv_scores) == 0:
                     return -np.inf
                 return float(np.mean(cv_scores))
 
@@ -936,6 +937,18 @@ class GeneticAlgorithmSelector:
             self._cv_validation = self._make_cv(len(y_val), self.cv_folds_validation)
         else:
             self._cv_validation = None
+
+        # Pre-compute and cache sorted CV splits for performance
+        if self.internal_cv_type == 'sorted':
+            # Use training data for sorted CV splits
+            if self._split_train_idx is not None and len(self._split_train_idx) > 0:
+                y_for_splits = self._metrics_y[self._split_train_idx]
+            else:
+                y_for_splits = y
+            self._sorted_cv_splits = self._create_sorted_cv_splits(y_for_splits)
+            print(f"Sorted CV: Pre-computed {len(self._sorted_cv_splits)} splits (cached for all evaluations)")
+        else:
+            self._sorted_cv_splits = None
 
         fitness_cache = {}
 
