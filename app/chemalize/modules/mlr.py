@@ -1293,14 +1293,21 @@ def Q2loo_calc(result_df, model):
     }
 
 
-def generate_predictions_file(data_path, target_var, selected_features, include_intercept=True, temp_path='temp/'):
+def generate_predictions_file(data_path, target_var, selected_features, include_intercept=True,
+                               temp_path='temp/', scale_data=False):
     """Generate a CSV file with actual values, predictions, and residuals"""
     df = pd.read_csv(data_path)
-    
+
     # Prepare data
-    X = df[selected_features]
+    X = df[selected_features].copy()
     y = df[target_var]
-    
+
+    # Scale data if requested
+    if scale_data:
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        X = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
+
     # Fit model
     if include_intercept:
         X_sm = sm.add_constant(X)
@@ -1309,60 +1316,92 @@ def generate_predictions_file(data_path, target_var, selected_features, include_
     else:
         model = sm.OLS(y, X).fit()
         predictions = model.predict(X)
-    
+
     # Create predictions DataFrame
     pred_df = pd.DataFrame({
         'Actual': y,
         'Predicted': predictions,
         'Residuals': y - predictions
     })
-    
-    # Add features
+
+    # Add features (original, unscaled values)
     for feature in selected_features:
         pred_df[feature] = df[feature]
-    
+
     # Save to temp file
     os.makedirs(temp_path, exist_ok=True)
     temp_file = os.path.join(temp_path, 'mlr_predictions.csv')
     pred_df.to_csv(temp_file, index=False)
-    
+
     return temp_file
 
-def generate_model_file(data_path, target_var, selected_features, include_intercept=True, temp_path='temp/'):
-    """Generate a CSV file with model coefficients and statistics"""
+def generate_model_file(data_path, target_var, selected_features, include_intercept=True,
+                         temp_path='temp/', scale_data=False, coefficients=None):
+    """Generate a CSV file with model coefficients and statistics
+
+    Parameters:
+    -----------
+    coefficients : dict, optional
+        Pre-calculated coefficients dict with keys: 'intercept', 'coefs', 'std_errors',
+        't_values', 'p_values', 'feature_names'. If provided, these values are used
+        instead of refitting the model.
+    """
     df = pd.read_csv(data_path)
-    
-    # Prepare data
-    X = df[selected_features]
-    y = df[target_var]
-    
-    # Fit model
-    if include_intercept:
-        X_sm = sm.add_constant(X)
-        model = sm.OLS(y, X_sm).fit()
-        feature_names = ['Intercept'] + selected_features
+
+    # If coefficients are provided, use them directly
+    if coefficients is not None and 'std_errors' in coefficients and coefficients['std_errors']:
+        if include_intercept:
+            feature_names = ['Intercept'] + selected_features
+            coefs = [coefficients.get('intercept', 0)] + list(coefficients.get('coefs', []))
+        else:
+            feature_names = selected_features
+            coefs = list(coefficients.get('coefs', []))
+
+        coef_df = pd.DataFrame({
+            'Feature': feature_names,
+            'Coefficient': coefs,
+            'Std Error': coefficients.get('std_errors', []),
+            't-value': coefficients.get('t_values', []),
+            'p-value': coefficients.get('p_values', []),
+        })
     else:
-        model = sm.OLS(y, X).fit()
-        feature_names = selected_features
-    
-    # Create model summary DataFrame
-    coef_df = pd.DataFrame({
-        'Feature': feature_names,
-        'Coefficient': model.params,
-        'Std Error': model.bse,
-        't-value': model.tvalues,
-        'p-value': model.pvalues,
-    })
-    
+        # Prepare data
+        X = df[selected_features].copy()
+        y = df[target_var]
+
+        # Scale data if requested
+        if scale_data:
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X)
+            X = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
+
+        # Fit model
+        if include_intercept:
+            X_sm = sm.add_constant(X)
+            model = sm.OLS(y, X_sm).fit()
+            feature_names = ['Intercept'] + selected_features
+        else:
+            model = sm.OLS(y, X).fit()
+            feature_names = selected_features
+
+        # Create model summary DataFrame
+        coef_df = pd.DataFrame({
+            'Feature': feature_names,
+            'Coefficient': model.params,
+            'Std Error': model.bse,
+            't-value': model.tvalues,
+            'p-value': model.pvalues,
+        })
+
     # Save to temp file
     os.makedirs(temp_path, exist_ok=True)
     temp_file = os.path.join(temp_path, 'mlr_model_summary.csv')
     coef_df.to_csv(temp_file, index=False)
-    
+
     return temp_file
 
 def generate_report(data_path, target_var, selected_features, include_intercept=True, temp_path='temp/',
-                    metrics=None, plot_paths=None):
+                    metrics=None, plot_paths=None, equation=None, coefficients=None, scale_data=False):
     """Generate a PDF report with model results
 
     Parameters:
@@ -1381,6 +1420,13 @@ def generate_report(data_path, target_var, selected_features, include_intercept=
         Pre-calculated metrics from MLR analysis (train_r2, test_r2, q2_loo, etc.)
     plot_paths : dict, optional
         Paths to plot images (mlr_pred_actual_plot, mlr_williams_plot, etc.)
+    equation : str, optional
+        Pre-calculated equation string. If provided, will be used instead of generating from model.
+    coefficients : dict, optional
+        Pre-calculated coefficients dict with 'intercept' and 'coefs' keys.
+        If provided, will be used to build equation instead of refitting model.
+    scale_data : bool, default=False
+        Whether to scale features before fitting (used when equation/coefficients not provided)
     """
     from fpdf import FPDF
     import datetime
@@ -1390,14 +1436,24 @@ def generate_report(data_path, target_var, selected_features, include_intercept=
     X = df[selected_features]
     y = df[target_var]
 
-    # Fit model
-    if include_intercept:
-        X_sm = sm.add_constant(X)
-        model = sm.OLS(y, X_sm).fit()
-        feature_names = ['Intercept'] + selected_features
+    # Scale data if requested (important for consistency with analysis)
+    if scale_data and equation is None and coefficients is None:
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+        X = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
+
+    # Fit model (only if we don't have pre-calculated equation/coefficients)
+    model = None
+    if equation is None and coefficients is None:
+        if include_intercept:
+            X_sm = sm.add_constant(X)
+            model = sm.OLS(y, X_sm).fit()
+            feature_names = ['Intercept'] + selected_features
+        else:
+            model = sm.OLS(y, X).fit()
+            feature_names = selected_features
     else:
-        model = sm.OLS(y, X).fit()
-        feature_names = selected_features
+        feature_names = ['Intercept'] + selected_features if include_intercept else selected_features
 
     # Create PDF
     pdf = FPDF()
@@ -1418,6 +1474,7 @@ def generate_report(data_path, target_var, selected_features, include_intercept=
     pdf.cell(0, 6, f'Number of Features: {len(selected_features)}', ln=True)
     pdf.cell(0, 6, f'Features: {", ".join(selected_features)}', ln=True)
     pdf.cell(0, 6, f'Include Intercept: {"Yes" if include_intercept else "No"}', ln=True)
+    pdf.cell(0, 6, f'Standardized Variables: {"Yes" if scale_data else "No"}', ln=True)
     pdf.cell(0, 6, f'Number of Observations: {len(y)}', ln=True)
     pdf.ln(8)
 
@@ -1426,18 +1483,44 @@ def generate_report(data_path, target_var, selected_features, include_intercept=
     pdf.cell(0, 8, 'Regression Equation', ln=True)
     pdf.set_font('Helvetica', '', 10)
 
-    equation_parts = [f'{target_var} = ']
-    for i, (name, coef) in enumerate(zip(feature_names, model.params)):
-        if i == 0 and name == 'Intercept':
-            equation_parts.append(f'{coef:.4f}')
-        else:
+    # Add note about standardized variables if applicable
+    if scale_data:
+        pdf.set_font('Helvetica', 'I', 9)
+        pdf.cell(0, 5, '(Coefficients are for standardized variables)', ln=True)
+        pdf.set_font('Helvetica', '', 10)
+
+    # Use pre-calculated equation if provided
+    if equation is not None:
+        # equation is a ready string like "Y = 1.234 + 0.567*X1 - 0.890*X2"
+        equation_str = f'{target_var} = {equation}' if not equation.startswith(target_var) else equation
+        pdf.multi_cell(0, 6, equation_str)
+    elif coefficients is not None:
+        # Build equation from coefficients dict
+        equation_parts = [f'{target_var} = ']
+        intercept = coefficients.get('intercept', 0)
+        coefs = coefficients.get('coefs', [])
+        if include_intercept:
+            equation_parts.append(f'{intercept:.4f}')
+        for i, (name, coef) in enumerate(zip(selected_features, coefs)):
             sign = '+' if coef >= 0 else '-'
-            if i > 0 or (i == 0 and name != 'Intercept'):
+            if include_intercept or i > 0:
                 equation_parts.append(f' {sign} {abs(coef):.4f} x {name}')
             else:
                 equation_parts.append(f'{coef:.4f} x {name}')
-
-    pdf.multi_cell(0, 6, ''.join(equation_parts))
+        pdf.multi_cell(0, 6, ''.join(equation_parts))
+    else:
+        # Generate equation from fitted model
+        equation_parts = [f'{target_var} = ']
+        for i, (name, coef) in enumerate(zip(feature_names, model.params)):
+            if i == 0 and name == 'Intercept':
+                equation_parts.append(f'{coef:.4f}')
+            else:
+                sign = '+' if coef >= 0 else '-'
+                if i > 0 or (i == 0 and name != 'Intercept'):
+                    equation_parts.append(f' {sign} {abs(coef):.4f} x {name}')
+                else:
+                    equation_parts.append(f'{coef:.4f} x {name}')
+        pdf.multi_cell(0, 6, ''.join(equation_parts))
     pdf.ln(8)
 
     # Model Performance - use pre-calculated metrics if available
@@ -1527,7 +1610,33 @@ def generate_report(data_path, target_var, selected_features, include_intercept=
     pdf.set_font('Helvetica', '', 9)
     pdf.set_fill_color(255, 255, 255)
 
-    for name, coef, se, t, p in zip(feature_names, model.params, model.bse, model.tvalues, model.pvalues):
+    # Use passed coefficients/statistics if available, otherwise use model
+    if coefficients is not None and 'std_errors' in coefficients and coefficients['std_errors']:
+        # Build coefficient list from passed data
+        if include_intercept:
+            table_coefs = [coefficients.get('intercept', 0)] + list(coefficients.get('coefs', []))
+        else:
+            table_coefs = list(coefficients.get('coefs', []))
+        table_std_errors = coefficients.get('std_errors', [])
+        table_t_values = coefficients.get('t_values', [])
+        table_p_values = coefficients.get('p_values', [])
+        table_feature_names = coefficients.get('feature_names', feature_names)
+    elif model is not None:
+        # Use model values
+        table_coefs = model.params
+        table_std_errors = model.bse
+        table_t_values = model.tvalues
+        table_p_values = model.pvalues
+        table_feature_names = feature_names
+    else:
+        # Fallback - no data available
+        table_coefs = []
+        table_std_errors = []
+        table_t_values = []
+        table_p_values = []
+        table_feature_names = []
+
+    for name, coef, se, t, p in zip(table_feature_names, table_coefs, table_std_errors, table_t_values, table_p_values):
         # Significance stars
         if p <= 0.001:
             sig = '***'

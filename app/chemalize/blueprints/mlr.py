@@ -336,15 +336,28 @@ def download_mlr_model():
     if not check_dataset() or not session.get('mlr_performed'):
         flash('No MLR analysis results available', 'danger')
         return redirect(url_for('mlr.mlr_analysis'))
-    
+
     try:
         clean_path = get_clean_path(session["csv_name"])
+
+        # Prepare coefficients dict for the file (to use stored coefficients)
+        coefficients_for_file = {
+            'intercept': session.get('coefficients', [0])[0] if session.get('include_intercept', True) else 0,
+            'coefs': session.get('coefficients', [])[1:] if session.get('include_intercept', True) else session.get('coefficients', []),
+            'std_errors': session.get('std_errors', []),
+            't_values': session.get('t_values', []),
+            'p_values': session.get('p_values', []),
+            'feature_names': session.get('feature_names', [])
+        }
+
         temp_file = mlr.generate_model_file(
-            clean_path, 
-            session['target_var'], 
+            clean_path,
+            session['target_var'],
             session['selected_features'],
             include_intercept=session.get('include_intercept', True),
-            temp_path=ensure_temp_dir()
+            temp_path=ensure_temp_dir(),
+            scale_data=session.get('scale_data', False),
+            coefficients=coefficients_for_file
         )
         return send_file(temp_file, as_attachment=True, download_name='mlr_model_summary.csv')
     except Exception as e:
@@ -395,6 +408,16 @@ def download_mlr_report():
             'qq': os.path.join(temp_dir, 'mlr_qq_plot.png')
         }
 
+        # Prepare coefficients dict for report (to use stored coefficients instead of refitting)
+        coefficients_for_report = {
+            'intercept': session.get('coefficients', [0])[0] if session.get('include_intercept', True) else 0,
+            'coefs': session.get('coefficients', [])[1:] if session.get('include_intercept', True) else session.get('coefficients', []),
+            'std_errors': session.get('std_errors', []),
+            't_values': session.get('t_values', []),
+            'p_values': session.get('p_values', []),
+            'feature_names': session.get('feature_names', [])
+        }
+
         temp_file = mlr.generate_report(
             clean_path,
             session['target_var'],
@@ -402,7 +425,9 @@ def download_mlr_report():
             include_intercept=session.get('include_intercept', True),
             temp_path=temp_dir,
             metrics=metrics,
-            plot_paths=plot_paths
+            plot_paths=plot_paths,
+            coefficients=coefficients_for_report,
+            scale_data=session.get('scale_data', False)
         )
         return send_file(temp_file, as_attachment=True, download_name='mlr_report.pdf')
     except Exception as e:
@@ -415,15 +440,16 @@ def download_mlr_predictions():
     if not check_dataset() or not session.get('mlr_performed'):
         flash('No MLR analysis results available', 'danger')
         return redirect(url_for('mlr.mlr_analysis'))
-    
+
     try:
         clean_path = get_clean_path(session["csv_name"])
         temp_file = mlr.generate_predictions_file(
-            clean_path, 
-            session['target_var'], 
+            clean_path,
+            session['target_var'],
             session['selected_features'],
             include_intercept=session.get('include_intercept', True),
-            temp_path=ensure_temp_dir()
+            temp_path=ensure_temp_dir(),
+            scale_data=session.get('scale_data', False)
         )
         return send_file(temp_file, as_attachment=True, download_name='mlr_predictions.csv')
     except Exception as e:
