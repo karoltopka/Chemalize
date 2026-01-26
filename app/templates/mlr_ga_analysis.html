@@ -466,6 +466,13 @@
                             {% if split_method == 'systematic' %}checked{% endif %} onchange="toggleSplitOptions()">
                         <label class="custom-control-label" for="split_systematic">Systematic Sampling</label>
                     </div>
+
+                    <div class="custom-control custom-radio">
+                        <input type="radio" id="split_kennard_stone" name="split_method" value="kennard_stone" class="custom-control-input"
+                            {% if split_method == 'kennard_stone' %}checked{% endif %} onchange="toggleSplitOptions()">
+                        <label class="custom-control-label" for="split_kennard_stone">Kennard-Stone</label>
+                        <small class="form-text text-muted">Selects training samples maximally spread in feature space (chemometrics)</small>
+                    </div>
                 </div>
 
                 <!-- Random Split Options -->
@@ -585,6 +592,34 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Kennard-Stone Options -->
+                <div id="kennard_stone_options" class="split-options mt-3" style="display:none;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="ks_test_size">Test Size:</label>
+                                <input type="number" class="form-control" id="ks_test_size" name="ks_test_size"
+                                       value="{{ ks_test_size|default(0.2) }}" min="0.01" max="0.5" step="0.01">
+                                <small class="form-text text-muted">Proportion of samples for test set</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="ks_random_state">Random State:</label>
+                                <input type="number" class="form-control" id="ks_random_state" name="ks_random_state"
+                                       value="{{ ks_random_state|default(42) }}" min="0">
+                                <small class="form-text text-muted">For tie-breaking when distances are equal</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info mt-2">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        <strong>Kennard-Stone:</strong> Selects training samples that are maximally spread in feature space.
+                        Starts with the two farthest samples, then iteratively adds samples farthest from the selected set.
+                        Commonly used in chemometrics and QSAR modeling.
                     </div>
                 </div>
 
@@ -1939,7 +1974,8 @@ function toggleSplitOptions() {
         'stratified': 'stratified_options',
         'time': 'time_options',
         'kfold': 'kfold_options',
-        'systematic': 'systematic_options'
+        'systematic': 'systematic_options',
+        'kennard_stone': 'kennard_stone_options'
     };
 
     if (optionsMap[method]) {

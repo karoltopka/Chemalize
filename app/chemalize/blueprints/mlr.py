@@ -58,6 +58,8 @@ def mlr_analysis():
         'n_folds': session.get('n_folds', 5),
         'shuffle_kfold': session.get('shuffle_kfold', True),
         'ratio_n': session.get('ratio_n', 3),
+        'ks_test_size': session.get('ks_test_size', 0.2),
+        'ks_random_state': session.get('ks_random_state', 42),
 
         # Other options
         'scale_data': session.get('scale_data', False),
@@ -189,6 +191,10 @@ def perform_mlr():
 
     # Parameters for stratified sorted split (1:n ratio)
     ratio_n = int(request.form.get('ratio_n', 3))
+
+    # Parameters for Kennard-Stone split
+    ks_test_size = float(request.form.get('ks_test_size', 0.2))
+    ks_random_state = int(request.form.get('ks_random_state', 42))
     
     if not target_var:
         flash('Please select a target variable!', 'danger')
@@ -223,6 +229,8 @@ def perform_mlr():
     session['systematic_step'] = systematic_step
     session['include_last_point'] = include_last_point
     session['ratio_n'] = ratio_n
+    session['ks_test_size'] = ks_test_size
+    session['ks_random_state'] = ks_random_state
 
     # Mark session as modified
     session.modified = True
@@ -281,6 +289,11 @@ def perform_mlr():
         elif split_method == 'stratified_endpoints':
             split_params = {
                 'ratio_n': ratio_n
+            }
+        elif split_method == 'kennard_stone':
+            split_params = {
+                'test_size': ks_test_size,
+                'random_state': ks_random_state
             }
         # LOOCV doesn't need additional parameters
 

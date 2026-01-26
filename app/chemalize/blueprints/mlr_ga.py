@@ -75,6 +75,8 @@ def mlr_ga_analysis():
         'shuffle_kfold': session.get('mlr_ga_shuffle_kfold', True),
         'systematic_step': session.get('mlr_ga_systematic_step', 3),
         'include_last_point': session.get('mlr_ga_include_last_point', False),
+        'ks_test_size': session.get('mlr_ga_ks_test_size', 0.2),
+        'ks_random_state': session.get('mlr_ga_ks_random_state', 42),
 
         # Step 3: Standardization, variance check, and internal CV type
         'autoscale': session.get('mlr_ga_autoscale', True),
@@ -851,6 +853,10 @@ def mlr_ga_step2():
             session['mlr_ga_systematic_step'] = int(request.form.get('systematic_step', 3))
             session['mlr_ga_include_last_point'] = 'include_last_point' in request.form
 
+        elif split_method == 'kennard_stone':
+            session['mlr_ga_ks_test_size'] = float(request.form.get('ks_test_size', 0.2))
+            session['mlr_ga_ks_random_state'] = int(request.form.get('ks_random_state', 42))
+
         # For K-Fold and LOOCV, skip split histograms and go directly to preprocessing
         if split_method in ['kfold', 'loocv']:
             session['mlr_ga_step'] = 'preprocessing'
@@ -935,6 +941,25 @@ def mlr_ga_step2():
             # Take every nth from middle indices for test, add min/max
             test_idx = [min_idx, max_idx] + [middle_indices[i] for i in range(0, len(middle_indices), step)]
             train_idx = [idx for idx in middle_indices if idx not in test_idx]
+        elif split_method == 'kennard_stone':
+            # Kennard-Stone algorithm: select training samples maximally spread in feature space
+            from app.chemalize.modules.mlr import kennard_stone_split
+
+            test_size = session.get('mlr_ga_ks_test_size', 0.2)
+            random_state = session.get('mlr_ga_ks_random_state', 42)
+
+            # Get numeric features for Kennard-Stone (exclude target variable)
+            df_numeric = df.select_dtypes(include=[np.number])
+            feature_cols = [col for col in df_numeric.columns if col != target_var]
+
+            if len(feature_cols) == 0:
+                flash('No numeric features available for Kennard-Stone split!', 'danger')
+                return redirect(url_for('mlr_ga.mlr_ga_analysis'))
+
+            X_features = df_numeric[feature_cols].values
+
+            # Apply Kennard-Stone algorithm
+            train_idx, test_idx = kennard_stone_split(X_features, test_size=test_size, random_state=random_state)
         else:
             flash(f'Unsupported split method: {split_method}', 'danger')
             return redirect(url_for('mlr_ga.mlr_ga_analysis'))
@@ -1211,8 +1236,13 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
                 'step': session_data.get('mlr_ga_systematic_step', 3),
                 'include_last': session_data.get('mlr_ga_include_last_point', False)
             }
+        elif split_method == 'kennard_stone':
+            split_params = {
+                'test_size': session_data.get('mlr_ga_ks_test_size', 0.2),
+                'random_state': session_data.get('mlr_ga_ks_random_state', 42)
+            }
 
-        if split_method == 'time' or split_method == 'systematic':
+        if split_method == 'time' or split_method == 'systematic' or split_method == 'kennard_stone':
             shuffle_cv = False
         elif split_method == 'kfold':
             shuffle_cv = session_data.get('mlr_ga_shuffle_kfold', True)

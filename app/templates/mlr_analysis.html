@@ -163,10 +163,17 @@
                             </div>
                             
                             <div class="custom-control custom-radio mt-2">
-                                <input type="radio" id="split_systematic" name="split_method" value="systematic" class="custom-control-input" 
+                                <input type="radio" id="split_systematic" name="split_method" value="systematic" class="custom-control-input"
                                        {% if split_method == 'systematic' %}checked{% endif %} onchange="toggleSplitOptions()">
                                 <label class="custom-control-label" for="split_systematic">Systematic Sampling</label>
                                 <small class="form-text text-muted">Selects test samples after sorting Y values, ensuring representation across the entire data range</small>
+                            </div>
+
+                            <div class="custom-control custom-radio mt-2">
+                                <input type="radio" id="split_kennard_stone" name="split_method" value="kennard_stone" class="custom-control-input"
+                                       {% if split_method == 'kennard_stone' %}checked{% endif %} onchange="toggleSplitOptions()">
+                                <label class="custom-control-label" for="split_kennard_stone">Kennard-Stone</label>
+                                <small class="form-text text-muted">Selects training samples that are maximally spread in feature space (commonly used in chemometrics)</small>
                             </div>
                         </div>
                         
@@ -306,18 +313,55 @@
                         <div id="systematic_split_options" class="split-options" {% if split_method != 'systematic' %}style="display: none;"{% endif %}>
                             <div class="form-group mt-3">
                                 <label for="systematic_step">Indexing step (every nth index):</label>
-                                <input type="number" class="form-control" id="systematic_step" name="systematic_step" 
+                                <input type="number" class="form-control" id="systematic_step" name="systematic_step"
                                        value="{% if systematic_step %}{{ systematic_step }}{% else %}3{% endif %}" min="2" max="10">
                                 <small class="form-text text-muted">Selects test points every specified number of indices (e.g., 3 = every third point)</small>
                             </div>
-                            
+
                             <div class="form-group">
                                 <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" class="custom-control-input" id="include_last_point" name="include_last_point" 
+                                    <input type="checkbox" class="custom-control-input" id="include_last_point" name="include_last_point"
                                            {% if include_last_point or include_last_point is not defined %}checked{% endif %}>
                                     <label class="custom-control-label" for="include_last_point">Include last point</label>
                                     <small class="form-text text-muted">Adds the last point (with highest Y value) to the test set</small>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div id="kennard_stone_split_options" class="split-options" {% if split_method != 'kennard_stone' %}style="display: none;"{% endif %}>
+                            <div class="form-group mt-3">
+                                <label for="ks_test_size">Test Set Size:</label>
+                                <input type="range" class="custom-range" id="ks_test_size" name="ks_test_size"
+                                       value="{% if ks_test_size %}{{ ks_test_size }}{% else %}0.2{% endif %}"
+                                       min="0.1" max="0.5" step="0.05" oninput="updateKsTestSizeLabel()">
+                                <div class="d-flex justify-content-between">
+                                    <span>10%</span>
+                                    <span>20%</span>
+                                    <span>30%</span>
+                                    <span>40%</span>
+                                    <span>50%</span>
+                                </div>
+                                <p class="text-center mt-1" id="ks_test_size_display">
+                                    {{ ks_test_size|default(0.2, true) * 100 }}%
+                                </p>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="ks_random_state">Random State (for tie-breaking):</label>
+                                <input type="number" class="form-control" id="ks_random_state" name="ks_random_state"
+                                       value="{% if ks_random_state %}{{ ks_random_state }}{% else %}42{% endif %}" min="0">
+                                <small class="form-text text-muted">Used only when distances are equal (rare)</small>
+                            </div>
+
+                            <div class="alert alert-info mt-3">
+                                <h6><i class="fas fa-info-circle mr-2"></i>Kennard-Stone Algorithm</h6>
+                                <p class="mb-0">This method selects training samples that are maximally spread in the feature space:</p>
+                                <ul class="mb-0">
+                                    <li>Starts with the two samples farthest apart</li>
+                                    <li>Iteratively adds samples farthest from already selected ones</li>
+                                    <li>Ensures training set covers the entire feature space</li>
+                                    <li>Commonly used in chemometrics and QSAR/QSPR modeling</li>
+                                </ul>
                             </div>
                         </div>
                     </div>
@@ -1055,6 +1099,11 @@
         document.getElementById('time_test_size_display').innerText = Math.round(testSize * 100) + '%';
     }
 
+    function updateKsTestSizeLabel() {
+        const testSize = document.getElementById('ks_test_size').value;
+        document.getElementById('ks_test_size_display').innerText = Math.round(testSize * 100) + '%';
+    }
+
     // Update ratio description for stratified sorted split
     function updateRatioDescription() {
         const ratioN = document.getElementById('ratio_n').value;
@@ -1132,6 +1181,8 @@
             document.getElementById('onevn_split_options').style.display = 'block';
         } else if (selectedMethod === 'systematic') {
             document.getElementById('systematic_split_options').style.display = 'block';
+        } else if (selectedMethod === 'kennard_stone') {
+            document.getElementById('kennard_stone_split_options').style.display = 'block';
         }
         // LOOCV nie potrzebuje dodatkowych opcji
     }

@@ -116,6 +116,73 @@ class MLRModel:
         self.variables = variables
         self.include_intercept = include_intercept
 
+
+def kennard_stone_split(X, test_size=0.2, random_state=None):
+    """
+    Kennard-Stone algorithm for selecting representative samples for training set.
+
+    The algorithm selects samples that are maximally spread in the feature space,
+    ensuring good coverage for model training.
+
+    Parameters:
+    -----------
+    X : array-like or DataFrame
+        Feature matrix (n_samples, n_features)
+    test_size : float, default=0.2
+        Proportion of samples to use for the test set
+    random_state : int or None, default=None
+        Random seed (used only for tie-breaking if distances are equal)
+
+    Returns:
+    --------
+    tuple
+        (train_indices, test_indices) - Lists of indices for train and test sets
+    """
+    if random_state is not None:
+        np.random.seed(random_state)
+
+    # Convert to numpy array if DataFrame
+    if hasattr(X, 'values'):
+        X_arr = X.values
+    else:
+        X_arr = np.array(X)
+
+    n_samples = X_arr.shape[0]
+    n_train = int(n_samples * (1 - test_size))
+
+    # Ensure at least 2 training samples and 1 test sample
+    n_train = max(2, min(n_train, n_samples - 1))
+
+    # Calculate pairwise Euclidean distances
+    from scipy.spatial.distance import pdist, squareform
+    distances = squareform(pdist(X_arr, metric='euclidean'))
+
+    # Find the two samples that are farthest apart
+    max_dist_idx = np.unravel_index(np.argmax(distances), distances.shape)
+
+    # Initialize selected (training) indices with the two farthest samples
+    selected = [max_dist_idx[0], max_dist_idx[1]]
+    remaining = list(set(range(n_samples)) - set(selected))
+
+    # Iteratively select samples that are farthest from the already selected set
+    while len(selected) < n_train and len(remaining) > 0:
+        # For each remaining sample, find its minimum distance to selected samples
+        min_distances = []
+        for idx in remaining:
+            min_dist = min(distances[idx, sel_idx] for sel_idx in selected)
+            min_distances.append(min_dist)
+
+        # Select the sample with the maximum minimum distance
+        max_min_idx = np.argmax(min_distances)
+        selected.append(remaining[max_min_idx])
+        remaining.pop(max_min_idx)
+
+    train_indices = sorted(selected)
+    test_indices = sorted(remaining)
+
+    return train_indices, test_indices
+
+
 def perform_mlr(df, target_var, selected_features, include_intercept=True, 
                 split_method='random', split_params=None, scale_data=False,
                 check_assumptions=True, detect_outliers=False, temp_path='temp/'):
@@ -521,7 +588,46 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         # Add feature columns
         for feature in selected_features:
             result_df[feature] = pd.concat([X_train[feature], X_test[feature]]).reset_index(drop=True)
-    
+
+    elif split_method == 'kennard_stone':
+        # Kennard-Stone algorithm for representative sample selection
+        test_size = split_params.get('test_size', 0.2)
+        random_state = split_params.get('random_state', 42)
+
+        # Apply Kennard-Stone algorithm on feature space
+        train_idx, test_idx = kennard_stone_split(X, test_size=test_size, random_state=random_state)
+
+        # Split the data
+        X_train = X.iloc[train_idx].reset_index(drop=True)
+        X_test = X.iloc[test_idx].reset_index(drop=True)
+        y_train = y.iloc[train_idx].reset_index(drop=True)
+        y_test = y.iloc[test_idx].reset_index(drop=True)
+
+        # Fit model using statsmodels
+        if include_intercept:
+            X_train_sm = sm.add_constant(X_train)
+            X_test_sm = sm.add_constant(X_test)
+        else:
+            X_train_sm = X_train
+            X_test_sm = X_test
+
+        sm_model = sm.OLS(y_train, X_train_sm).fit()
+
+        # Get predictions
+        y_pred_train = sm_model.predict(X_train_sm)
+        y_pred_test = sm_model.predict(X_test_sm)
+
+        # Create result DataFrame for all calculations
+        result_df = pd.DataFrame({
+            'dataset': ['train'] * len(y_train) + ['test'] * len(y_test),
+            target_var: pd.concat([y_train, y_test]).reset_index(drop=True),
+            'predictions': np.concatenate([y_pred_train, y_pred_test])
+        })
+
+        # Add feature columns
+        for feature in selected_features:
+            result_df[feature] = pd.concat([X_train[feature], X_test[feature]]).reset_index(drop=True)
+
     else:
         raise ValueError(f"Unknown split method: {split_method}")
     
