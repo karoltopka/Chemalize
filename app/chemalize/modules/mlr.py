@@ -386,6 +386,211 @@ def calculate_loo_metrics(X, y, include_intercept=True):
     }
 
 
+def xyonion_split(X, y, test_size=0.2, n_layers=3, mahalanobis=False, loop_fraction=0.1, random_state=None):
+    """
+    XYOnion split using SPXY-like distance (X + y) with optional Mahalanobis whitening.
+
+    This method selects samples layer by layer from the outer "shell" of the data space,
+    considering both feature space (X) and target variable (y) distances.
+
+    Parameters
+    ----------
+    X : array-like, shape (n_samples, n_features)
+        Feature matrix
+    y : array-like, shape (n_samples,)
+        Target variable
+    test_size : float, default=0.2
+        Proportion of samples to use for the test set
+    n_layers : int, default=3
+        Number of onion layers
+    mahalanobis : bool, default=False
+        If True, whiten X so Euclidean distances correspond to Mahalanobis distances
+    loop_fraction : float, default=0.1
+        Fraction of remaining samples selected per onion iteration
+    random_state : int or None, default=None
+        Random seed for reproducibility
+
+    Returns
+    -------
+    tuple
+        (train_indices, test_indices) - Lists of indices for train and test sets
+    """
+    rng = np.random.default_rng(random_state)
+
+    X_arr = np.asarray(X, dtype=float)
+    y_arr = np.asarray(y, dtype=float).reshape(-1, 1)
+
+    m = X_arr.shape[0]
+    if m != y_arr.shape[0]:
+        raise ValueError("X and y must have the same number of rows.")
+
+    fraction = 1.0 - test_size  # fraction for training/calibration
+
+    # Optional Mahalanobis: whiten X (cov^{-1/2})
+    if mahalanobis:
+        Xc = X_arr - X_arr.mean(axis=0, keepdims=True)
+        cov = np.cov(Xc, rowvar=False)
+        if cov.ndim == 0:
+            cov = np.array([[cov]])
+
+        # eigen decomposition (symmetric PSD)
+        w, V = np.linalg.eigh(cov)
+        eps = 1e-12
+        w = np.maximum(w, eps)
+
+        cov_inv_sqrt = V @ np.diag(1.0 / np.sqrt(w)) @ V.T
+        X_arr = Xc @ cov_inv_sqrt  # centered + whitened
+
+    # indices not yet assigned
+    i0 = np.arange(m, dtype=int)
+    split = np.zeros(m, dtype=bool)  # True=train(cal), False=test
+
+    for _layer in range(n_layers):
+        m0 = i0.size
+        ncalloop = int(round(loop_fraction * m0 * fraction))
+        ntestloop = int(round(loop_fraction * m0 * (1.0 - fraction)))
+
+        # pick calibration/train samples for this layer
+        if m0 > 0 and ncalloop > 0:
+            sel_local = _xyonion_distslct(X_arr[i0, :], y_arr[i0, :], min(m0, ncalloop))
+            split[i0[sel_local]] = True
+            i0 = np.delete(i0, sel_local)
+
+        # pick test samples for this layer
+        m0 = i0.size
+        if m0 > 0 and ntestloop > 0:
+            sel_local = _xyonion_distslct(X_arr[i0, :], y_arr[i0, :], min(m0, ntestloop))
+            split[i0[sel_local]] = False
+            i0 = np.delete(i0, sel_local)
+
+    # randomly assign remaining samples to reach desired proportion
+    m0 = i0.size
+    if m0 > 0:
+        nc = int(np.ceil(m0 * fraction))
+        nt = m0 - nc
+        rem = np.concatenate([np.ones(nc, dtype=bool), np.zeros(nt, dtype=bool)])
+        rng.shuffle(rem)
+        split[i0] = rem
+
+    # Convert boolean mask to indices
+    train_indices = np.where(split)[0].tolist()
+    test_indices = np.where(~split)[0].tolist()
+
+    return train_indices, test_indices
+
+
+def _xyonion_distslct(x, y, nosamps):
+    """
+    Select outer samples of data space using SPXY-like distance.
+    Returns indices (0-based) in the provided x/y arrays.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float).reshape(-1, 1)
+
+    q, n = x.shape
+    x = x - x.mean(axis=0, keepdims=True)
+    y = y - y.mean(axis=0, keepdims=True)
+
+    if nosamps <= 0:
+        return np.array([], dtype=int)
+
+    # if fewer samples than variables -> standard selection
+    if nosamps < n:
+        return _xyonion_stdsslct(x, y, nosamps)
+
+    # when more samples need to be selected than there are variables
+    isel = np.zeros(nosamps, dtype=int)
+
+    # select as many samples as variables normally
+    isel[:n] = _xyonion_stdsslct(x, y, n)
+
+    distX = np.zeros(q, dtype=float)
+    distY = np.zeros(q, dtype=float)
+
+    for ii in range(n):
+        xsel = x[isel[ii], :]
+        ysel = y[isel[ii], 0]
+        distX += np.sqrt(np.sum((x - xsel) ** 2, axis=1))
+        distY += np.sqrt((y[:, 0] - ysel) ** 2)
+
+        distX[isel[: ii + 1]] = 0.0
+        distY[isel[: ii + 1]] = 0.0
+
+    dxm = distX.max() if distX.max() > 0 else 1.0
+    dym = distY.max() if distY.max() > 0 else 1.0
+    dist = distX / dxm + distY / dym
+
+    isel[n] = int(np.argmax(dist))
+
+    xsel = x[isel[n], :]
+    ysel = y[isel[n], 0]
+    distX[isel[n]] = 0.0
+    distY[isel[n]] = 0.0
+
+    for ii in range(n + 1, nosamps):
+        distX += np.sqrt(np.sum((x - xsel) ** 2, axis=1))
+        distY += np.sqrt((y[:, 0] - ysel) ** 2)
+
+        dxm = distX.max() if distX.max() > 0 else 1.0
+        dym = distY.max() if distY.max() > 0 else 1.0
+        dist = distX / dxm + distY / dym
+
+        isel[ii] = int(np.argmax(dist))
+
+        xsel = x[isel[ii], :]
+        ysel = y[isel[ii], 0]
+
+        distX[isel[: ii + 1]] = 0.0
+        distY[isel[: ii + 1]] = 0.0
+
+    return isel
+
+
+def _xyonion_stdsslct(x, y, nosamps):
+    """
+    Standard selection + orthogonalization for XYOnion.
+    Returns indices (0-based) in the provided x/y arrays.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float).reshape(-1, 1)
+
+    subset = np.zeros(nosamps, dtype=int)
+    idx = np.arange(y.shape[0], dtype=int)
+
+    Xw = x.copy()
+    yw = y.copy()
+
+    for i in range(nosamps):
+        distX = np.sum(Xw ** 2, axis=1)
+        distY = np.sum(yw ** 2, axis=1)
+
+        dxm = distX.max() if distX.max() > 0 else 1.0
+        dym = distY.max() if distY.max() > 0 else 1.0
+        dist = distX / dxm + distY / dym
+
+        k = int(np.argmax(dist))
+        subset[i] = idx[k]
+
+        rx0 = Xw[k, :].copy()
+        ry0 = yw[k, :].copy()
+
+        # remove selected row
+        Xw = np.delete(Xw, k, axis=0)
+        yw = np.delete(yw, k, axis=0)
+        idx = np.delete(idx, k, axis=0)
+
+        # orthogonalize X to selected sample
+        denom = float(rx0 @ rx0.T)
+        if denom > 0:
+            proj = ((rx0 @ Xw.T) / denom).reshape(-1, 1)  # (q-1,1)
+            Xw = Xw - proj * rx0.reshape(1, -1)
+
+        # shift y
+        yw = yw - ry0
+
+    return subset
+
+
 def kennard_stone_split(X, test_size=0.2, random_state=None):
     """
     Kennard-Stone algorithm for selecting representative samples for training set.
@@ -958,6 +1163,55 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
 
         # Apply Kennard-Stone algorithm on feature space
         train_idx, test_idx = kennard_stone_split(X, test_size=test_size, random_state=random_state)
+
+        # Split the data
+        X_train = X.iloc[train_idx].reset_index(drop=True)
+        X_test = X.iloc[test_idx].reset_index(drop=True)
+        y_train = y.iloc[train_idx].reset_index(drop=True)
+        y_test = y.iloc[test_idx].reset_index(drop=True)
+
+        # Fit model using statsmodels
+        if include_intercept:
+            X_train_sm = sm.add_constant(X_train)
+            X_test_sm = sm.add_constant(X_test)
+        else:
+            X_train_sm = X_train
+            X_test_sm = X_test
+
+        sm_model = sm.OLS(y_train, X_train_sm).fit()
+
+        # Get predictions
+        y_pred_train = sm_model.predict(X_train_sm)
+        y_pred_test = sm_model.predict(X_test_sm)
+
+        # Create result DataFrame for all calculations
+        result_df = pd.DataFrame({
+            'dataset': ['train'] * len(y_train) + ['test'] * len(y_test),
+            target_var: pd.concat([y_train, y_test]).reset_index(drop=True),
+            'predictions': np.concatenate([y_pred_train, y_pred_test])
+        })
+
+        # Add feature columns
+        for feature in selected_features:
+            result_df[feature] = pd.concat([X_train[feature], X_test[feature]]).reset_index(drop=True)
+
+    elif split_method == 'xyonion':
+        # XYOnion algorithm - SPXY-like distance considering both X and y
+        test_size = split_params.get('test_size', 0.2)
+        n_layers = split_params.get('n_layers', 3)
+        mahalanobis = split_params.get('mahalanobis', False)
+        loop_fraction = split_params.get('loop_fraction', 0.1)
+        random_state = split_params.get('random_state', 42)
+
+        # Apply XYOnion algorithm
+        train_idx, test_idx = xyonion_split(
+            X, y,
+            test_size=test_size,
+            n_layers=n_layers,
+            mahalanobis=mahalanobis,
+            loop_fraction=loop_fraction,
+            random_state=random_state
+        )
 
         # Split the data
         X_train = X.iloc[train_idx].reset_index(drop=True)

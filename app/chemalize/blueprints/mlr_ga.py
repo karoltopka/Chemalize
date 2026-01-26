@@ -77,6 +77,11 @@ def mlr_ga_analysis():
         'include_last_point': session.get('mlr_ga_include_last_point', False),
         'ks_test_size': session.get('mlr_ga_ks_test_size', 0.2),
         'ks_random_state': session.get('mlr_ga_ks_random_state', 42),
+        'xyonion_test_size': session.get('mlr_ga_xyonion_test_size', 0.2),
+        'xyonion_n_layers': session.get('mlr_ga_xyonion_n_layers', 3),
+        'xyonion_loop_fraction': session.get('mlr_ga_xyonion_loop_fraction', 0.1),
+        'xyonion_random_state': session.get('mlr_ga_xyonion_random_state', 42),
+        'xyonion_mahalanobis': session.get('mlr_ga_xyonion_mahalanobis', False),
 
         # Step 3: Standardization, variance check, and internal CV type
         'autoscale': session.get('mlr_ga_autoscale', True),
@@ -857,6 +862,13 @@ def mlr_ga_step2():
             session['mlr_ga_ks_test_size'] = float(request.form.get('ks_test_size', 0.2))
             session['mlr_ga_ks_random_state'] = int(request.form.get('ks_random_state', 42))
 
+        elif split_method == 'xyonion':
+            session['mlr_ga_xyonion_test_size'] = float(request.form.get('xyonion_test_size', 0.2))
+            session['mlr_ga_xyonion_n_layers'] = int(request.form.get('xyonion_n_layers', 3))
+            session['mlr_ga_xyonion_loop_fraction'] = float(request.form.get('xyonion_loop_fraction', 0.1))
+            session['mlr_ga_xyonion_random_state'] = int(request.form.get('xyonion_random_state', 42))
+            session['mlr_ga_xyonion_mahalanobis'] = 'xyonion_mahalanobis' in request.form
+
         # For K-Fold and LOOCV, skip split histograms and go directly to preprocessing
         if split_method in ['kfold', 'loocv']:
             session['mlr_ga_step'] = 'preprocessing'
@@ -960,6 +972,35 @@ def mlr_ga_step2():
 
             # Apply Kennard-Stone algorithm
             train_idx, test_idx = kennard_stone_split(X_features, test_size=test_size, random_state=random_state)
+        elif split_method == 'xyonion':
+            # XYOnion algorithm: SPXY-like distance considering both X and y
+            from app.chemalize.modules.mlr import xyonion_split
+
+            test_size = session.get('mlr_ga_xyonion_test_size', 0.2)
+            n_layers = session.get('mlr_ga_xyonion_n_layers', 3)
+            loop_fraction = session.get('mlr_ga_xyonion_loop_fraction', 0.1)
+            random_state = session.get('mlr_ga_xyonion_random_state', 42)
+            mahalanobis = session.get('mlr_ga_xyonion_mahalanobis', False)
+
+            # Get numeric features for XYOnion (exclude target variable)
+            df_numeric = df.select_dtypes(include=[np.number])
+            feature_cols = [col for col in df_numeric.columns if col != target_var]
+
+            if len(feature_cols) == 0:
+                flash('No numeric features available for XYOnion split!', 'danger')
+                return redirect(url_for('mlr_ga.mlr_ga_analysis'))
+
+            X_features = df_numeric[feature_cols].values
+
+            # Apply XYOnion algorithm
+            train_idx, test_idx = xyonion_split(
+                X_features, y.values,
+                test_size=test_size,
+                n_layers=n_layers,
+                loop_fraction=loop_fraction,
+                random_state=random_state,
+                mahalanobis=mahalanobis
+            )
         else:
             flash(f'Unsupported split method: {split_method}', 'danger')
             return redirect(url_for('mlr_ga.mlr_ga_analysis'))
@@ -1241,8 +1282,16 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
                 'test_size': session_data.get('mlr_ga_ks_test_size', 0.2),
                 'random_state': session_data.get('mlr_ga_ks_random_state', 42)
             }
+        elif split_method == 'xyonion':
+            split_params = {
+                'test_size': session_data.get('mlr_ga_xyonion_test_size', 0.2),
+                'n_layers': session_data.get('mlr_ga_xyonion_n_layers', 3),
+                'loop_fraction': session_data.get('mlr_ga_xyonion_loop_fraction', 0.1),
+                'random_state': session_data.get('mlr_ga_xyonion_random_state', 42),
+                'mahalanobis': session_data.get('mlr_ga_xyonion_mahalanobis', False)
+            }
 
-        if split_method == 'time' or split_method == 'systematic' or split_method == 'kennard_stone':
+        if split_method == 'time' or split_method == 'systematic' or split_method == 'kennard_stone' or split_method == 'xyonion':
             shuffle_cv = False
         elif split_method == 'kfold':
             shuffle_cv = session_data.get('mlr_ga_shuffle_kfold', True)

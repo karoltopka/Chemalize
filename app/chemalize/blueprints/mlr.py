@@ -60,6 +60,11 @@ def mlr_analysis():
         'ratio_n': session.get('ratio_n', 3),
         'ks_test_size': session.get('ks_test_size', 0.2),
         'ks_random_state': session.get('ks_random_state', 42),
+        'xyonion_test_size': session.get('xyonion_test_size', 0.2),
+        'xyonion_n_layers': session.get('xyonion_n_layers', 3),
+        'xyonion_loop_fraction': session.get('xyonion_loop_fraction', 0.1),
+        'xyonion_random_state': session.get('xyonion_random_state', 42),
+        'xyonion_mahalanobis': session.get('xyonion_mahalanobis', False),
 
         # Other options
         'scale_data': session.get('scale_data', False),
@@ -195,6 +200,13 @@ def perform_mlr():
     # Parameters for Kennard-Stone split
     ks_test_size = float(request.form.get('ks_test_size', 0.2))
     ks_random_state = int(request.form.get('ks_random_state', 42))
+
+    # Parameters for XYOnion split
+    xyonion_test_size = float(request.form.get('xyonion_test_size', 0.2))
+    xyonion_n_layers = int(request.form.get('xyonion_n_layers', 3))
+    xyonion_loop_fraction = float(request.form.get('xyonion_loop_fraction', 0.1))
+    xyonion_random_state = int(request.form.get('xyonion_random_state', 42))
+    xyonion_mahalanobis = 'xyonion_mahalanobis' in request.form
     
     if not target_var:
         flash('Please select a target variable!', 'danger')
@@ -231,6 +243,11 @@ def perform_mlr():
     session['ratio_n'] = ratio_n
     session['ks_test_size'] = ks_test_size
     session['ks_random_state'] = ks_random_state
+    session['xyonion_test_size'] = xyonion_test_size
+    session['xyonion_n_layers'] = xyonion_n_layers
+    session['xyonion_loop_fraction'] = xyonion_loop_fraction
+    session['xyonion_random_state'] = xyonion_random_state
+    session['xyonion_mahalanobis'] = xyonion_mahalanobis
 
     # Mark session as modified
     session.modified = True
@@ -294,6 +311,14 @@ def perform_mlr():
             split_params = {
                 'test_size': ks_test_size,
                 'random_state': ks_random_state
+            }
+        elif split_method == 'xyonion':
+            split_params = {
+                'test_size': xyonion_test_size,
+                'n_layers': xyonion_n_layers,
+                'loop_fraction': xyonion_loop_fraction,
+                'random_state': xyonion_random_state,
+                'mahalanobis': xyonion_mahalanobis
             }
         # LOOCV doesn't need additional parameters
 

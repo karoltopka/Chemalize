@@ -473,6 +473,13 @@
                         <label class="custom-control-label" for="split_kennard_stone">Kennard-Stone</label>
                         <small class="form-text text-muted">Selects training samples maximally spread in feature space (chemometrics)</small>
                     </div>
+
+                    <div class="custom-control custom-radio">
+                        <input type="radio" id="split_xyonion" name="split_method" value="xyonion" class="custom-control-input"
+                            {% if split_method == 'xyonion' %}checked{% endif %} onchange="toggleSplitOptions()">
+                        <label class="custom-control-label" for="split_xyonion">XY-Onion (SPXY)</label>
+                        <small class="form-text text-muted">Onion-layer sampling using SPXY distance (considers both X and Y space)</small>
+                    </div>
                 </div>
 
                 <!-- Random Split Options -->
@@ -620,6 +627,60 @@
                         <strong>Kennard-Stone:</strong> Selects training samples that are maximally spread in feature space.
                         Starts with the two farthest samples, then iteratively adds samples farthest from the selected set.
                         Commonly used in chemometrics and QSAR modeling.
+                    </div>
+                </div>
+
+                <!-- XYOnion Options -->
+                <div id="xyonion_options" class="split-options mt-3" style="display:none;">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="xyonion_test_size">Test Size:</label>
+                                <input type="number" class="form-control" id="xyonion_test_size" name="xyonion_test_size"
+                                       value="{{ xyonion_test_size|default(0.2) }}" min="0.01" max="0.5" step="0.01">
+                                <small class="form-text text-muted">Proportion for test set</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="xyonion_n_layers">Onion Layers:</label>
+                                <input type="number" class="form-control" id="xyonion_n_layers" name="xyonion_n_layers"
+                                       value="{{ xyonion_n_layers|default(3) }}" min="1" max="10">
+                                <small class="form-text text-muted">Number of sampling layers</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="xyonion_loop_fraction">Loop Fraction:</label>
+                                <input type="number" class="form-control" id="xyonion_loop_fraction" name="xyonion_loop_fraction"
+                                       value="{{ xyonion_loop_fraction|default(0.1) }}" min="0.05" max="0.5" step="0.05">
+                                <small class="form-text text-muted">Per iteration</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="xyonion_random_state">Random State:</label>
+                                <input type="number" class="form-control" id="xyonion_random_state" name="xyonion_random_state"
+                                       value="{{ xyonion_random_state|default(42) }}" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mt-4">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="xyonion_mahalanobis" name="xyonion_mahalanobis"
+                                           {% if xyonion_mahalanobis %}checked{% endif %}>
+                                    <label class="custom-control-label" for="xyonion_mahalanobis">Use Mahalanobis Distance</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info mt-2">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        <strong>XY-Onion (SPXY):</strong> Samples from outer "shells" of the data space layer by layer.
+                        Combines feature space (X) and target variable (Y) distances.
+                        Mahalanobis option accounts for feature correlations.
                     </div>
                 </div>
 
@@ -1975,7 +2036,8 @@ function toggleSplitOptions() {
         'time': 'time_options',
         'kfold': 'kfold_options',
         'systematic': 'systematic_options',
-        'kennard_stone': 'kennard_stone_options'
+        'kennard_stone': 'kennard_stone_options',
+        'xyonion': 'xyonion_options'
     };
 
     if (optionsMap[method]) {
