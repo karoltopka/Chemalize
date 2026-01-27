@@ -104,6 +104,134 @@
     body.dark-theme .color-editor-swatch {
         border-color: rgba(255, 255, 255, 0.2) !important;
     }
+
+    /* Bins control styling */
+    .bins-control {
+        padding: 15px;
+        background: rgba(248, 250, 252, 0.8);
+        border-radius: 10px;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+    }
+
+    .bins-control .form-label {
+        font-weight: 500;
+        color: #374151;
+        margin-bottom: 8px;
+        display: block;
+    }
+
+    .bins-control #bins-value {
+        font-weight: 600;
+        color: #2563eb;
+        background: rgba(37, 99, 235, 0.1);
+        padding: 2px 8px;
+        border-radius: 4px;
+        margin-left: 5px;
+    }
+
+    .bins-control .form-range {
+        width: 100%;
+        height: 8px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: linear-gradient(to right, #e2e8f0, #cbd5e1);
+        border-radius: 4px;
+        outline: none;
+        cursor: pointer;
+    }
+
+    .bins-control .form-range::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .bins-control .form-range::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 10px rgba(37, 99, 235, 0.5);
+    }
+
+    .bins-control .form-range::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        border-radius: 50%;
+        cursor: pointer;
+        border: none;
+        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);
+    }
+
+    .bins-slider-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .bins-slider-row .form-range {
+        flex: 1;
+    }
+
+    .bins-slider-row .modern-btn {
+        flex-shrink: 0;
+        padding: 6px 14px;
+        font-size: 0.85rem;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+    }
+
+    .bins-slider-row .modern-btn.active {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        border-color: #2563eb;
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+    }
+
+    .bins-control .text-muted {
+        font-size: 0.85rem;
+        margin-top: 8px;
+        display: block;
+    }
+
+    /* Dark mode for bins control */
+    body.dark-theme .bins-control {
+        background: rgba(31, 41, 55, 0.8);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    body.dark-theme .bins-control .form-label {
+        color: #e5e7eb;
+    }
+
+    body.dark-theme .bins-control #bins-value {
+        background: rgba(59, 130, 246, 0.2);
+        color: #60a5fa;
+    }
+
+    body.dark-theme .bins-control .form-range {
+        background: linear-gradient(to right, #374151, #4b5563);
+    }
+
+    body.dark-theme .bins-slider-row .modern-btn {
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #e5e7eb;
+    }
+
+    body.dark-theme .bins-slider-row .modern-btn:hover {
+        border-color: #60a5fa;
+        color: #60a5fa;
+    }
+
+    body.dark-theme .bins-slider-row .modern-btn.active {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        border-color: #3b82f6;
+    }
 </style>
 {% endblock %}
 
@@ -254,6 +382,17 @@
                 </div>
                 <div class="plot-body">
                     <div id="histogram-plot" style="width: 100%; height: 400px;"></div>
+                    <div id="histogram-bins-control" class="bins-control mt-3">
+                        <label class="form-label">
+                            <i class="fas fa-sliders-h"></i> Number of Bins: <span id="bins-value">auto</span>
+                        </label>
+                        <div class="bins-slider-row">
+                            <input type="range" id="bins-slider" class="form-range" min="5" max="100" value="20" step="1">
+                            <button type="button" id="bins-auto-btn" class="modern-btn btn-sm btn-outline-primary">
+                                <i class="fas fa-magic"></i> Auto
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -781,7 +920,10 @@
         });
     }
 
-    function renderHistogram(histogramData) {
+    // Global variable to store current histogram data for bin updates
+    let currentHistogramData = null;
+
+    function renderHistogram(histogramData, nbins = 0) {
         if (typeof Plotly === 'undefined') {
             console.error('Plotly.js not available for histogram');
             const plotElement = document.getElementById('histogram-plot');
@@ -791,8 +933,11 @@
             return;
         }
 
+        // Store histogram data for later bin updates
+        currentHistogramData = histogramData;
+
         if (histogramData.is_numeric) {
-            const data = [{
+            const traceConfig = {
                 x: histogramData.values,
                 type: 'histogram',
                 marker: {
@@ -803,7 +948,14 @@
                     }
                 },
                 hovertemplate: 'Value: %{x}<br>Count: %{y}<extra></extra>'
-            }];
+            };
+
+            // Apply custom number of bins if specified
+            if (nbins > 0) {
+                traceConfig.nbinsx = nbins;
+            }
+
+            const data = [traceConfig];
 
             const layout = {
                 title: {
@@ -862,7 +1014,16 @@
                 modeBarButtonsToRemove: ['lasso2d', 'select2d'],
                 displaylogo: false
             });
+
+            // Initialize bins slider for numeric data
+            initBinsSlider();
         } else {
+            // Hide bins control for categorical data
+            const binsControl = document.getElementById('histogram-bins-control');
+            if (binsControl) {
+                binsControl.style.display = 'none';
+            }
+
             const data = [{
                 x: histogramData.categories,
                 y: histogramData.counts,
@@ -934,6 +1095,69 @@
                 displaylogo: false
             });
         }
+    }
+
+    // Track if current histogram is using auto bins
+    let isAutoBins = true;
+
+    function initBinsSlider() {
+        const slider = document.getElementById('bins-slider');
+        const binsValue = document.getElementById('bins-value');
+        const binsControl = document.getElementById('histogram-bins-control');
+        const autoBtn = document.getElementById('bins-auto-btn');
+
+        if (!slider || !binsValue) return;
+
+        // Show bins control for numeric data
+        if (binsControl) {
+            binsControl.style.display = 'block';
+        }
+
+        // Reset to auto state
+        isAutoBins = true;
+        binsValue.textContent = 'auto';
+        slider.value = 20;
+        if (autoBtn) {
+            autoBtn.classList.add('active');
+        }
+
+        // Remove old event listeners by cloning elements
+        const newSlider = slider.cloneNode(true);
+        slider.parentNode.replaceChild(newSlider, slider);
+
+        const newAutoBtn = autoBtn ? autoBtn.cloneNode(true) : null;
+        if (autoBtn && newAutoBtn) {
+            autoBtn.parentNode.replaceChild(newAutoBtn, autoBtn);
+        }
+
+        // Add event listener for slider
+        newSlider.addEventListener('input', function() {
+            const nbins = parseInt(this.value);
+            isAutoBins = false;
+            binsValue.textContent = nbins;
+            if (newAutoBtn) {
+                newAutoBtn.classList.remove('active');
+            }
+            updateHistogramBins(nbins);
+        });
+
+        // Add event listener for Auto button
+        if (newAutoBtn) {
+            newAutoBtn.addEventListener('click', function() {
+                isAutoBins = true;
+                binsValue.textContent = 'auto';
+                this.classList.add('active');
+                updateHistogramBins(0); // 0 means auto
+            });
+        }
+    }
+
+    function updateHistogramBins(nbins) {
+        if (!currentHistogramData || !currentHistogramData.is_numeric) return;
+
+        // nbins = 0 means auto (let Plotly decide)
+        const update = nbins > 0 ? { nbinsx: nbins } : { nbinsx: null };
+        Plotly.restyle('histogram-plot', update, [0]);
     }
 
     /* ===========================
@@ -3789,6 +4013,17 @@
                                 </div>
                                 <div class="plot-body">
                                     <div id="histogram-plot" style="width: 100%; height: 400px;"></div>
+                                    <div id="histogram-bins-control" class="bins-control mt-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-sliders-h"></i> Number of Bins: <span id="bins-value">auto</span>
+                                        </label>
+                                        <div class="bins-slider-row">
+                                            <input type="range" id="bins-slider" class="form-range" min="5" max="100" value="20" step="1">
+                                            <button type="button" id="bins-auto-btn" class="modern-btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-magic"></i> Auto
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         `;
