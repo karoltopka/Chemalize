@@ -173,14 +173,14 @@
                                 <input type="radio" id="split_kennard_stone" name="split_method" value="kennard_stone" class="custom-control-input"
                                        {% if split_method == 'kennard_stone' %}checked{% endif %} onchange="toggleSplitOptions()">
                                 <label class="custom-control-label" for="split_kennard_stone">Kennard-Stone</label>
-                                <small class="form-text text-muted">Selects training samples that are maximally spread in feature space (commonly used in chemometrics)</small>
+                                <small class="form-text text-muted">Selects training samples that are maximally spread in feature space</small>
                             </div>
 
                             <div class="custom-control custom-radio mt-2">
                                 <input type="radio" id="split_xyonion" name="split_method" value="xyonion" class="custom-control-input"
                                        {% if split_method == 'xyonion' %}checked{% endif %} onchange="toggleSplitOptions()">
                                 <label class="custom-control-label" for="split_xyonion">XY-Onion (SPXY)</label>
-                                <small class="form-text text-muted">Onion-layer sampling using SPXY distance (considers both X and Y space)</small>
+                                <small class="form-text text-muted">Onion-layer sampling using SPXY distance</small>
                             </div>
                         </div>
 
@@ -362,12 +362,11 @@
 
                             <div class="alert alert-info mt-3">
                                 <h6><i class="fas fa-info-circle mr-2"></i>Kennard-Stone Algorithm</h6>
-                                <p class="mb-0">This method selects training samples that are maximally spread in the feature space:</p>
+                                <p class="mb-0">Selects training samples that are maximally spread in the feature space:</p>
                                 <ul class="mb-0">
                                     <li>Starts with the two samples farthest apart</li>
                                     <li>Iteratively adds samples farthest from already selected ones</li>
                                     <li>Ensures training set covers the entire feature space</li>
-                                    <li>Commonly used in chemometrics and QSAR/QSPR modeling</li>
                                 </ul>
                             </div>
                         </div>
