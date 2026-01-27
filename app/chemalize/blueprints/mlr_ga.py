@@ -230,6 +230,17 @@ def mlr_ga_step1():
                     flash('Inverse transformation requires non-zero values!', 'danger')
                     return redirect(url_for('mlr_ga.mlr_ga_analysis'))
                 y_transformed = 1 / y_original
+            elif y_transformation == 'boxcox':
+                from scipy.stats import boxcox
+                if (y_original <= 0).any():
+                    flash('Box-Cox transformation requires all positive values (y > 0)!', 'danger')
+                    return redirect(url_for('mlr_ga.mlr_ga_analysis'))
+                y_transformed, lambda_boxcox = boxcox(y_original)
+                session['mlr_ga_boxcox_lambda'] = float(lambda_boxcox)
+            elif y_transformation == 'yeojohnson':
+                from scipy.stats import yeojohnson
+                y_transformed, lambda_yj = yeojohnson(y_original)
+                session['mlr_ga_yeojohnson_lambda'] = float(lambda_yj)
 
             # Plot transformed histogram
             if y_transformed is not None:
@@ -314,6 +325,14 @@ def mlr_ga_detect_outliers_step1():
                 y_before = y_before ** 2
             elif y_transformation == 'inverse':
                 y_before = 1 / y_before
+            elif y_transformation == 'boxcox':
+                from scipy.stats import boxcox
+                lambda_bc = session.get('mlr_ga_boxcox_lambda')
+                y_before, _ = boxcox(y_before, lmbda=lambda_bc)
+            elif y_transformation == 'yeojohnson':
+                from scipy.stats import yeojohnson
+                lambda_yj = session.get('mlr_ga_yeojohnson_lambda')
+                y_before, _ = yeojohnson(y_before, lmbda=lambda_yj)
 
         # 2. Preview after removal (using keep_indices)
         keep_indices = outlier_info['keep_indices']
@@ -328,6 +347,14 @@ def mlr_ga_detect_outliers_step1():
                 y_after = y_after ** 2
             elif y_transformation == 'inverse':
                 y_after = 1 / y_after
+            elif y_transformation == 'boxcox':
+                from scipy.stats import boxcox
+                lambda_bc = session.get('mlr_ga_boxcox_lambda')
+                y_after, _ = boxcox(y_after, lmbda=lambda_bc)
+            elif y_transformation == 'yeojohnson':
+                from scipy.stats import yeojohnson
+                lambda_yj = session.get('mlr_ga_yeojohnson_lambda')
+                y_after, _ = yeojohnson(y_after, lmbda=lambda_yj)
 
         # Generate both histograms (Q-Q plots)
         temp_path = ensure_temp_dir()
@@ -543,6 +570,14 @@ def mlr_ga_detect_outliers_step2():
                 y = y ** 2
             elif y_transformation == 'inverse':
                 y = 1 / y
+            elif y_transformation == 'boxcox':
+                from scipy.stats import boxcox
+                lambda_bc = session.get('mlr_ga_boxcox_lambda')
+                y, _ = boxcox(y, lmbda=lambda_bc)
+            elif y_transformation == 'yeojohnson':
+                from scipy.stats import yeojohnson
+                lambda_yj = session.get('mlr_ga_yeojohnson_lambda')
+                y, _ = yeojohnson(y, lmbda=lambda_yj)
 
         # 1. Current state histogram
         y_train_current = y.iloc[train_idx]
@@ -920,6 +955,17 @@ def mlr_ga_step2():
                     flash('Inverse transformation requires non-zero values!', 'danger')
                     return redirect(url_for('mlr_ga.mlr_ga_analysis'))
                 y = 1 / y
+            elif y_transformation == 'boxcox':
+                from scipy.stats import boxcox
+                if (y <= 0).any():
+                    flash('Box-Cox transformation requires all positive values (y > 0)!', 'danger')
+                    return redirect(url_for('mlr_ga.mlr_ga_analysis'))
+                lambda_bc = session.get('mlr_ga_boxcox_lambda')
+                y, _ = boxcox(y, lmbda=lambda_bc)
+            elif y_transformation == 'yeojohnson':
+                from scipy.stats import yeojohnson
+                lambda_yj = session.get('mlr_ga_yeojohnson_lambda')
+                y, _ = yeojohnson(y, lmbda=lambda_yj)
 
         # Perform split based on method
         if split_method == 'random':

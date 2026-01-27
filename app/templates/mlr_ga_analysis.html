@@ -255,6 +255,8 @@
                                 <option value="sqrt" {% if y_transformation == 'sqrt' %}selected{% endif %}>Square Root (sqrt)</option>
                                 <option value="square" {% if y_transformation == 'square' %}selected{% endif %}>Square (x²)</option>
                                 <option value="inverse" {% if y_transformation == 'inverse' %}selected{% endif %}>Inverse (1/x)</option>
+                                <option value="boxcox" {% if y_transformation == 'boxcox' %}selected{% endif %}>Box-Cox (y > 0)</option>
+                                <option value="yeojohnson" {% if y_transformation == 'yeojohnson' %}selected{% endif %}>Yeo-Johnson</option>
                             </select>
                             <small class="form-text text-muted">Change transformation to see updated histogram</small>
                         </div>
