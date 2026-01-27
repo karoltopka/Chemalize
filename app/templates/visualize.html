@@ -170,11 +170,20 @@
     .bins-slider-row {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 10px;
     }
 
     .bins-slider-row .form-range {
         flex: 1;
+    }
+
+    .bins-label-auto,
+    .bins-label-max {
+        font-size: 0.75rem;
+        color: #6b7280;
+        font-weight: 500;
+        min-width: 28px;
+        text-align: center;
     }
 
     .bins-slider-row .modern-btn {
@@ -231,6 +240,11 @@
         background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
         color: white;
         border-color: #3b82f6;
+    }
+
+    body.dark-theme .bins-label-auto,
+    body.dark-theme .bins-label-max {
+        color: #9ca3af;
     }
 </style>
 {% endblock %}
@@ -387,8 +401,10 @@
                             <i class="fas fa-sliders-h"></i> Number of Bins: <span id="bins-value">auto</span>
                         </label>
                         <div class="bins-slider-row">
-                            <input type="range" id="bins-slider" class="form-range" min="5" max="100" value="20" step="1">
-                            <button type="button" id="bins-auto-btn" class="modern-btn btn-sm btn-outline-primary">
+                            <span class="bins-label-auto">auto</span>
+                            <input type="range" id="bins-slider" class="form-range" min="0" max="100" value="0" step="1">
+                            <span class="bins-label-max">100</span>
+                            <button type="button" id="bins-auto-btn" class="modern-btn btn-sm btn-outline-primary active">
                                 <i class="fas fa-magic"></i> Auto
                             </button>
                         </div>
@@ -937,8 +953,12 @@
         currentHistogramData = histogramData;
 
         if (histogramData.is_numeric) {
+            const values = histogramData.values;
+            const minVal = Math.min(...values);
+            const maxVal = Math.max(...values);
+
             const traceConfig = {
-                x: histogramData.values,
+                x: values,
                 type: 'histogram',
                 marker: {
                     color: 'rgba(37, 99, 235, 0.7)',
@@ -950,9 +970,16 @@
                 hovertemplate: 'Value: %{x}<br>Count: %{y}<extra></extra>'
             };
 
-            // Apply custom number of bins if specified
+            // Apply custom number of bins if specified (using exact bin size)
             if (nbins > 0) {
-                traceConfig.nbinsx = nbins;
+                const range = maxVal - minVal;
+                const binSize = range / nbins;
+                traceConfig.autobinx = false;
+                traceConfig.xbins = {
+                    start: minVal,
+                    end: maxVal,
+                    size: binSize
+                };
             }
 
             const data = [traceConfig];
@@ -1097,9 +1124,6 @@
         }
     }
 
-    // Track if current histogram is using auto bins
-    let isAutoBins = true;
-
     function initBinsSlider() {
         const slider = document.getElementById('bins-slider');
         const binsValue = document.getElementById('bins-value');
@@ -1113,10 +1137,9 @@
             binsControl.style.display = 'block';
         }
 
-        // Reset to auto state
-        isAutoBins = true;
+        // Reset to auto state (slider at 0)
+        slider.value = 0;
         binsValue.textContent = 'auto';
-        slider.value = 20;
         if (autoBtn) {
             autoBtn.classList.add('active');
         }
@@ -1133,21 +1156,25 @@
         // Add event listener for slider
         newSlider.addEventListener('input', function() {
             const nbins = parseInt(this.value);
-            isAutoBins = false;
-            binsValue.textContent = nbins;
-            if (newAutoBtn) {
-                newAutoBtn.classList.remove('active');
+            if (nbins === 0) {
+                binsValue.textContent = 'auto';
+                if (newAutoBtn) newAutoBtn.classList.add('active');
+            } else {
+                // Minimum 5 bins when not auto
+                const effectiveBins = Math.max(5, nbins);
+                binsValue.textContent = effectiveBins;
+                if (newAutoBtn) newAutoBtn.classList.remove('active');
             }
-            updateHistogramBins(nbins);
+            updateHistogramBins(nbins === 0 ? 0 : Math.max(5, nbins));
         });
 
         // Add event listener for Auto button
         if (newAutoBtn) {
             newAutoBtn.addEventListener('click', function() {
-                isAutoBins = true;
+                newSlider.value = 0;
                 binsValue.textContent = 'auto';
                 this.classList.add('active');
-                updateHistogramBins(0); // 0 means auto
+                updateHistogramBins(0);
             });
         }
     }
@@ -1155,9 +1182,45 @@
     function updateHistogramBins(nbins) {
         if (!currentHistogramData || !currentHistogramData.is_numeric) return;
 
-        // nbins = 0 means auto (let Plotly decide)
-        const update = nbins > 0 ? { nbinsx: nbins } : { nbinsx: null };
-        Plotly.restyle('histogram-plot', update, [0]);
+        const values = currentHistogramData.values;
+        const minVal = Math.min(...values);
+        const maxVal = Math.max(...values);
+
+        const traceConfig = {
+            x: values,
+            type: 'histogram',
+            marker: {
+                color: 'rgba(37, 99, 235, 0.7)',
+                line: {
+                    color: 'rgba(118, 75, 162, 1)',
+                    width: 2
+                }
+            },
+            hovertemplate: 'Value: %{x}<br>Count: %{y}<extra></extra>'
+        };
+
+        // Apply custom number of bins if specified
+        if (nbins > 0) {
+            const range = maxVal - minVal;
+            const binSize = range / nbins;
+            traceConfig.autobinx = false;
+            traceConfig.xbins = {
+                start: minVal,
+                end: maxVal,
+                size: binSize
+            };
+        }
+
+        // Get current layout and update with new data
+        const plotElement = document.getElementById('histogram-plot');
+        const currentLayout = plotElement.layout;
+
+        Plotly.react('histogram-plot', [traceConfig], currentLayout, {
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+            displaylogo: false
+        });
     }
 
     /* ===========================
@@ -4018,8 +4081,10 @@
                                             <i class="fas fa-sliders-h"></i> Number of Bins: <span id="bins-value">auto</span>
                                         </label>
                                         <div class="bins-slider-row">
-                                            <input type="range" id="bins-slider" class="form-range" min="5" max="100" value="20" step="1">
-                                            <button type="button" id="bins-auto-btn" class="modern-btn btn-sm btn-outline-primary">
+                                            <span class="bins-label-auto">auto</span>
+                                            <input type="range" id="bins-slider" class="form-range" min="0" max="100" value="0" step="1">
+                                            <span class="bins-label-max">100</span>
+                                            <button type="button" id="bins-auto-btn" class="modern-btn btn-sm btn-outline-primary active">
                                                 <i class="fas fa-magic"></i> Auto
                                             </button>
                                         </div>
