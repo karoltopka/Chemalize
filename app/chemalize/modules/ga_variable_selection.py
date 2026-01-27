@@ -1461,7 +1461,7 @@ def preprocess_for_ga(df, target_var, y_transformation='none',
 
 def plot_y_histogram(y, y_name='Target Variable', temp_path='temp/'):
     """
-    Plot histogram of target variable to help choose transformation
+    Generate Q-Q plot and return data for Plotly histogram
 
     Parameters:
     -----------
@@ -1475,9 +1475,10 @@ def plot_y_histogram(y, y_name='Target Variable', temp_path='temp/'):
     Returns:
     --------
     tuple
-        (plot_path, statistics_dict)
-        plot_path: str - Path to saved plot
+        (plot_path, statistics_dict, histogram_data)
+        plot_path: str - Path to saved Q-Q plot
         statistics_dict: dict - Dictionary with mean, median, std, skewness, kurtosis, normality test
+        histogram_data: dict - Data for Plotly histogram (values, column_name)
     """
     from scipy.stats import shapiro, skew, kurtosis
 
@@ -1510,19 +1511,19 @@ def plot_y_histogram(y, y_name='Target Variable', temp_path='temp/'):
         'is_normal': is_normal
     }
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    # Prepare histogram data for Plotly
+    histogram_data = {
+        'values': y_array.tolist(),
+        'column_name': y_name
+    }
 
-    # Histogram
-    ax1.hist(y, bins=30, color='#440154', alpha=0.7, edgecolor='black')
-    ax1.set_xlabel(y_name, fontsize=12)
-    ax1.set_ylabel('Frequency', fontsize=12)
-    ax1.set_title(f'Histogram of {y_name}', fontsize=14, fontweight='bold')
-    ax1.grid(True, alpha=0.3)
+    # Create only Q-Q plot (histogram will be rendered by Plotly in frontend)
+    fig, ax = plt.subplots(1, 1, figsize=(6, 5))
 
     # Q-Q plot
-    stats.probplot(y, dist="norm", plot=ax2)
-    ax2.set_title('Q-Q Plot (Normality Check)', fontsize=14, fontweight='bold')
-    ax2.grid(True, alpha=0.3)
+    stats.probplot(y, dist="norm", plot=ax)
+    ax.set_title('Q-Q Plot (Normality Check)', fontsize=14, fontweight='bold')
+    ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
 
@@ -1530,11 +1531,11 @@ def plot_y_histogram(y, y_name='Target Variable', temp_path='temp/'):
     import time
     timestamp = int(time.time() * 1000000)  # microseconds for uniqueness
     add_watermark_matplotlib_after_plot(plt.gcf())
-    plot_path = os.path.join(temp_path, f'y_histogram_{timestamp}.png')
+    plot_path = os.path.join(temp_path, f'y_qqplot_{timestamp}.png')
     plt.savefig(plot_path, dpi=150, bbox_inches='tight')
     plt.close()
 
-    return plot_path, statistics
+    return plot_path, statistics, histogram_data
 
 
 def plot_y_histogram_split(y_train, y_test, y_name='Target Variable', temp_path='temp/'):

@@ -1,4 +1,80 @@
 {% extends "layout.html" %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/plotly.js@2.24.2/dist/plotly.min.js"></script>
+<style>
+    .bins-control {
+        padding: 12px;
+        background: rgba(248, 250, 252, 0.8);
+        border-radius: 8px;
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        margin-top: 10px;
+    }
+    .bins-control .form-label {
+        font-weight: 500;
+        color: #374151;
+        margin-bottom: 6px;
+        display: block;
+        font-size: 0.9rem;
+    }
+    .bins-control #bins-value, .bins-control #bins-value-transformed {
+        font-weight: 600;
+        color: #2563eb;
+        background: rgba(37, 99, 235, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+        margin-left: 4px;
+    }
+    .bins-slider-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .bins-slider-row .form-range {
+        flex: 1;
+        height: 6px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: linear-gradient(to right, #e2e8f0, #cbd5e1);
+        border-radius: 4px;
+        outline: none;
+        cursor: pointer;
+    }
+    .bins-slider-row .form-range::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+    }
+    .bins-slider-row .form-range::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        border-radius: 50%;
+        cursor: pointer;
+        border: none;
+    }
+    .bins-label-auto, .bins-label-max {
+        font-size: 0.7rem;
+        color: #6b7280;
+        font-weight: 500;
+        min-width: 24px;
+        text-align: center;
+    }
+    .bins-slider-row .btn-sm {
+        padding: 4px 10px;
+        font-size: 0.75rem;
+    }
+    .distribution-plot-container {
+        height: 280px;
+        width: 100%;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="content-section">
     <legend class="border-bottom mb-4">
@@ -186,57 +262,200 @@
                 </div>
             </form>
 
-            <!-- Histogram section - shows when variable is selected -->
-            {% if y_histogram_plot %}
-            <div class="row mt-4">
-                <!-- Original Distribution -->
-                <div class="col-md-{% if y_histogram_plot_transformed %}6{% else %}12{% endif %}">
-                    <h6><i class="fas fa-chart-bar mr-2"></i>Original Distribution</h6>
-                    <img src="{{ url_for('utils.serve_temp_image', filename=y_histogram_plot) }}" class="img-fluid" alt="Original Y Distribution">
-
-                    {% if y_stats %}
-                    <div class="alert alert-info mt-3">
-                        <strong>Statistics:</strong><br>
-                        Mean: {{ "%.4f"|format(y_stats.mean) }} |
-                        Median: {{ "%.4f"|format(y_stats.median) }}<br>
-                        Std: {{ "%.4f"|format(y_stats.std) }} |
-                        Skewness: {{ "%.4f"|format(y_stats.skewness) }}<br>
-                        Kurtosis: {{ "%.4f"|format(y_stats.kurtosis) }} |
-                        Normality p-value: {{ "%.4f"|format(y_stats.normality_pvalue) }}
-                        {% if y_stats.is_normal %}
-                        <strong class="text-success">✓ Normal</strong>
-                        {% else %}
-                        <strong class="text-warning">⚠ Not Normal</strong>
-                        {% endif %}
+            <!-- Distribution section - shows when variable is selected -->
+            {% if y_qqplot %}
+            <!-- Original Distribution -->
+            <div class="mt-4">
+                <h6><i class="fas fa-chart-bar mr-2"></i>Original Distribution</h6>
+                <div class="row">
+                    <!-- Histogram (left) -->
+                    <div class="col-md-6">
+                        <div id="histogram-plot-original" class="distribution-plot-container"></div>
+                        <div class="bins-control">
+                            <label class="form-label">
+                                <i class="fas fa-sliders-h"></i> Bins: <span id="bins-value">auto</span>
+                            </label>
+                            <div class="bins-slider-row">
+                                <span class="bins-label-auto">auto</span>
+                                <input type="range" id="bins-slider" class="form-range" min="0" max="100" value="0" step="1">
+                                <span class="bins-label-max">100</span>
+                                <button type="button" id="bins-auto-btn" class="btn btn-sm btn-outline-primary active">
+                                    <i class="fas fa-magic"></i> Auto
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    {% endif %}
+                    <!-- Q-Q Plot (right) -->
+                    <div class="col-md-6">
+                        <img src="{{ url_for('utils.serve_temp_image', filename=y_qqplot) }}" class="img-fluid" alt="Q-Q Plot">
+                    </div>
                 </div>
 
-                <!-- Transformed Distribution (if transformation applied) -->
-                {% if y_histogram_plot_transformed %}
-                <div class="col-md-6">
-                    <h6><i class="fas fa-chart-bar mr-2"></i>After {{ y_transformation }} Transformation</h6>
-                    <img src="{{ url_for('utils.serve_temp_image', filename=y_histogram_plot_transformed) }}" class="img-fluid" alt="Transformed Y Distribution">
-
-                    {% if y_stats_transformed %}
-                    <div class="alert alert-success mt-3">
-                        <strong>Statistics:</strong><br>
-                        Mean: {{ "%.4f"|format(y_stats_transformed.mean) }} |
-                        Median: {{ "%.4f"|format(y_stats_transformed.median) }}<br>
-                        Std: {{ "%.4f"|format(y_stats_transformed.std) }} |
-                        Skewness: {{ "%.4f"|format(y_stats_transformed.skewness) }}<br>
-                        Kurtosis: {{ "%.4f"|format(y_stats_transformed.kurtosis) }} |
-                        Normality p-value: {{ "%.4f"|format(y_stats_transformed.normality_pvalue) }}
-                        {% if y_stats_transformed.is_normal %}
-                        <strong class="text-success">✓ Normal</strong>
-                        {% else %}
-                        <strong class="text-warning">⚠ Not Normal</strong>
-                        {% endif %}
-                    </div>
+                {% if y_stats %}
+                <div class="alert alert-info mt-3">
+                    <strong>Statistics:</strong><br>
+                    Mean: {{ "%.4f"|format(y_stats.mean) }} |
+                    Median: {{ "%.4f"|format(y_stats.median) }}<br>
+                    Std: {{ "%.4f"|format(y_stats.std) }} |
+                    Skewness: {{ "%.4f"|format(y_stats.skewness) }}<br>
+                    Kurtosis: {{ "%.4f"|format(y_stats.kurtosis) }} |
+                    Normality p-value: {{ "%.4f"|format(y_stats.normality_pvalue) }}
+                    {% if y_stats.is_normal %}
+                    <strong class="text-success">✓ Normal</strong>
+                    {% else %}
+                    <strong class="text-warning">⚠ Not Normal</strong>
                     {% endif %}
                 </div>
                 {% endif %}
             </div>
+
+            <!-- Transformed Distribution (if transformation applied) -->
+            {% if y_qqplot_transformed %}
+            <div class="mt-4">
+                <h6><i class="fas fa-chart-bar mr-2"></i>After {{ y_transformation }} Transformation</h6>
+                <div class="row">
+                    <!-- Histogram Transformed (left) -->
+                    <div class="col-md-6">
+                        <div id="histogram-plot-transformed" class="distribution-plot-container"></div>
+                        <div class="bins-control">
+                            <label class="form-label">
+                                <i class="fas fa-sliders-h"></i> Bins: <span id="bins-value-transformed">auto</span>
+                            </label>
+                            <div class="bins-slider-row">
+                                <span class="bins-label-auto">auto</span>
+                                <input type="range" id="bins-slider-transformed" class="form-range" min="0" max="100" value="0" step="1">
+                                <span class="bins-label-max">100</span>
+                                <button type="button" id="bins-auto-btn-transformed" class="btn btn-sm btn-outline-primary active">
+                                    <i class="fas fa-magic"></i> Auto
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Q-Q Plot Transformed (right) -->
+                    <div class="col-md-6">
+                        <img src="{{ url_for('utils.serve_temp_image', filename=y_qqplot_transformed) }}" class="img-fluid" alt="Q-Q Plot Transformed">
+                    </div>
+                </div>
+
+                {% if y_stats_transformed %}
+                <div class="alert alert-success mt-3">
+                    <strong>Statistics:</strong><br>
+                    Mean: {{ "%.4f"|format(y_stats_transformed.mean) }} |
+                    Median: {{ "%.4f"|format(y_stats_transformed.median) }}<br>
+                    Std: {{ "%.4f"|format(y_stats_transformed.std) }} |
+                    Skewness: {{ "%.4f"|format(y_stats_transformed.skewness) }}<br>
+                    Kurtosis: {{ "%.4f"|format(y_stats_transformed.kurtosis) }} |
+                    Normality p-value: {{ "%.4f"|format(y_stats_transformed.normality_pvalue) }}
+                    {% if y_stats_transformed.is_normal %}
+                    <strong class="text-success">✓ Normal</strong>
+                    {% else %}
+                    <strong class="text-warning">⚠ Not Normal</strong>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Plotly Histogram Script -->
+            <script>
+                // Histogram data from backend
+                const histogramDataOriginal = {{ y_histogram_data | tojson | safe }};
+                {% if y_histogram_data_transformed %}
+                const histogramDataTransformed = {{ y_histogram_data_transformed | tojson | safe }};
+                {% endif %}
+
+                // Render histogram function
+                function renderMLRHistogram(containerId, data, nbins = 0) {
+                    const values = data.values;
+                    const minVal = Math.min(...values);
+                    const maxVal = Math.max(...values);
+
+                    const traceConfig = {
+                        x: values,
+                        type: 'histogram',
+                        marker: {
+                            color: 'rgba(68, 1, 84, 0.7)',
+                            line: { color: 'rgba(0, 0, 0, 0.8)', width: 1 }
+                        },
+                        hovertemplate: 'Value: %{x}<br>Count: %{y}<extra></extra>'
+                    };
+
+                    if (nbins > 0) {
+                        const range = maxVal - minVal;
+                        const binSize = range / nbins;
+                        traceConfig.autobinx = false;
+                        traceConfig.xbins = { start: minVal, end: maxVal, size: binSize };
+                    }
+
+                    const layout = {
+                        title: { text: 'Histogram of ' + data.column_name, font: { size: 14 } },
+                        xaxis: { title: data.column_name, gridcolor: 'rgba(230,230,230,0.8)' },
+                        yaxis: { title: 'Frequency', gridcolor: 'rgba(230,230,230,0.8)' },
+                        paper_bgcolor: 'rgba(0,0,0,0)',
+                        plot_bgcolor: 'rgba(0,0,0,0)',
+                        margin: { l: 50, r: 20, b: 50, t: 40, pad: 4 },
+                        bargap: 0.05
+                    };
+
+                    const plotElement = document.getElementById(containerId);
+                    Plotly.react(containerId, [traceConfig], layout, {
+                        responsive: true,
+                        displayModeBar: true,
+                        modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                        displaylogo: false
+                    });
+                }
+
+                // Initialize original histogram
+                if (histogramDataOriginal && histogramDataOriginal.values) {
+                    renderMLRHistogram('histogram-plot-original', histogramDataOriginal);
+
+                    // Bins slider for original
+                    const slider = document.getElementById('bins-slider');
+                    const binsValue = document.getElementById('bins-value');
+                    const autoBtn = document.getElementById('bins-auto-btn');
+
+                    slider.addEventListener('input', function() {
+                        const nbins = parseInt(this.value);
+                        binsValue.textContent = nbins === 0 ? 'auto' : Math.max(5, nbins);
+                        autoBtn.classList.toggle('active', nbins === 0);
+                        renderMLRHistogram('histogram-plot-original', histogramDataOriginal, nbins === 0 ? 0 : Math.max(5, nbins));
+                    });
+
+                    autoBtn.addEventListener('click', function() {
+                        slider.value = 0;
+                        binsValue.textContent = 'auto';
+                        this.classList.add('active');
+                        renderMLRHistogram('histogram-plot-original', histogramDataOriginal, 0);
+                    });
+                }
+
+                // Initialize transformed histogram if exists
+                {% if y_histogram_data_transformed %}
+                if (histogramDataTransformed && histogramDataTransformed.values) {
+                    renderMLRHistogram('histogram-plot-transformed', histogramDataTransformed);
+
+                    // Bins slider for transformed
+                    const sliderT = document.getElementById('bins-slider-transformed');
+                    const binsValueT = document.getElementById('bins-value-transformed');
+                    const autoBtnT = document.getElementById('bins-auto-btn-transformed');
+
+                    sliderT.addEventListener('input', function() {
+                        const nbins = parseInt(this.value);
+                        binsValueT.textContent = nbins === 0 ? 'auto' : Math.max(5, nbins);
+                        autoBtnT.classList.toggle('active', nbins === 0);
+                        renderMLRHistogram('histogram-plot-transformed', histogramDataTransformed, nbins === 0 ? 0 : Math.max(5, nbins));
+                    });
+
+                    autoBtnT.addEventListener('click', function() {
+                        sliderT.value = 0;
+                        binsValueT.textContent = 'auto';
+                        this.classList.add('active');
+                        renderMLRHistogram('histogram-plot-transformed', histogramDataTransformed, 0);
+                    });
+                }
+                {% endif %}
+            </script>
 
             <!-- Outlier Detection Section (less restrictive) -->
             <div class="row mt-4">

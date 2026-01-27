@@ -57,10 +57,12 @@ def mlr_ga_analysis():
         'mlr_ga_target_var': session.get('mlr_ga_target_var', ''),
         'mlr_ga_y_analyzed': session.get('mlr_ga_y_analyzed', False),
         'y_transformation': session.get('mlr_ga_y_transformation', 'none'),
-        'y_histogram_plot': session.get('mlr_ga_y_histogram_plot', ''),
+        'y_qqplot': session.get('mlr_ga_y_qqplot', ''),  # Q-Q plot only (matplotlib)
         'y_stats': session.get('mlr_ga_y_stats', {}),
-        'y_histogram_plot_transformed': session.get('mlr_ga_y_histogram_plot_transformed', ''),
+        'y_histogram_data': session.get('mlr_ga_y_histogram_data', {}),  # Data for Plotly histogram
+        'y_qqplot_transformed': session.get('mlr_ga_y_qqplot_transformed', ''),
         'y_stats_transformed': session.get('mlr_ga_y_stats_transformed', {}),
+        'y_histogram_data_transformed': session.get('mlr_ga_y_histogram_data_transformed', {}),
 
         # Step 2: Split method
         'split_method': session.get('mlr_ga_split_method', 'random'),
@@ -171,8 +173,10 @@ def mlr_ga_step1():
     # If no target_var provided, this is a re-analyze request - clear the analyzed flag
     if not target_var:
         session['mlr_ga_y_analyzed'] = False
-        session.pop('mlr_ga_y_histogram_plot', None)
-        session.pop('mlr_ga_y_histogram_plot_transformed', None)
+        session.pop('mlr_ga_y_qqplot', None)
+        session.pop('mlr_ga_y_qqplot_transformed', None)
+        session.pop('mlr_ga_y_histogram_data', None)
+        session.pop('mlr_ga_y_histogram_data_transformed', None)
         return redirect(url_for('mlr_ga.mlr_ga_analysis'))
 
     # Read data
@@ -190,8 +194,8 @@ def mlr_ga_step1():
     try:
         temp_path = ensure_temp_dir()
 
-        # Always plot original histogram
-        plot_path_original, y_stats_original = plot_y_histogram(
+        # Always plot original histogram (returns Q-Q plot path and histogram data for Plotly)
+        plot_path_original, y_stats_original, histogram_data_original = plot_y_histogram(
             y_original,
             y_name=f"{target_var} (Original)",
             temp_path=temp_path
@@ -199,8 +203,9 @@ def mlr_ga_step1():
 
         # Store only filename (without path) - will use utils.serve_temp_image endpoint
         plot_filename_original = os.path.basename(plot_path_original)
-        session['mlr_ga_y_histogram_plot'] = plot_filename_original
+        session['mlr_ga_y_qqplot'] = plot_filename_original  # Now it's Q-Q plot only
         session['mlr_ga_y_stats'] = y_stats_original
+        session['mlr_ga_y_histogram_data'] = histogram_data_original  # Data for Plotly histogram
 
         # Apply transformation if requested and plot transformed
         y_transformed = None
@@ -228,19 +233,21 @@ def mlr_ga_step1():
 
             # Plot transformed histogram
             if y_transformed is not None:
-                plot_path_transformed, y_stats_transformed = plot_y_histogram(
+                plot_path_transformed, y_stats_transformed, histogram_data_transformed = plot_y_histogram(
                     y_transformed,
                     y_name=f"{target_var} ({y_transformation})",
                     temp_path=temp_path
                 )
                 # Store only filename (without path)
                 plot_filename_transformed = os.path.basename(plot_path_transformed)
-                session['mlr_ga_y_histogram_plot_transformed'] = plot_filename_transformed
+                session['mlr_ga_y_qqplot_transformed'] = plot_filename_transformed  # Q-Q plot only
                 session['mlr_ga_y_stats_transformed'] = y_stats_transformed
+                session['mlr_ga_y_histogram_data_transformed'] = histogram_data_transformed  # Plotly data
         else:
-            # No transformation - clear transformed histogram
-            session.pop('mlr_ga_y_histogram_plot_transformed', None)
+            # No transformation - clear transformed data
+            session.pop('mlr_ga_y_qqplot_transformed', None)
             session.pop('mlr_ga_y_stats_transformed', None)
+            session.pop('mlr_ga_y_histogram_data_transformed', None)
 
         # Store in session
         session['mlr_ga_target_var'] = target_var
@@ -322,15 +329,15 @@ def mlr_ga_detect_outliers_step1():
             elif y_transformation == 'inverse':
                 y_after = 1 / y_after
 
-        # Generate both histograms
+        # Generate both histograms (Q-Q plots)
         temp_path = ensure_temp_dir()
-        plot_path_before, y_stats_before = plot_y_histogram(
+        plot_path_before, y_stats_before, _ = plot_y_histogram(
             y_before,
             y_name=f"{target_var} (Current)",
             temp_path=temp_path
         )
 
-        plot_path_after, y_stats_after = plot_y_histogram(
+        plot_path_after, y_stats_after, _ = plot_y_histogram(
             y_after,
             y_name=f"{target_var} (Preview After Removal)",
             temp_path=temp_path
