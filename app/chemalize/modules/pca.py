@@ -120,28 +120,33 @@ def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True
     if color_by and color_by in df.columns:
         pc_df[color_by] = df[color_by].reset_index(drop=True)
     
-    # FIXED: Calculate proper normalized loadings (correlations between original variables and PCs)
-    # Loadings = components * sqrt(explained_variance) - this gives correlations in [-1,1] range
-    loadings_raw = pca_model.components_ * np.sqrt(pca_model.explained_variance_)[:, np.newaxis]
-    
-    # Alternative method if data was scaled: loadings = components * sqrt(explained_variance)
-    # If data wasn't scaled, we need to account for the standard deviations
-    if not scale_data:
-        # When data is not scaled, we need to divide by standard deviations to get correlations
-        std_devs = np.std(df_clean.values, axis=0, ddof=1)
-        loadings_raw = loadings_raw / std_devs[np.newaxis, :]
-    
-    # Create a loadings DataFrame with proper normalized values
+    # Calculate loadings as Pearson correlations between original variables and PCs
+    # This guarantees values in [-1, 1] range regardless of scaling
+    n_features = df_clean.shape[1]
+    n_comps = principal_components.shape[1]
+
+    # Calculate correlations manually to handle constant columns (std=0)
+    loadings_raw = np.zeros((n_features, n_comps))
+    for j in range(n_features):
+        var_std = np.std(df_clean.iloc[:, j], ddof=0)
+        if var_std < 1e-10:  # Constant column
+            loadings_raw[j, :] = 0.0  # No correlation with constant
+        else:
+            for i in range(n_comps):
+                loadings_raw[j, i] = np.corrcoef(df_clean.iloc[:, j], principal_components[:, i])[0, 1]
+
+    # Create a loadings DataFrame (already in [-1, 1] range)
     loadings_df = pd.DataFrame(
-        data=loadings_raw.T,
-        columns=[f'PC{i+1}' for i in range(pca_model.n_components_)],
+        data=loadings_raw,
+        columns=[f'PC{i+1}' for i in range(n_comps)],
         index=df_clean.columns
     )
     _loadings_df = loadings_df
-    
-    # Verify loadings are in [-1, 1] range and clip if necessary
-    loadings_df = loadings_df.clip(-1, 1)
-    _loadings_df = loadings_df
+
+    # Verify loadings are in valid range (should always be true now)
+    max_abs_loading = loadings_df.abs().max().max()
+    if max_abs_loading > 1.001:  # Small tolerance for numerical errors
+        print(f"WARNING: Loadings exceed [-1, 1] range. Max absolute value: {max_abs_loading:.6f}")
     
     # Calculate feature importance (sum of squared loadings across all PCs)
     feature_importance = pd.DataFrame({
@@ -243,8 +248,9 @@ def perform_enhanced_pca(df, n_components=2, scale_data=True, show_variance=True
         )
     
     if show_biplot and pca_model.n_components >= max(pc_x_axis, pc_y_axis):
+        # Transpose loadings_raw for biplot: (n_features, n_components) -> (n_components, n_features)
         result['biplot'] = create_enhanced_biplot(
-            principal_components, loadings_raw, df_clean.columns,
+            principal_components, loadings_raw.T, df_clean.columns,
             pc_x_axis, pc_y_axis, temp_path, top_n_arrows=top_n_arrows
         )
     
