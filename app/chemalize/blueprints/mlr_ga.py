@@ -1093,11 +1093,7 @@ def mlr_ga_step2():
 @mlr_ga_bp.route("/mlr_ga_step3", methods=['POST'])
 def mlr_ga_step3():
     """Step 3: Configure standardization and variance check"""
-    print("DEBUG: mlr_ga_step3 called")
-    print(f"DEBUG: request.form = {request.form}")
-
     if not check_dataset():
-        print("DEBUG: No dataset found, redirecting to preprocess")
         return redirect(url_for('preprocessing.preprocess'))
 
     try:
@@ -1106,33 +1102,26 @@ def mlr_ga_step3():
         remove_zero_variance = 'remove_zero_variance' in request.form
         remove_low_variance = 'remove_low_variance' in request.form
 
-        print(f"DEBUG: autoscale={autoscale}, remove_zero_variance={remove_zero_variance}, remove_low_variance={remove_low_variance}")
-
         session['mlr_ga_autoscale'] = autoscale
         session['mlr_ga_remove_zero_variance'] = remove_zero_variance
         session['mlr_ga_remove_low_variance'] = remove_low_variance
 
         # Parse variance threshold with error handling
         variance_threshold_str = request.form.get('variance_threshold', '0.01')
-        print(f"DEBUG: variance_threshold_str = '{variance_threshold_str}'")
 
         try:
             variance_threshold = float(variance_threshold_str) if variance_threshold_str else 0.01
             session['mlr_ga_variance_threshold'] = variance_threshold
-            print(f"DEBUG: variance_threshold = {variance_threshold}")
-        except (ValueError, TypeError) as e:
-            print(f"DEBUG: Error parsing variance_threshold: {e}")
+        except (ValueError, TypeError):
             session['mlr_ga_variance_threshold'] = 0.01
 
         # Parse internal CV type parameters
         internal_cv_type = request.form.get('internal_cv_type', 'kfold')
         session['mlr_ga_internal_cv_type'] = internal_cv_type
-        print(f"DEBUG: internal_cv_type = '{internal_cv_type}'")
 
         # Parse shuffle CV option (only for k-fold)
         shuffle_cv = 'shuffle_cv' in request.form
         session['mlr_ga_shuffle_cv'] = shuffle_cv
-        print(f"DEBUG: shuffle_cv = {shuffle_cv}")
 
         # Parse sorted CV parameters
         try:
@@ -1142,11 +1131,9 @@ def mlr_ga_step3():
             session['mlr_ga_sorted_step'] = 5
 
         session['mlr_ga_step'] = 'ga_parameters'
-        print("DEBUG: Step set to 'ga_parameters'")
         flash('Preprocessing configured! Proceed to GA parameters.', 'success')
 
     except Exception as e:
-        print(f"DEBUG: Exception in mlr_ga_step3: {e}")
         flash(f'Error configuring preprocessing: {str(e)}', 'danger')
         import traceback
         traceback.print_exc()
@@ -1413,16 +1400,13 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
             if split_test_idx is not None and len(split_test_idx) > 0:
                 X_val = X.iloc[split_test_idx].reset_index(drop=True)
                 y_val = y[split_test_idx]
-            print(f"DEBUG: Using user-defined split: X_train={X_train.shape}, X_val={X_val.shape if X_val is not None else None}")
         elif use_validation:
             from sklearn.model_selection import train_test_split
             X_train, X_val, y_train, y_val = train_test_split(
                 X, y, test_size=0.2, random_state=42
             )
-            print(f"DEBUG: Using random validation split: X_train={X_train.shape}, X_val={X_val.shape}")
         else:
             X_train, y_train = X, y
-            print(f"DEBUG: Using all data for training: X_train={X_train.shape}")
 
         # Create progress callback
         def progress_callback(data):
@@ -1480,15 +1464,6 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
             sorted_step=sorted_step,
             random_state=42
         )
-
-        # DEBUG: print data info before GA
-        print(f"DEBUG before GA fit:")
-        print(f"  X_train.shape: {X_train.shape}, y_train.shape: {y_train.shape}")
-        print(f"  X.shape (full): {X.shape}, y.shape (full): {y.shape}")
-        print(f"  split_train_idx: {split_train_idx[:10] if split_train_idx and len(split_train_idx) > 0 else None}... (len={len(split_train_idx) if split_train_idx else 0})")
-        print(f"  split_test_idx: {split_test_idx[:10] if split_test_idx and len(split_test_idx) > 0 else None}... (len={len(split_test_idx) if split_test_idx else 0})")
-        print(f"  X_train range: {X_train.values.min():.4f} to {X_train.values.max():.4f}")
-        print(f"  y_train range: {y_train.min():.4f} to {y_train.max():.4f}")
 
         # Run GA
         ga.fit(X_train, y_train, X_val, y_val)

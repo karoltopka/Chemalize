@@ -186,9 +186,7 @@ class GeneticAlgorithmSelector:
             return None
         if self.shuffle_cv:
             cv = KFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
-            print(f"DEBUG _make_cv: shuffle_cv=True, returning KFold(shuffle=True, random_state={self.random_state})")
             return cv
-        print(f"DEBUG _make_cv: shuffle_cv=False, returning KFold(shuffle=False)")
         return KFold(n_splits=n_splits, shuffle=False)
 
     def _create_sorted_cv_splits(self, y, step=None, n_iterations=None):
@@ -282,20 +280,12 @@ class GeneticAlgorithmSelector:
                     model.fit(X_selected, y)
                     return float(model.score(X_selected, y))
 
-                # DEBUG: print fold indices from GA's cv object
-                fold_num = 0
-                for train_idx, test_idx in cv.split(X_selected):
-                    fold_num += 1
-                    print(f"DEBUG GA fold {fold_num}: train_idx[:5]={train_idx[:5]}, test_idx[:5]={test_idx[:5]}")
-
                 cv_scores = cross_val_score(
                     model, X_selected, y,
                     cv=cv,
                     scoring='r2',
                     n_jobs=self.cv_n_jobs
                 )
-                # DEBUG: show CV scores
-                print(f"DEBUG _calculate_r2cv: cv_scores={cv_scores}, mean={np.mean(cv_scores):.4f}, X_selected.shape={X_selected.shape}, y.shape={y.shape}")
                 return float(np.mean(cv_scores))
 
         except Exception:
@@ -349,11 +339,13 @@ class GeneticAlgorithmSelector:
         """
         Calculate Applicability Domain coverage for training set using Williams Plot method.
 
-        The AD is defined by:
-        - Leverage threshold: h* = 3(p+1)/n where p is number of variables, n is number of samples
-        - Residual threshold: |standardized residual| < 3
-
-        A sample is within AD if: leverage < h* AND |std_residual| < 3
+        AD Logic (QSAR standard):
+        - RESIDUALS: ALL samples MUST have |standardized residual| < 3
+          If ANY sample exceeds this threshold, the model is rejected (returns 0).
+          High residuals indicate poor model quality, not just outliers.
+        - LEVERAGE: AD coverage = % of samples with leverage < h*
+          Where h* = 3(p+1)/n. Samples exceeding h* are in extrapolation zone
+          but this is informational only (allowed).
 
         Parameters:
         -----------
@@ -367,7 +359,8 @@ class GeneticAlgorithmSelector:
         Returns:
         --------
         float
-            AD coverage percentage (0-100). Returns 0 if calculation fails.
+            AD coverage percentage (0-100) based on leverage only.
+            Returns 0 if ANY residual exceeds threshold (model quality issue).
         """
         selected_indices = np.where(feature_mask)[0]
         if len(selected_indices) == 0:
@@ -422,10 +415,18 @@ class GeneticAlgorithmSelector:
             # Calculate h* threshold: h* = 3(p+1)/n where p is number of predictors
             h_star = 3 * (n_features + 1) / n_samples
 
-            # Count samples within AD
-            # Within AD if: leverage < h* AND |std_residual| < 3
-            within_ad = (leverage < h_star) & (np.abs(std_residuals) < 3)
-            ad_coverage = 100.0 * np.sum(within_ad) / n_samples
+            # FIRST: Check residual quality criterion
+            # If ANY sample has |std_residual| >= 3, the model is rejected
+            # High residuals indicate model quality issues, not just outliers
+            residual_outliers = np.abs(std_residuals) >= 3
+            if np.any(residual_outliers):
+                # Model has quality issues - reject it
+                return 0.0
+
+            # THEN: Calculate AD coverage based on LEVERAGE only
+            # (all residuals are within threshold at this point)
+            within_leverage_domain = leverage < h_star
+            ad_coverage = 100.0 * np.sum(within_leverage_domain) / n_samples
 
             return float(ad_coverage)
 
@@ -961,9 +962,7 @@ class GeneticAlgorithmSelector:
             self._corr_matrix = None
 
         # Prepare CV splitters
-        print(f"DEBUG GA fit: creating _cv with len(y)={len(y)}, cv_folds={self.cv_folds}, shuffle_cv={self.shuffle_cv}")
         self._cv = self._make_cv(len(y), self.cv_folds)
-        print(f"DEBUG GA fit: _cv created = {self._cv}")
         if self.use_validation and y_val is not None:
             self._cv_validation = self._make_cv(len(y_val), self.cv_folds_validation)
         else:
@@ -1198,17 +1197,7 @@ class GeneticAlgorithmSelector:
             else:
                 X_for_cv = X
                 y_for_cv = y
-            # DEBUG: print info for final R²cv calculation
-            print(f"DEBUG final R²cv calc: _split_train_idx len={len(self._split_train_idx) if self._split_train_idx is not None else 0}")
-            print(f"  X_for_cv.shape={X_for_cv.shape}, y_for_cv.shape={y_for_cv.shape}")
-            print(f"  feature_mask sum={feature_mask.sum()}, features={feature_names}")
-            print(f"  feature_indices={feature_indices}")
-            # Print first 3 rows of selected features
-            X_selected_debug = X_for_cv[:, feature_indices]
-            print(f"  X_selected first 3 rows:\n{X_selected_debug[:3]}")
-            print(f"  y_for_cv first 10: {y_for_cv[:10]}")
             r2cv = self._calculate_r2cv(X_for_cv, y_for_cv, feature_mask)
-            print(f"  => r2cv={r2cv:.4f}")
 
             self.best_models_.append({
                 'r2cv': r2cv,  # CV R² (k-fold or sorted) - MAIN FITNESS METRIC
