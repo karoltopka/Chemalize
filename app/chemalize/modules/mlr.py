@@ -16,96 +16,126 @@ import os
 import io
 from app.utils.watermark import add_watermark_matplotlib_after_plot
 
-def hat_matrix(X):
-    """Calculate hat matrix for X"""
-    X = np.asarray(X)  # Ensure X is a numpy array
-    xtx = X.T @ X
-    # Add small random values to diagonal for numerical stability
-    np.fill_diagonal(xtx, xtx.diagonal() + np.random.uniform(0.001, 0.002, xtx.shape[0]))
-    ixtx = np.linalg.inv(xtx)
-    return X @ (ixtx @ X.T)
 
-def williams_plot(result_df, model):
-    """Create Williams plot data"""
-    # Split result into training and test sets
-    train_data = result_df[result_df['dataset'] == 'train']
-    test_data = result_df[result_df['dataset'] == 'test']
-    
-    # Poprawione indeksowanie - użyj nazw kolumn zamiast indeksów numerycznych
-    target_col = result_df.columns[1]  # Druga kolumna zawiera wartości docelowe
-    
-    # Wybierz tylko kolumny, które są zmiennymi modelu
-    feature_cols = model.variables
-    
-    # Upewnij się, że wszystkie zmienne modelu są dostępne w danych
-    available_cols = [col for col in feature_cols if col in train_data.columns]
-    if len(available_cols) == 0:
+def _scale_after_split(X_train, X_test, selected_features):
+    """
+    Scale data AFTER split to prevent data leakage.
+    Fits scaler on training data only, then transforms both train and test.
+
+    Parameters:
+    -----------
+    X_train : DataFrame
+        Training features
+    X_test : DataFrame
+        Test features
+    selected_features : list
+        List of feature names
+
+    Returns:
+    --------
+    tuple: (X_train_scaled, X_test_scaled, scaler)
+    """
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    X_train_scaled = pd.DataFrame(X_train_scaled, columns=selected_features, index=X_train.index)
+    X_test_scaled = pd.DataFrame(X_test_scaled, columns=selected_features, index=X_test.index)
+
+    return X_train_scaled, X_test_scaled, scaler
+
+
+def _design_matrix(X_df, include_intercept=True):
+    """Create design matrix, optionally adding intercept column."""
+    X = np.asarray(X_df, dtype=float)
+    if include_intercept:
+        X = np.column_stack([np.ones(X.shape[0]), X])
+    return X
+
+
+def _xtx_inv_stable(X, ridge=1e-12):
+    """Compute stable (X'X)^-1 with ridge regularization."""
+    XtX = X.T @ X
+    p = XtX.shape[0]
+    lam = ridge * (np.trace(XtX) / p if p else 1.0)
+    return np.linalg.pinv(XtX + lam * np.eye(p))
+
+
+def _leverage_rows(X_rows, XtX_inv):
+    """Calculate leverage h_i = x_i' (X'X)^-1 x_i for each row."""
+    return np.einsum("ij,jk,ik->i", X_rows, XtX_inv, X_rows)
+
+
+def williams_plot(result_df, model, target_var=None):
+    """
+    Williams plot (train + test) consistent with statsmodels OLS:
+    - leverage calculated on X_train with intercept (if model has intercept)
+    - train residual: e / (s * sqrt(1 - h))  [internal studentized residual]
+    - test residual:  e / (s * sqrt(1 + h))  [prediction standardized residual]
+    """
+    train_data = result_df[result_df["dataset"] == "train"].copy()
+    test_data = result_df[result_df["dataset"] == "test"].copy()
+
+    # Target column
+    if target_var is None:
+        target_var = result_df.columns[1]
+
+    feature_cols = list(model.variables)
+    available_cols = [c for c in feature_cols if c in train_data.columns]
+    if not available_cols:
         raise ValueError("No model variables found in data columns")
-    
-    X_train = train_data[available_cols]
-    X_test = test_data[available_cols]
-    y_train = train_data[target_col].values
-    y_test = test_data[target_col].values
-    
-    # Calculate hat matrix based on training data only
-    H_train = hat_matrix(X_train.values)
-    leverage_train = np.diag(H_train)
 
-    # For test data, calculate leverage using training data hat matrix
-    # leverage_test = diag(X_test @ (X_train'X_train)^-1 @ X_test')
-    X_train_np = X_train.values
-    X_test_np = X_test.values
-    XtX = X_train_np.T @ X_train_np
-    # Add regularization for numerical stability
-    reg_factor = 1e-8 * np.trace(XtX) / XtX.shape[0] if XtX.shape[0] > 0 else 1e-8
-    XtX_reg = XtX + reg_factor * np.eye(XtX.shape[0])
-    try:
-        XtX_inv = np.linalg.inv(XtX_reg)
-    except np.linalg.LinAlgError:
-        XtX_inv = np.linalg.pinv(XtX_reg)
-    leverage_test = np.sum((X_test_np @ XtX_inv) * X_test_np, axis=1)
+    include_intercept = bool(getattr(model, "include_intercept", True))
 
-    y_pred_train = model.predict(X_train)
-    y_pred_test = model.predict(X_test)
+    X_train_df = train_data[available_cols]
+    X_test_df = test_data[available_cols]
+    y_train = train_data[target_var].to_numpy(dtype=float)
+    y_test = test_data[target_var].to_numpy(dtype=float)
 
-    # Calculate residuals
+    # Design matrices (consistent with OLS)
+    Xtr = _design_matrix(X_train_df, include_intercept=include_intercept)
+    Xte = _design_matrix(X_test_df, include_intercept=include_intercept)
+
+    XtX_inv = _xtx_inv_stable(Xtr, ridge=1e-12)
+
+    leverage_train = _leverage_rows(Xtr, XtX_inv)
+    leverage_test = _leverage_rows(Xte, XtX_inv)
+
+    # Predictions
+    y_pred_train = model.predict(X_train_df)
+    y_pred_test = model.predict(X_test_df)
+
+    # Residuals
     residual_train = y_train - y_pred_train
     residual_test = y_test - y_pred_test
 
-    # Calculate internally studentized residuals: r_i = e_i / (s * sqrt(1 - h_i))
-    # s = sqrt(MSE) based on training data
-    n_train = len(y_train)
-    p = len(model.variables)
-    SSE_train = np.sum(residual_train ** 2)
-    df = n_train - p - 1  # degrees of freedom (n - p - 1 for intercept)
-    if df <= 0:
-        df = 1
-    MSE = SSE_train / df
-    s = np.sqrt(MSE)
+    # s = sqrt(MSE) from training, df = n - p_cols
+    n = Xtr.shape[0]
+    p_cols = Xtr.shape[1]  # includes intercept if present
+    df = max(n - p_cols, 1)
+    s = np.sqrt(np.sum(residual_train ** 2) / df)
 
-    # Studentized residuals for training data
-    leverage_factor_train = np.sqrt(np.maximum(1 - leverage_train, 1e-10))
-    s_residual_train = residual_train / (s * leverage_factor_train)
+    # TRAIN: internal studentized residual e / (s * sqrt(1 - h))
+    s_residual_train = residual_train / (s * np.sqrt(np.maximum(1.0 - leverage_train, 1e-12)))
 
-    # Studentized residuals for test data (using training MSE)
-    leverage_factor_test = np.sqrt(np.maximum(1 - leverage_test, 1e-10))
-    s_residual_test = residual_test / (s * leverage_factor_test)
-    
-    p = len(model.variables)
-    n = len(X_train)
-    h_star = (3 * (p + 1)) / n
-    
-    AD_train = 100 * np.sum((leverage_train < h_star) & (np.abs(s_residual_train) < 3)) / len(leverage_train)
-    AD_test = 100 * np.sum((leverage_test < h_star) & (np.abs(s_residual_test) < 3)) / len(leverage_test)
-    
+    # TEST: prediction standardized residual e / (s * sqrt(1 + h))
+    # This formula is correct for new observations and never has numerical issues
+    s_residual_test = residual_test / (s * np.sqrt(1.0 + leverage_test))
+
+    # h* calculated using p_effective (number of predictors without intercept)
+    p_effective = p_cols - 1 if include_intercept else p_cols
+    h_star = (3 * (p_effective + 1)) / n
+
+    AD_train = 100 * np.mean((leverage_train < h_star) & (np.abs(s_residual_train) < 3))
+    AD_test = 100 * np.mean((leverage_test < h_star) & (np.abs(s_residual_test) < 3))
+
     lev = np.concatenate([leverage_train, leverage_test])
     res = np.concatenate([s_residual_train, s_residual_test])
-    group = np.concatenate([['Train'] * len(X_train), ['Test'] * len(X_test)])
+    group = np.array(["Train"] * len(leverage_train) + ["Test"] * len(leverage_test))
 
-    data_to_plot = pd.DataFrame({'lev': lev, 'res': res, 'group': group})
+    data_to_plot = pd.DataFrame({"lev": lev, "res": res, "group": group})
 
     # Identify outliers (points outside AD)
-    # A point is outside AD if: leverage >= h_star OR |standardized residual| >= 3
     outliers_train_idx = np.where((leverage_train >= h_star) | (np.abs(s_residual_train) >= 3))[0]
     outliers_test_idx = np.where((leverage_test >= h_star) | (np.abs(s_residual_test) >= 3))[0]
 
@@ -117,25 +147,25 @@ def williams_plot(result_df, model):
     outliers = []
     for idx in outliers_train_idx:
         outliers.append({
-            'dataset': 'Train',
-            'index': train_indices[idx],
-            'leverage': float(leverage_train[idx]),
-            'std_residual': float(s_residual_train[idx])
+            "dataset": "Train",
+            "index": train_indices[idx],
+            "leverage": float(leverage_train[idx]),
+            "std_residual": float(s_residual_train[idx])
         })
 
     for idx in outliers_test_idx:
         outliers.append({
-            'dataset': 'Test',
-            'index': test_indices[idx],
-            'leverage': float(leverage_test[idx]),
-            'std_residual': float(s_residual_test[idx])
+            "dataset": "Test",
+            "index": test_indices[idx],
+            "leverage": float(leverage_test[idx]),
+            "std_residual": float(s_residual_test[idx])
         })
 
     return {
-        'ADVal': [AD_train, AD_test],
-        'DTP': data_to_plot,
-        'h_star': h_star,
-        'outliers': outliers
+        "ADVal": [AD_train, AD_test],
+        "DTP": data_to_plot,
+        "h_star": h_star,
+        "outliers": outliers
     }
 
 def plot_wp(result):
@@ -257,7 +287,11 @@ def calculate_cv_metrics(X, y, n_folds=5, include_intercept=True):
     r2_test_scores = []
     rmse_test_scores = []
 
+    # DEBUG: print fold indices
+    fold_num = 0
     for train_idx, test_idx in kf.split(X):
+        fold_num += 1
+        print(f"DEBUG MLR fold {fold_num}: train_idx[:5]={train_idx[:5]}, test_idx[:5]={test_idx[:5]}")
         X_train_cv, X_test_cv = X.iloc[train_idx], X.iloc[test_idx]
         y_train_cv, y_test_cv = y.iloc[train_idx], y.iloc[test_idx]
 
@@ -276,6 +310,8 @@ def calculate_cv_metrics(X, y, n_folds=5, include_intercept=True):
         rmse_test_scores.append(np.sqrt(mean_squared_error(y_test_cv, y_pred_test)))
 
     r2cv = np.mean(r2_test_scores)
+    # DEBUG: show individual fold scores
+    print(f"DEBUG calculate_cv_metrics: r2_test_scores={r2_test_scores}, mean={r2cv:.4f}")
 
     return {
         'r2cv': r2cv,              # R²cv on TEST folds (honest, same as GA_MLR)
@@ -715,13 +751,10 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     
     # Create model
     model = MLRModel(selected_features, include_intercept)
-    
-    # Scale data if requested
-    if scale_data:
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        X = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
-    
+
+    # NOTE: Scaling is now done AFTER split to prevent data leakage
+    # See _scale_after_split() function
+
     # Split data based on the selected method
     result_df = None
 
@@ -736,6 +769,10 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         X_test = X.iloc[test_idx]
         y_train = y.iloc[train_idx]
         y_test = y.iloc[test_idx]
+
+        # Scale AFTER split to prevent data leakage
+        if scale_data:
+            X_train, X_test, _ = _scale_after_split(X_train, X_test, selected_features)
 
         # Fit model using statsmodels for detailed statistics
         if include_intercept:
@@ -772,6 +809,10 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         X_test = X.iloc[test_idx]
         y_train = y.iloc[train_idx]
         y_test = y.iloc[test_idx]
+
+        # Scale AFTER split to prevent data leakage
+        if scale_data:
+            X_train, X_test, _ = _scale_after_split(X_train, X_test, selected_features)
 
         # Fit model using statsmodels for detailed statistics
         if include_intercept:
@@ -812,11 +853,15 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         test_size = split_params.get('test_size', 0.2)
         shuffle = split_params.get('shuffle', True)
         random_state = split_params.get('random_state', 42)
-        
+
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, shuffle=shuffle, random_state=random_state
         )
-        
+
+        # Scale AFTER split to prevent data leakage
+        if scale_data:
+            X_train, X_test, _ = _scale_after_split(X_train, X_test, selected_features)
+
         # Fit model using statsmodels for detailed statistics
         if include_intercept:
             X_train_sm = sm.add_constant(X_train)
@@ -846,15 +891,19 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         # Stratified split based on target variable bins
         test_size = split_params.get('test_size', 0.2)
         n_bins = split_params.get('n_bins', 5)
-        
+
         # Create bins for continuous target variable
         y_binned = pd.qcut(y, n_bins, labels=False, duplicates='drop')
-        
+
         # Use stratified split
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, stratify=y_binned, random_state=42
         )
-        
+
+        # Scale AFTER split to prevent data leakage
+        if scale_data:
+            X_train, X_test, _ = _scale_after_split(X_train, X_test, selected_features)
+
         # Fit model using statsmodels
         if include_intercept:
             X_train_sm = sm.add_constant(X_train)
@@ -902,7 +951,11 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         y_train = train_df[target_var]
         X_test = test_df[selected_features]
         y_test = test_df[target_var]
-        
+
+        # Scale AFTER split to prevent data leakage
+        if scale_data:
+            X_train, X_test, _ = _scale_after_split(X_train, X_test, selected_features)
+
         # Fit model using statsmodels
         if include_intercept:
             X_train_sm = sm.add_constant(X_train)
@@ -910,24 +963,24 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         else:
             X_train_sm = X_train
             X_test_sm = X_test
-            
+
         sm_model = sm.OLS(y_train, X_train_sm).fit()
-        
+
         # Get predictions
         y_pred_train = sm_model.predict(X_train_sm)
         y_pred_test = sm_model.predict(X_test_sm)
-        
+
         # Create result DataFrame
         result_df = pd.DataFrame({
             'dataset': ['train'] * len(y_train) + ['test'] * len(y_test),
             target_var: pd.concat([y_train, y_test]).reset_index(drop=True),
             'predictions': np.concatenate([y_pred_train, y_pred_test])
         })
-        
+
         # Add feature columns
         for feature in selected_features:
             result_df[feature] = pd.concat([X_train[feature], X_test[feature]]).reset_index(drop=True)
-            
+
     elif split_method == 'kfold':
         # K-fold cross validation
         n_folds = split_params.get('n_folds', 5)
@@ -955,7 +1008,11 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         for train_idx, test_idx in kf.split(X):
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-            
+
+            # Scale AFTER split in each fold to prevent data leakage
+            if scale_data:
+                X_train, X_test, _ = _scale_after_split(X_train, X_test, selected_features)
+
             # Fit model
             if include_intercept:
                 X_train_sm = sm.add_constant(X_train)
@@ -963,7 +1020,7 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
             else:
                 X_train_sm = X_train
                 X_test_sm = X_test
-                
+
             fold_model = sm.OLS(y_train, X_train_sm).fit()
             
             # Predictions
@@ -1047,7 +1104,11 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         for train_idx, test_idx in loo.split(X):
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-            
+
+            # Scale AFTER split in each fold to prevent data leakage
+            if scale_data:
+                X_train, X_test, _ = _scale_after_split(X_train, X_test, selected_features)
+
             # Fit model
             if include_intercept:
                 X_train_sm = sm.add_constant(X_train)
@@ -1055,7 +1116,7 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
             else:
                 X_train_sm = X_train
                 X_test_sm = X_test
-                
+
             fold_model = sm.OLS(y_train, X_train_sm).fit()
             
             # Predictions
@@ -1130,7 +1191,11 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         X_test = X_sorted.iloc[validation_indices].reset_index(drop=True)
         y_train = y_sorted.iloc[training_indices].reset_index(drop=True)
         y_test = y_sorted.iloc[validation_indices].reset_index(drop=True)
-        
+
+        # Scale AFTER split to prevent data leakage
+        if scale_data:
+            X_train, X_test, _ = _scale_after_split(X_train, X_test, selected_features)
+
         # Fit model using statsmodels
         if include_intercept:
             X_train_sm = sm.add_constant(X_train)
@@ -1138,20 +1203,20 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         else:
             X_train_sm = X_train
             X_test_sm = X_test
-            
+
         sm_model = sm.OLS(y_train, X_train_sm).fit()
-        
+
         # Get predictions
         y_pred_train = sm_model.predict(X_train_sm)
         y_pred_test = sm_model.predict(X_test_sm)
-        
+
         # Create result DataFrame for all calculations
         result_df = pd.DataFrame({
             'dataset': ['train'] * len(y_train) + ['test'] * len(y_test),
             target_var: pd.concat([y_train, y_test]).reset_index(drop=True),
             'predictions': np.concatenate([y_pred_train, y_pred_test])
         })
-        
+
         # Add feature columns
         for feature in selected_features:
             result_df[feature] = pd.concat([X_train[feature], X_test[feature]]).reset_index(drop=True)
@@ -1169,6 +1234,10 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         X_test = X.iloc[test_idx].reset_index(drop=True)
         y_train = y.iloc[train_idx].reset_index(drop=True)
         y_test = y.iloc[test_idx].reset_index(drop=True)
+
+        # Scale AFTER split to prevent data leakage
+        if scale_data:
+            X_train, X_test, _ = _scale_after_split(X_train, X_test, selected_features)
 
         # Fit model using statsmodels
         if include_intercept:
@@ -1218,6 +1287,10 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
         X_test = X.iloc[test_idx].reset_index(drop=True)
         y_train = y.iloc[train_idx].reset_index(drop=True)
         y_test = y.iloc[test_idx].reset_index(drop=True)
+
+        # Scale AFTER split to prevent data leakage
+        if scale_data:
+            X_train, X_test, _ = _scale_after_split(X_train, X_test, selected_features)
 
         # Fit model using statsmodels
         if include_intercept:
@@ -1329,8 +1402,17 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     train_data_for_cv = result_df[result_df['dataset'] == 'train']
     X_train_cv = train_data_for_cv[selected_features]
     y_train_cv = train_data_for_cv.iloc[:, 1]  # Second column is target
+    # DEBUG: print info before MLR R²cv calculation
+    print(f"DEBUG MLR calculate_cv_metrics:")
+    print(f"  X_train_cv.shape={X_train_cv.shape}, y_train_cv.shape={y_train_cv.shape}")
+    print(f"  selected_features={selected_features}")
+    print(f"  X_train_cv range: {X_train_cv.values.min():.4f} to {X_train_cv.values.max():.4f}")
+    print(f"  y_train_cv range: {y_train_cv.min():.4f} to {y_train_cv.max():.4f}")
+    print(f"  X_train_cv first 3 rows:\n{X_train_cv.head(3).values}")
+    print(f"  y_train_cv first 10: {y_train_cv.head(10).values}")
     cv_metrics = calculate_cv_metrics(X_train_cv, y_train_cv, n_folds=5, include_intercept=include_intercept)
     R2cv = cv_metrics['r2cv']  # R²cv on test folds (honest, same as GA_MLR)
+    print(f"  => R2cv={R2cv:.4f}")
 
     # 5-fold Cross-validation metrics on EXTERNAL TEST set (Q²cv_ext)
     test_data_for_cv = result_df[result_df['dataset'] == 'test']

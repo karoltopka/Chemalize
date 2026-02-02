@@ -1164,6 +1164,19 @@
                                     and each fold is used once as validation while the remaining folds are used for training.
                                 </small>
                             </div>
+                            <div class="form-group mt-2">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="shuffle_cv" name="shuffle_cv"
+                                           {% if shuffle_cv is not defined or shuffle_cv %}checked{% endif %}>
+                                    <label class="custom-control-label" for="shuffle_cv">
+                                        <strong>Shuffle CV folds</strong>
+                                    </label>
+                                </div>
+                                <small class="form-text text-muted">
+                                    Shuffle data before splitting into folds. Recommended for most cases.
+                                    Disable only for time-series data where order matters.
+                                </small>
+                            </div>
                             <p class="text-muted mb-0">
                                 <small><i class="fas fa-info-circle mr-1"></i>Number of folds can be configured in Step 4 (GA Parameters).</small>
                             </p>

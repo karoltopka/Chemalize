@@ -185,7 +185,10 @@ class GeneticAlgorithmSelector:
         if n_splits < 2:
             return None
         if self.shuffle_cv:
-            return KFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
+            cv = KFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
+            print(f"DEBUG _make_cv: shuffle_cv=True, returning KFold(shuffle=True, random_state={self.random_state})")
+            return cv
+        print(f"DEBUG _make_cv: shuffle_cv=False, returning KFold(shuffle=False)")
         return KFold(n_splits=n_splits, shuffle=False)
 
     def _create_sorted_cv_splits(self, y, step=None, n_iterations=None):
@@ -279,12 +282,20 @@ class GeneticAlgorithmSelector:
                     model.fit(X_selected, y)
                     return float(model.score(X_selected, y))
 
+                # DEBUG: print fold indices from GA's cv object
+                fold_num = 0
+                for train_idx, test_idx in cv.split(X_selected):
+                    fold_num += 1
+                    print(f"DEBUG GA fold {fold_num}: train_idx[:5]={train_idx[:5]}, test_idx[:5]={test_idx[:5]}")
+
                 cv_scores = cross_val_score(
                     model, X_selected, y,
                     cv=cv,
                     scoring='r2',
                     n_jobs=self.cv_n_jobs
                 )
+                # DEBUG: show CV scores
+                print(f"DEBUG _calculate_r2cv: cv_scores={cv_scores}, mean={np.mean(cv_scores):.4f}, X_selected.shape={X_selected.shape}, y.shape={y.shape}")
                 return float(np.mean(cv_scores))
 
         except Exception:
@@ -950,7 +961,9 @@ class GeneticAlgorithmSelector:
             self._corr_matrix = None
 
         # Prepare CV splitters
+        print(f"DEBUG GA fit: creating _cv with len(y)={len(y)}, cv_folds={self.cv_folds}, shuffle_cv={self.shuffle_cv}")
         self._cv = self._make_cv(len(y), self.cv_folds)
+        print(f"DEBUG GA fit: _cv created = {self._cv}")
         if self.use_validation and y_val is not None:
             self._cv_validation = self._make_cv(len(y_val), self.cv_folds_validation)
         else:
@@ -1185,7 +1198,17 @@ class GeneticAlgorithmSelector:
             else:
                 X_for_cv = X
                 y_for_cv = y
+            # DEBUG: print info for final R²cv calculation
+            print(f"DEBUG final R²cv calc: _split_train_idx len={len(self._split_train_idx) if self._split_train_idx is not None else 0}")
+            print(f"  X_for_cv.shape={X_for_cv.shape}, y_for_cv.shape={y_for_cv.shape}")
+            print(f"  feature_mask sum={feature_mask.sum()}, features={feature_names}")
+            print(f"  feature_indices={feature_indices}")
+            # Print first 3 rows of selected features
+            X_selected_debug = X_for_cv[:, feature_indices]
+            print(f"  X_selected first 3 rows:\n{X_selected_debug[:3]}")
+            print(f"  y_for_cv first 10: {y_for_cv[:10]}")
             r2cv = self._calculate_r2cv(X_for_cv, y_for_cv, feature_mask)
+            print(f"  => r2cv={r2cv:.4f}")
 
             self.best_models_.append({
                 'r2cv': r2cv,  # CV R² (k-fold or sorted) - MAIN FITNESS METRIC
@@ -1369,6 +1392,10 @@ def preprocess_for_ga(df, target_var, y_transformation='none',
     """
     Preprocess data before GA variable selection
 
+    WARNING: If autoscale=True, scaling is performed on ALL data before any train/test split.
+    This may cause minor data leakage in the GA internal cross-validation metrics.
+    For final model evaluation, MLR module performs scaling AFTER split to prevent leakage.
+
     Parameters:
     -----------
     df : DataFrame
@@ -1378,7 +1405,8 @@ def preprocess_for_ga(df, target_var, y_transformation='none',
     y_transformation : str
         Transformation for Y: 'none', 'log', 'sqrt', 'square', 'inverse'
     autoscale : bool
-        Whether to apply autoscaling (standardization)
+        Whether to apply autoscaling (standardization).
+        Note: Scaling is done on full dataset before GA CV - may cause minor leakage.
     remove_zero_variance : bool
         Whether to remove zero variance features
     remove_low_variance : bool

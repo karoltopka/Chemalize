@@ -91,6 +91,7 @@ def mlr_ga_analysis():
         'remove_low_variance': session.get('mlr_ga_remove_low_variance', False),
         'variance_threshold': session.get('mlr_ga_variance_threshold', 0.01),
         'internal_cv_type': session.get('mlr_ga_internal_cv_type', 'kfold'),
+        'shuffle_cv': session.get('mlr_ga_shuffle_cv', True),
         'sorted_step': session.get('mlr_ga_sorted_step', 5),
 
         # Step 4: GA parameters
@@ -1128,6 +1129,11 @@ def mlr_ga_step3():
         session['mlr_ga_internal_cv_type'] = internal_cv_type
         print(f"DEBUG: internal_cv_type = '{internal_cv_type}'")
 
+        # Parse shuffle CV option (only for k-fold)
+        shuffle_cv = 'shuffle_cv' in request.form
+        session['mlr_ga_shuffle_cv'] = shuffle_cv
+        print(f"DEBUG: shuffle_cv = {shuffle_cv}")
+
         # Parse sorted CV parameters
         try:
             sorted_step = int(request.form.get('sorted_step', 5))
@@ -1344,17 +1350,22 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
                 'mahalanobis': session_data.get('mlr_ga_xyonion_mahalanobis', False)
             }
 
-        if split_method == 'time' or split_method == 'systematic' or split_method == 'kennard_stone' or split_method == 'xyonion':
-            shuffle_cv = False
-        elif split_method == 'kfold':
-            shuffle_cv = session_data.get('mlr_ga_shuffle_kfold', True)
-        elif split_method == 'random':
-            shuffle_cv = session_data.get('mlr_ga_shuffle', True)
-        else:
-            shuffle_cv = True
-
         # Get internal CV type parameters
         internal_cv_type = session_data.get('mlr_ga_internal_cv_type', 'kfold')
+
+        # Determine shuffle_cv based on internal CV type and user settings
+        if internal_cv_type == 'kfold':
+            # For k-fold CV, use user's shuffle setting from step 3 (defaults to True)
+            shuffle_cv = session_data.get('mlr_ga_shuffle_cv', True)
+        elif internal_cv_type == 'sorted':
+            # Sorted stratified CV doesn't use shuffle (data is sorted by Y)
+            shuffle_cv = False
+        elif split_method == 'time':
+            # Time-based split should not shuffle (temporal order matters)
+            shuffle_cv = False
+        else:
+            # Default to True for other cases
+            shuffle_cv = True
         sorted_step = session_data.get('mlr_ga_sorted_step', 5)
 
         X, y, removed_features, preprocessing_info = preprocess_for_ga(
@@ -1391,15 +1402,27 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
                 split_train_idx = None
                 split_test_idx = None
 
-        # Split data for validation if requested
+        # Split data for GA training
+        # IMPORTANT: If split_train_idx is defined (from user's split configuration),
+        # GA should be trained ONLY on those samples, not all data
         X_train, X_val, y_train, y_val = None, None, None, None
-        if use_validation:
+        if split_train_idx is not None and len(split_train_idx) > 0:
+            # Use the user-defined split (stratified sorted, kennard-stone, etc.)
+            X_train = X.iloc[split_train_idx].reset_index(drop=True)
+            y_train = y[split_train_idx]
+            if split_test_idx is not None and len(split_test_idx) > 0:
+                X_val = X.iloc[split_test_idx].reset_index(drop=True)
+                y_val = y[split_test_idx]
+            print(f"DEBUG: Using user-defined split: X_train={X_train.shape}, X_val={X_val.shape if X_val is not None else None}")
+        elif use_validation:
             from sklearn.model_selection import train_test_split
             X_train, X_val, y_train, y_val = train_test_split(
                 X, y, test_size=0.2, random_state=42
             )
+            print(f"DEBUG: Using random validation split: X_train={X_train.shape}, X_val={X_val.shape}")
         else:
             X_train, y_train = X, y
+            print(f"DEBUG: Using all data for training: X_train={X_train.shape}")
 
         # Create progress callback
         def progress_callback(data):
@@ -1457,6 +1480,15 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
             sorted_step=sorted_step,
             random_state=42
         )
+
+        # DEBUG: print data info before GA
+        print(f"DEBUG before GA fit:")
+        print(f"  X_train.shape: {X_train.shape}, y_train.shape: {y_train.shape}")
+        print(f"  X.shape (full): {X.shape}, y.shape (full): {y.shape}")
+        print(f"  split_train_idx: {split_train_idx[:10] if split_train_idx and len(split_train_idx) > 0 else None}... (len={len(split_train_idx) if split_train_idx else 0})")
+        print(f"  split_test_idx: {split_test_idx[:10] if split_test_idx and len(split_test_idx) > 0 else None}... (len={len(split_test_idx) if split_test_idx else 0})")
+        print(f"  X_train range: {X_train.values.min():.4f} to {X_train.values.max():.4f}")
+        print(f"  y_train range: {y_train.min():.4f} to {y_train.max():.4f}")
 
         # Run GA
         ga.fit(X_train, y_train, X_val, y_val)
