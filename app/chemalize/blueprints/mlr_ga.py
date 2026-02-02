@@ -41,12 +41,24 @@ def mlr_ga_analysis():
     df = read_dataset(clean_path)
     info = get_dataset_info(df)
 
+    # Check if GA is currently running for this session
+    session_id = get_user_id()
+    ga_running = False
+    ga_current_progress = None
+    with ga_progress_lock:
+        if session_id in ga_threads and ga_threads[session_id].is_alive():
+            ga_running = True
+            ga_current_progress = ga_latest_progress.get(session_id, {'status': 'running'})
+
     # Get only numeric columns for GA analysis
     df_numeric = df.select_dtypes(include=[np.number])
     all_data_columns = df_numeric.columns.tolist()
 
-    # Get current step
-    current_step = session.get('mlr_ga_step', 'target_selection')
+    # Get current step - if GA is running, force ga_parameters step to show overlay
+    if ga_running:
+        current_step = 'ga_parameters'
+    else:
+        current_step = session.get('mlr_ga_step', 'target_selection')
 
     # Parameters for different steps
     mlr_ga_params = {
@@ -117,6 +129,10 @@ def mlr_ga_analysis():
         'selected_features': session.get('mlr_ga_selected_features', []),
         'selected_model_rank': session.get('mlr_ga_selected_model_rank', 1),
         'removed_features': session.get('mlr_ga_removed_features', []),
+
+        # GA running state (for page refresh recovery)
+        'ga_running': ga_running,
+        'ga_current_progress': ga_current_progress,
     }
 
     # If analysis was performed, add MLR results
@@ -1174,6 +1190,8 @@ def mlr_ga_get_progress():
             return str(type(obj).__name__)
 
     progress_data = convert_to_json_serializable(progress_data)
+    # Include session_id so client can use it for subsequent polls
+    progress_data['session_id'] = session_id
     return jsonify(progress_data)
 
 

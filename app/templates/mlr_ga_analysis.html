@@ -1400,8 +1400,8 @@
                 </div>
             </form>
 
-            <!-- GA Loading Overlay -->
-            <div id="ga-loading-overlay" style="display: none;">
+            <!-- GA Loading Overlay - show immediately if GA is running (after page refresh) -->
+            <div id="ga-loading-overlay" style="display: {% if ga_running %}flex{% else %}none{% endif %};">
                 <div class="ga-loading-content" style="border-radius: 1rem;">
                     <div class="spinner-border text-primary" role="status" style="width: 4rem; height: 4rem;">
                         <span class="sr-only">Loading...</span>
@@ -2391,6 +2391,142 @@ function autoSubmitTransformForm() {
     }
 }
 
+// ============= GA Progress Tracking (Global Scope) =============
+// These variables are global so polling can resume after page refresh
+let gaSessionId = null;
+let gaPollInterval = null;
+
+// Check if GA is currently running (from server-side Jinja variable)
+const gaIsRunning = {{ 'true' if ga_running else 'false' }};
+
+function formatGANumber(value) {
+    return Number.isFinite(value) ? value.toFixed(4) : 'N/A';
+}
+
+function pollGAProgress() {
+    if (!gaSessionId) {
+        console.log('pollGAProgress: no gaSessionId, skipping');
+        return;
+    }
+    console.log('pollGAProgress: fetching with session_id:', gaSessionId);
+    fetch(`{{ url_for('mlr_ga.mlr_ga_get_progress') }}?session_id=${gaSessionId}`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('Progress update:', data);
+
+            // Update progress bar (retry-based)
+            if (data.retry && data.max_retries) {
+                const percentage = (data.retry / data.max_retries) * 100;
+                const progressBar = document.getElementById('ga-progress-bar');
+                const progressText = document.getElementById('ga-progress-text');
+
+                if (progressBar) {
+                    progressBar.style.width = percentage + '%';
+                }
+                if (progressText) {
+                    progressText.textContent = `Retry ${data.retry} / ${data.max_retries} (${percentage.toFixed(0)}%)`;
+                }
+            } else if (data.message) {
+                const progressText = document.getElementById('ga-progress-text');
+                if (progressText) {
+                    progressText.textContent = data.message;
+                }
+            }
+
+            // Update detailed stats
+            if (data.retry) document.getElementById('ga-retry').textContent = data.retry;
+            if (data.max_retries) document.getElementById('ga-max-retries').textContent = data.max_retries;
+            if (data.generation) document.getElementById('ga-generation').textContent = data.generation;
+            if (data.total_generations) document.getElementById('ga-total-gen').textContent = data.total_generations;
+            if (data.best_score !== undefined) document.getElementById('ga-current-score').textContent = formatGANumber(data.best_score);
+            if (data.overall_best_score !== undefined) document.getElementById('ga-best-score').textContent = formatGANumber(data.overall_best_score);
+            if (data.n_features !== undefined) document.getElementById('ga-n-features').textContent = data.n_features;
+            if (data.unique_models !== undefined) document.getElementById('ga-unique-models').textContent = data.unique_models;
+
+            // Update detailed metrics
+            if (data.r2cv !== undefined) document.getElementById('ga-r2cv').textContent = formatGANumber(data.r2cv);
+            if (data.internal_cv_type !== undefined) document.getElementById('ga-cv-type').textContent = data.internal_cv_type;
+
+            // Check if complete
+            if (data.status === 'complete') {
+                clearInterval(gaPollInterval);
+                // Store results in session and redirect
+                finishGA();
+            } else if (data.status === 'error') {
+                clearInterval(gaPollInterval);
+                alert('Error: ' + (data.message || 'Unknown error during GA execution'));
+                window.location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Polling error:', error);
+        });
+}
+
+function finishGA() {
+    // Call complete endpoint to store results in session
+    fetch(`{{ url_for('mlr_ga.mlr_ga_complete') }}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            window.location.href = data.redirect;
+        } else {
+            alert('Error: ' + (data.message || 'Failed to retrieve results'));
+            window.location.reload();
+        }
+    })
+    .catch(error => {
+        console.error('Error finishing GA:', error);
+        alert('Error finishing GA: ' + error);
+        window.location.reload();
+    });
+}
+
+function showGAOverlay() {
+    const overlay = document.getElementById('ga-loading-overlay');
+    if (overlay) {
+        overlay.style.display = 'flex';
+    }
+}
+
+function startGAPolling(sessionId) {
+    gaSessionId = sessionId;
+    showGAOverlay();
+    // Start polling every 200ms
+    gaPollInterval = setInterval(pollGAProgress, 200);
+    pollGAProgress();
+}
+
+// Resume GA polling if GA was running when page loaded
+function resumeGAIfRunning() {
+    if (gaIsRunning) {
+        console.log('GA is running, resuming progress tracking...');
+        // Fetch current progress to get session_id and start polling
+        fetch(`{{ url_for('mlr_ga.mlr_ga_get_progress') }}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('Initial progress data:', data);
+                // Always start polling if gaIsRunning is true (server confirmed GA is running)
+                gaSessionId = data.session_id || 'default';
+                console.log('Using session_id:', gaSessionId);
+                // Start polling - overlay is already visible from Jinja
+                if (!gaPollInterval) {
+                    gaPollInterval = setInterval(pollGAProgress, 200);
+                    pollGAProgress();
+                    console.log('Polling started');
+                }
+            })
+            .catch(error => {
+                console.error('Error checking GA status:', error);
+            });
+    }
+}
+
 // Show GA loading screen with real-time polling updates
 function showGALoadingScreen(event) {
     // Prevent default form submission
@@ -2398,107 +2534,11 @@ function showGALoadingScreen(event) {
         event.preventDefault();
     }
 
-    // Show the loading overlay
-    const overlay = document.getElementById('ga-loading-overlay');
-    if (overlay) {
-        overlay.style.display = 'flex';
-    }
+    showGAOverlay();
 
     // Get the form
     const form = event.target.closest('form');
     const formData = new FormData(form);
-
-    // Session ID for tracking (from server response)
-    let sessionId = null;
-
-    // Start polling after GA start response
-    let pollInterval = null;
-
-    function formatNumber(value) {
-        return Number.isFinite(value) ? value.toFixed(4) : 'N/A';
-    }
-
-    function pollProgress() {
-        if (!sessionId) {
-            return;
-        }
-        fetch(`{{ url_for('mlr_ga.mlr_ga_get_progress') }}?session_id=${sessionId}`)
-            .then(response => response.json())
-            .then(data => {
-                console.log('Progress update:', data);
-
-                // Update progress bar (retry-based)
-                if (data.retry && data.max_retries) {
-                    const percentage = (data.retry / data.max_retries) * 100;
-                    const progressBar = document.getElementById('ga-progress-bar');
-                    const progressText = document.getElementById('ga-progress-text');
-
-                    if (progressBar) {
-                        progressBar.style.width = percentage + '%';
-                    }
-                    if (progressText) {
-                        progressText.textContent = `Retry ${data.retry} / ${data.max_retries} (${percentage.toFixed(0)}%)`;
-                    }
-                } else if (data.message) {
-                    const progressText = document.getElementById('ga-progress-text');
-                    if (progressText) {
-                        progressText.textContent = data.message;
-                    }
-                }
-
-                // Update detailed stats
-                if (data.retry) document.getElementById('ga-retry').textContent = data.retry;
-                if (data.max_retries) document.getElementById('ga-max-retries').textContent = data.max_retries;
-                if (data.generation) document.getElementById('ga-generation').textContent = data.generation;
-                if (data.total_generations) document.getElementById('ga-total-gen').textContent = data.total_generations;
-                if (data.best_score !== undefined) document.getElementById('ga-current-score').textContent = formatNumber(data.best_score);
-                if (data.overall_best_score !== undefined) document.getElementById('ga-best-score').textContent = formatNumber(data.overall_best_score);
-                if (data.n_features !== undefined) document.getElementById('ga-n-features').textContent = data.n_features;
-                if (data.unique_models !== undefined) document.getElementById('ga-unique-models').textContent = data.unique_models;
-
-                // Update detailed metrics
-                if (data.r2cv !== undefined) document.getElementById('ga-r2cv').textContent = formatNumber(data.r2cv);
-                if (data.internal_cv_type !== undefined) document.getElementById('ga-cv-type').textContent = data.internal_cv_type;
-
-                // Check if complete
-                if (data.status === 'complete') {
-                    clearInterval(pollInterval);
-                    // Store results in session and redirect
-                    finishGA();
-                } else if (data.status === 'error') {
-                    clearInterval(pollInterval);
-                    alert('Error: ' + (data.message || 'Unknown error during GA execution'));
-                    window.location.reload();
-                }
-            })
-            .catch(error => {
-                console.error('Polling error:', error);
-            });
-    }
-
-    function finishGA() {
-        // Call complete endpoint to store results in session
-        fetch(`{{ url_for('mlr_ga.mlr_ga_complete') }}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                window.location.href = data.redirect;
-            } else {
-                alert('Error: ' + (data.message || 'Failed to retrieve results'));
-                window.location.reload();
-            }
-        })
-        .catch(error => {
-            console.error('Error finishing GA:', error);
-            alert('Error finishing GA: ' + error);
-            window.location.reload();
-        });
-    }
 
     // Send AJAX request to start GA in background
     fetch(`{{ url_for('mlr_ga.mlr_ga_start') }}`, {
@@ -2509,18 +2549,15 @@ function showGALoadingScreen(event) {
     .then(data => {
         if (data.status === 'started') {
             console.log('GA started successfully');
-            sessionId = data.session_id || 'default';
-            // Start polling every 200ms
-            pollInterval = setInterval(pollProgress, 200);
-            pollProgress();
+            startGAPolling(data.session_id || 'default');
         } else {
-            clearInterval(pollInterval);
+            clearInterval(gaPollInterval);
             alert('Error starting GA: ' + (data.message || 'Unknown error'));
             window.location.reload();
         }
     })
     .catch(error => {
-        clearInterval(pollInterval);
+        clearInterval(gaPollInterval);
         console.error('Error starting GA:', error);
         alert('Error starting GA: ' + error);
         window.location.reload();
@@ -2560,6 +2597,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (checkADCheckbox) {
         toggleADThreshold();
     }
+
+    // Resume GA polling if GA was already running (e.g., after page refresh)
+    resumeGAIfRunning();
 });
 </script>
 {% endblock content %}
