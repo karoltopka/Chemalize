@@ -1426,6 +1426,35 @@ def run_ga_background(session_id, form_data, session_data, clean_path, temp_path
         else:
             X_train, y_train = X, y
 
+        # Apply scaling AFTER split to prevent data leakage
+        # Fit scaler on training data only, transform all data
+        ga_scaler = None
+        if autoscale:
+            from sklearn.preprocessing import StandardScaler
+            ga_scaler = StandardScaler()
+
+            # Fit on training data only
+            ga_scaler.fit(X_train)
+
+            # Transform training data
+            X_train_scaled = ga_scaler.transform(X_train)
+            X_train = pd.DataFrame(X_train_scaled, columns=X_train.columns, index=X_train.index)
+
+            # Transform validation data (if exists)
+            if X_val is not None:
+                X_val_scaled = ga_scaler.transform(X_val)
+                X_val = pd.DataFrame(X_val_scaled, columns=X_val.columns, index=X_val.index)
+
+            # Transform full X (used as metrics_X in GA for index-based access)
+            X_full_scaled = ga_scaler.transform(X)
+            X = pd.DataFrame(X_full_scaled, columns=X.columns, index=X.index)
+
+            # Note: scaler is not stored in preprocessing_info because sklearn objects
+            # are not JSON serializable. Data is already scaled, so scaler not needed later.
+            preprocessing_info['scaling_applied'] = True
+            preprocessing_info['scaling_mean'] = ga_scaler.mean_.tolist()
+            preprocessing_info['scaling_std'] = ga_scaler.scale_.tolist()
+
         # Create progress callback
         def progress_callback(data):
             """Callback to report GA progress"""

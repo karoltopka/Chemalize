@@ -1379,11 +1379,12 @@ def preprocess_for_ga(df, target_var, y_transformation='none',
                      autoscale=True, remove_zero_variance=True,
                      remove_low_variance=False, variance_threshold=0.01):
     """
-    Preprocess data before GA variable selection
+    Preprocess data before GA variable selection.
 
-    WARNING: If autoscale=True, scaling is performed on ALL data before any train/test split.
-    This may cause minor data leakage in the GA internal cross-validation metrics.
-    For final model evaluation, MLR module performs scaling AFTER split to prevent leakage.
+    NOTE: This function does NOT perform scaling. Scaling should be done AFTER
+    train/test split in the calling code to prevent data leakage.
+    The `autoscale` parameter is kept for backward compatibility but scaling
+    is handled separately in run_ga_background().
 
     Parameters:
     -----------
@@ -1394,8 +1395,7 @@ def preprocess_for_ga(df, target_var, y_transformation='none',
     y_transformation : str
         Transformation for Y: 'none', 'log', 'sqrt', 'square', 'inverse'
     autoscale : bool
-        Whether to apply autoscaling (standardization).
-        Note: Scaling is done on full dataset before GA CV - may cause minor leakage.
+        Flag indicating if scaling should be applied (handled by caller after split)
     remove_zero_variance : bool
         Whether to remove zero variance features
     remove_low_variance : bool
@@ -1406,7 +1406,7 @@ def preprocess_for_ga(df, target_var, y_transformation='none',
     Returns:
     --------
     X : DataFrame
-        Preprocessed features
+        Preprocessed features (NOT scaled - scaling done after split)
     y : Series
         Preprocessed target
     removed_features : list
@@ -1463,12 +1463,10 @@ def preprocess_for_ga(df, target_var, y_transformation='none',
         preprocessing_info['low_variance_removed'] = low_var_features
         preprocessing_info['variance_threshold'] = variance_threshold
 
-    # Autoscaling
-    if autoscale:
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        X = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
-        preprocessing_info['scaler'] = scaler
+    # NOTE: Scaling is NOT done here anymore to prevent data leakage.
+    # Scaling should be done AFTER train/test split in the calling code.
+    # We just store the flag so caller knows if scaling is requested.
+    preprocessing_info['autoscale_requested'] = autoscale
 
     preprocessing_info['removed_features'] = removed_features
     preprocessing_info['final_features'] = X.columns.tolist()
