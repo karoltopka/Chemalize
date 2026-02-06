@@ -1900,6 +1900,12 @@
         }
         setSquareHeight();
 
+        // Get font sizes from sliders early (needed for trace-level colorbar config)
+        const axisFontSizeSlider = document.getElementById('axis_font_size_slider');
+        const axisFontSize = axisFontSizeSlider ? parseInt(axisFontSizeSlider.value) : 14;
+        const legendFontSizeSlider = document.getElementById('legend_font_size_slider');
+        const legendFontSize = legendFontSizeSlider ? parseInt(legendFontSizeSlider.value) : 10;
+
         let traces = [];
 
         // Create shape mapping if shape encoding is enabled
@@ -2219,6 +2225,8 @@
                         colorbar: {
                             title: pcaData.color_by || 'Value',
                             titleside: 'right',
+                            titlefont: { size: legendFontSize },
+                            tickfont: { size: legendFontSize },
                             thickness: 15,
                             len: 0.7
                         },
@@ -2664,14 +2672,6 @@
         const domainStart = (1 - domainSize) / 2;
         const domainEnd = domainStart + domainSize;
 
-        // Get axis font size from slider
-        const axisFontSizeSlider = document.getElementById('axis_font_size_slider');
-        const axisFontSize = axisFontSizeSlider ? parseInt(axisFontSizeSlider.value) : 14;
-
-        // Get legend font size from slider
-        const legendFontSizeSlider = document.getElementById('legend_font_size_slider');
-        const legendFontSize = legendFontSizeSlider ? parseInt(legendFontSizeSlider.value) : 10;
-
         const layout = {
             title: {
                 text: titleText,
@@ -2759,8 +2759,10 @@
                 colorbar: {
                     title: {
                         text: pcaData.color_by || 'Value',
-                        side: 'right'
+                        side: 'right',
+                        font: { size: legendFontSize }
                     },
+                    tickfont: { size: legendFontSize },
                     thickness: 15,
                     len: 0.7,
                     x: 1.02,
@@ -3309,9 +3311,28 @@
                 // Update plot on the fly using Plotly.relayout
                 const pcaPlotDiv = document.getElementById('pca-plotly');
                 if (pcaPlotDiv && pcaPlotDiv.layout) {
-                    Plotly.relayout(pcaPlotDiv, {
+                    // Update categorical legend font
+                    const updates = {
                         'legend.font.size': legendFontSize
-                    });
+                    };
+                    // Update colorbar fonts (numeric coloring)
+                    if (pcaPlotDiv.layout.coloraxis) {
+                        updates['coloraxis.colorbar.title.font.size'] = legendFontSize;
+                        updates['coloraxis.colorbar.tickfont.size'] = legendFontSize;
+                    }
+                    Plotly.relayout(pcaPlotDiv, updates);
+
+                    // Update trace-level colorbar (numeric color without shapes)
+                    if (pcaPlotDiv.data) {
+                        pcaPlotDiv.data.forEach((trace, i) => {
+                            if (trace.marker && trace.marker.colorbar) {
+                                Plotly.restyle(pcaPlotDiv, {
+                                    'marker.colorbar.titlefont.size': legendFontSize,
+                                    'marker.colorbar.tickfont.size': legendFontSize
+                                }, [i]);
+                            }
+                        });
+                    }
                 }
             });
         }
