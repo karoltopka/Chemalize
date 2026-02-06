@@ -653,6 +653,17 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-font"></i> Axis Label Size
+                    </label>
+                    <div class="d-flex align-items-center">
+                        <input type="range" name="axis_font_size" id="axis_font_size_slider" class="form-range flex-grow-1"
+                               min="8" max="24" step="1" value="14">
+                        <span id="axis_font_size_value" class="ml-2" style="min-width: 40px; font-weight: bold;">14</span>
+                    </div>
+                </div>
+
                 <!-- Hidden inputs for external coloring -->
                 <input type="hidden" name="use_external_coloring" id="use_external_coloring" value="0">
                 <input type="hidden" name="external_key_column" id="external_key_column" value="">
@@ -2642,6 +2653,10 @@
         const domainStart = (1 - domainSize) / 2;
         const domainEnd = domainStart + domainSize;
 
+        // Get axis font size from slider
+        const axisFontSizeSlider = document.getElementById('axis_font_size_slider');
+        const axisFontSize = axisFontSizeSlider ? parseInt(axisFontSizeSlider.value) : 14;
+
         const layout = {
             title: {
                 text: titleText,
@@ -2654,7 +2669,7 @@
             xaxis: {
                 title: `PC${pcaData.pc_x} (${pcaData.variance_x}% variance)`,
                 gridcolor: 'rgba(230, 230, 230, 0.8)',
-                titlefont: { color: '#1f2937', size: 14 },
+                titlefont: { color: '#1f2937', size: axisFontSize },
                 zeroline: true,
                 zerolinecolor: 'rgba(0, 0, 0, 0.3)',
                 zerolinewidth: 1,
@@ -2665,7 +2680,7 @@
             yaxis: {
                 title: `PC${pcaData.pc_y} (${pcaData.variance_y}% variance)`,
                 gridcolor: 'rgba(230, 230, 230, 0.8)',
-                titlefont: { color: '#1f2937', size: 14 },
+                titlefont: { color: '#1f2937', size: axisFontSize },
                 zeroline: true,
                 zerolinecolor: 'rgba(0, 0, 0, 0.3)',
                 zerolinewidth: 1,
@@ -3243,6 +3258,26 @@
                     // Update marker size for all traces
                     const update = { 'marker.size': currentPointSize };
                     Plotly.restyle(pcaPlotDiv, update);
+                }
+            });
+        }
+
+        // Axis font size slider - update on the fly
+        const axisFontSizeSlider = document.getElementById('axis_font_size_slider');
+        const axisFontSizeValueDisplay = document.getElementById('axis_font_size_value');
+
+        if (axisFontSizeSlider) {
+            axisFontSizeSlider.addEventListener('input', function() {
+                const axisFontSize = parseInt(this.value);
+                axisFontSizeValueDisplay.textContent = axisFontSize;
+
+                // Update plot on the fly using Plotly.relayout
+                const pcaPlotDiv = document.getElementById('pca-plotly');
+                if (pcaPlotDiv && pcaPlotDiv.layout) {
+                    Plotly.relayout(pcaPlotDiv, {
+                        'xaxis.titlefont.size': axisFontSize,
+                        'yaxis.titlefont.size': axisFontSize
+                    });
                 }
             });
         }
