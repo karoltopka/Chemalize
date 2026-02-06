@@ -664,6 +664,17 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fas fa-list"></i> Legend Size
+                    </label>
+                    <div class="d-flex align-items-center">
+                        <input type="range" name="legend_font_size" id="legend_font_size_slider" class="form-range flex-grow-1"
+                               min="6" max="18" step="1" value="10">
+                        <span id="legend_font_size_value" class="ml-2" style="min-width: 40px; font-weight: bold;">10</span>
+                    </div>
+                </div>
+
                 <!-- Hidden inputs for external coloring -->
                 <input type="hidden" name="use_external_coloring" id="use_external_coloring" value="0">
                 <input type="hidden" name="external_key_column" id="external_key_column" value="">
@@ -2657,6 +2668,10 @@
         const axisFontSizeSlider = document.getElementById('axis_font_size_slider');
         const axisFontSize = axisFontSizeSlider ? parseInt(axisFontSizeSlider.value) : 14;
 
+        // Get legend font size from slider
+        const legendFontSizeSlider = document.getElementById('legend_font_size_slider');
+        const legendFontSize = legendFontSizeSlider ? parseInt(legendFontSizeSlider.value) : 10;
+
         const layout = {
             title: {
                 text: titleText,
@@ -2708,7 +2723,7 @@
                 bgcolor: 'rgba(255, 255, 255, 0.9)',
                 bordercolor: 'rgba(0, 0, 0, 0.3)',
                 borderwidth: 1,
-                font: { size: 10 }
+                font: { size: legendFontSize }
             }
         };
 
@@ -3277,6 +3292,25 @@
                     Plotly.relayout(pcaPlotDiv, {
                         'xaxis.titlefont.size': axisFontSize,
                         'yaxis.titlefont.size': axisFontSize
+                    });
+                }
+            });
+        }
+
+        // Legend font size slider - update on the fly
+        const legendFontSizeSlider = document.getElementById('legend_font_size_slider');
+        const legendFontSizeValueDisplay = document.getElementById('legend_font_size_value');
+
+        if (legendFontSizeSlider) {
+            legendFontSizeSlider.addEventListener('input', function() {
+                const legendFontSize = parseInt(this.value);
+                legendFontSizeValueDisplay.textContent = legendFontSize;
+
+                // Update plot on the fly using Plotly.relayout
+                const pcaPlotDiv = document.getElementById('pca-plotly');
+                if (pcaPlotDiv && pcaPlotDiv.layout) {
+                    Plotly.relayout(pcaPlotDiv, {
+                        'legend.font.size': legendFontSize
                     });
                 }
             });
