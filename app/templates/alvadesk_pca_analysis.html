@@ -2583,15 +2583,19 @@
         console.log('PC X:', pcX, 'PC Y:', pcY);
         console.log('Show labels:', showLabels);
 
-        // Re-render the PCA plot first (to clear any previous arrows)
-        renderAlvadeskPCAPlot(pcaData);
-
-        // Get the plotly div
+        // Get the plotly div - plot should already exist
         const plotDiv = document.getElementById('pca-plotly');
         if (!plotDiv || !plotDiv.data) {
-            console.error('Plot not found');
+            console.error('Plot not found - make sure to generate PCA plot first');
+            alert('Please generate PCA plot first, then click Generate Biplot');
             return;
         }
+
+        // Clear any previous biplot arrows by removing shapes and custom annotations
+        Plotly.relayout(plotDiv, {
+            shapes: [],
+            annotations: []
+        });
 
         // Calculate scaling factor based on data range
         const allX = [];
