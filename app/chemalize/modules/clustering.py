@@ -1189,7 +1189,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         reordered_col_positions,
         orientation='bottom',
         line_width=2,
-        color='#1f77b4'
+        color="#000000"
     )
 
     # Build color mapping for row dendrogram if row_color_column is specified
@@ -1235,7 +1235,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
             reordered_row_positions,
             orientation='left',
             line_width=2,
-            color='#1f77b4'
+            color="#000000"
         )
 
     # Create the main heatmap
