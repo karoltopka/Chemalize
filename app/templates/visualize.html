@@ -2796,9 +2796,9 @@
             toImageButtonOptions: {
                 format: 'png',           // Format: 'png', 'svg', 'jpeg', 'webp'
                 filename: 'pca_plot',    // Default filename
-                height: 1600,            // High resolution height
-                width: 1600,             // High resolution width (square)
-                scale: 2                 // 2x scaling for extra sharpness
+                height: plotSize,        // Match on-screen logical size so fonts look the same
+                width: plotSize,         // Match on-screen logical size (square)
+                scale: Math.max(2, Math.ceil(3200 / plotSize))  // Scale up to ~3200px physical resolution
             }
         }).then(() => {
             // Restore labels for previously clicked points (after plot redraw)
