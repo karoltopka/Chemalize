@@ -64,15 +64,20 @@ def preprocess():
                     clean_path = get_clean_path(csv_filename)
                     df.to_csv(clean_path, index=False)
                     
+                    # Clear entire session (same as Clear Session button)
+                    # to remove all stale analysis results (PCA, PCR, MLR, etc.)
+                    # Preserve user_id so file paths remain consistent
+                    preserved_user_id = session.get('user_id')
+                    session.clear()
+                    if preserved_user_id:
+                        session['user_id'] = preserved_user_id
+
+                    # Re-set only the keys needed for the new dataset
                     session["csv_name"] = csv_filename
                     session["haha"] = True
-                    
-                    # Reset any previous analysis status
-                    for key in ['pca_performed', 'pcr_performed', 'mlr_performed', 'clustering_performed',
-                              'target_var', 'temp_csv_path']:
-                        if key in session:
-                            session.pop(key)
-                            
+                    session["fname"] = data.filename
+                    session["ext"] = ext
+
                     flash("File uploaded and converted successfully", "success")
                 else:
                     flash(f"Unsupported file format: {ext}", "danger")
