@@ -1577,10 +1577,12 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     else:
         x_tickfont = dict(size=11)
 
+    x_ticklabel_standoff = -20
+
     fig.update_xaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2,
                      tickangle=x_tickangle, side='bottom', tickmode='array',
                      tickvals=reordered_col_positions, ticktext=reordered_col_labels, type='linear',
-                     tickfont=x_tickfont, ticklabelstandoff=0, automargin=True)
+                     tickfont=x_tickfont, ticks='', ticklabelstandoff=x_ticklabel_standoff, automargin=True)
 
     # Y-axis font size: use custom value if provided, otherwise auto-calculate
     if y_axis_font_size is not None:
@@ -1606,13 +1608,15 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
 
     # Add endpoint column label below the strip (X axis), horizontal, bold
     if has_endpoint:
+        # Keep endpoint label in sync with custom X-axis label spacing.
+        endpoint_label_yshift = -10 - x_ticklabel_standoff + 10
         fig.add_annotation(
             text='<b>y</b>',
             x=endpoint_x_pos,
             xref=heatmap_xmatch,
             y=0,
             yref='paper',
-            yshift=-10,
+            yshift=endpoint_label_yshift,
             xanchor='center', yanchor='top',
             showarrow=False,
             textangle=0,
