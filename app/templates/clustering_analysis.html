@@ -642,6 +642,73 @@
                                     </small>
                                 </div>
 
+                                <!-- External Endpoint File Upload -->
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light py-2">
+                                        <h6 class="mb-0"><i class="fas fa-file-medical"></i> External Endpoint Column (Optional)</h6>
+                                    </div>
+                                    <div class="card-body py-2">
+                                        <small class="text-muted d-block mb-2">
+                                            Upload a CSV/XLSX file with endpoint data (e.g., activity, toxicity) to display as a colored strip next to the heatmap.
+                                        </small>
+                                        <div class="form-row align-items-end">
+                                            <div class="col-md-6">
+                                                <div class="custom-file">
+                                                    <input type="file" class="custom-file-input" id="hca_endpoint_file_input" accept=".csv,.xlsx,.xls">
+                                                    <label class="custom-file-label" for="hca_endpoint_file_input">Choose endpoint file...</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="uploadEndpointFile()">
+                                                    <i class="fas fa-upload"></i> Upload
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div id="hca_endpoint_status" class="mt-2"></div>
+
+                                        <!-- Key column override (shown after upload) -->
+                                        <div id="hca_endpoint_key_section" class="mt-2" style="{% if twoway_hca_endpoint_loaded %}display: block;{% else %}display: none;{% endif %}">
+                                            <div class="form-row align-items-end">
+                                                <div class="col-md-6">
+                                                    <label for="hca_endpoint_key_column" class="small mb-0">Key Column:</label>
+                                                    <select class="form-control form-control-sm" id="hca_endpoint_key_column">
+                                                        {% if twoway_hca_endpoint_key_column %}
+                                                            <option value="{{ twoway_hca_endpoint_key_column }}" selected>{{ twoway_hca_endpoint_key_column }}</option>
+                                                        {% endif %}
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="confirmEndpointKeyColumn()">
+                                                        <i class="fas fa-check"></i> Confirm
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Endpoint column selector (shown after upload) -->
+                                        <div id="hca_endpoint_column_section" class="mt-2" style="{% if twoway_hca_endpoint_loaded %}display: block;{% else %}display: none;{% endif %}">
+                                            <label for="hca_endpoint_column_select" class="small mb-0">Endpoint Column:</label>
+                                            <select class="form-control form-control-sm" id="hca_endpoint_column_select" onchange="syncEndpointColumn()">
+                                                <option value="">-- None --</option>
+                                                {% if twoway_hca_endpoint_columns %}
+                                                    {% for col in twoway_hca_endpoint_columns %}
+                                                        <option value="{{ col }}"
+                                                                {% if twoway_hca_endpoint_selected_column and col == twoway_hca_endpoint_selected_column %}selected{% endif %}>
+                                                            {{ col }}
+                                                            {% if twoway_hca_endpoint_column_types and col in twoway_hca_endpoint_column_types %}
+                                                                ({{ twoway_hca_endpoint_column_types[col] }})
+                                                            {% endif %}
+                                                        </option>
+                                                    {% endfor %}
+                                                {% endif %}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <input type="hidden" name="hca_endpoint_column" id="hca_endpoint_column_hidden"
+                                       value="{% if twoway_hca_endpoint_selected_column %}{{ twoway_hca_endpoint_selected_column }}{% endif %}">
+
                                 <div class="form-row">
                                     <div class="col-md-6">
                                         <div class="form-group">
@@ -982,6 +1049,12 @@
                 formData.delete('hca_variables');
                 selectedVars.forEach(v => formData.append('hca_variables', v));
 
+                // Sync endpoint column hidden input
+                const epColSelect = document.getElementById('hca_endpoint_column_select');
+                if (epColSelect && epColSelect.value) {
+                    formData.set('hca_endpoint_column', epColSelect.value);
+                }
+
                 try {
                     const resp = await fetch(hcaForm.action, {
                         method: 'POST',
@@ -1006,6 +1079,116 @@
                 }
             });
         }
+
+        // --- Endpoint file upload functions ---
+        // Update file input label
+        const endpointFileInput = document.getElementById('hca_endpoint_file_input');
+        if (endpointFileInput) {
+            endpointFileInput.addEventListener('change', function(e) {
+                const fileName = e.target.files[0] ? e.target.files[0].name : 'Choose endpoint file...';
+                const label = e.target.nextElementSibling;
+                if (label) label.textContent = fileName;
+            });
+        }
+
+        // Make endpoint functions globally available
+        window.uploadEndpointFile = async function() {
+            const fileInput = document.getElementById('hca_endpoint_file_input');
+            const statusDiv = document.getElementById('hca_endpoint_status');
+            if (!fileInput || !fileInput.files[0]) {
+                if (statusDiv) statusDiv.innerHTML = '<div class="alert alert-warning py-1 small">Please select a file first.</div>';
+                return;
+            }
+            const formData = new FormData();
+            formData.append('endpoint_file', fileInput.files[0]);
+            if (statusDiv) statusDiv.innerHTML = '<div class="alert alert-info py-1 small"><i class="fas fa-spinner fa-spin"></i> Uploading...</div>';
+            try {
+                const resp = await fetch('{{ url_for("clustering.upload_twoway_hca_endpoint") }}', {
+                    method: 'POST', body: formData,
+                    headers: {'X-Requested-With': 'XMLHttpRequest'}
+                });
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error || 'Upload failed');
+                if (statusDiv) statusDiv.innerHTML = `<div class="alert alert-success py-1 small">${data.message}</div>`;
+                populateEndpointControls(data);
+            } catch (err) {
+                if (statusDiv) statusDiv.innerHTML = `<div class="alert alert-danger py-1 small">${err.message}</div>`;
+            }
+        };
+
+        window.confirmEndpointKeyColumn = async function() {
+            const keySelect = document.getElementById('hca_endpoint_key_column');
+            const statusDiv = document.getElementById('hca_endpoint_status');
+            if (!keySelect || !keySelect.value) return;
+            const formData = new FormData();
+            formData.append('key_column', keySelect.value);
+            if (statusDiv) statusDiv.innerHTML = '<div class="alert alert-info py-1 small"><i class="fas fa-spinner fa-spin"></i> Confirming...</div>';
+            try {
+                const resp = await fetch('{{ url_for("clustering.confirm_twoway_hca_key_column") }}', {
+                    method: 'POST', body: formData,
+                    headers: {'X-Requested-With': 'XMLHttpRequest'}
+                });
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error || 'Confirmation failed');
+                if (statusDiv) statusDiv.innerHTML = `<div class="alert alert-success py-1 small">${data.message}</div>`;
+                populateEndpointColumns(data.columns, data.column_types);
+            } catch (err) {
+                if (statusDiv) statusDiv.innerHTML = `<div class="alert alert-danger py-1 small">${err.message}</div>`;
+            }
+        };
+
+        function populateEndpointControls(data) {
+            // Show sections
+            document.getElementById('hca_endpoint_key_section').style.display = 'block';
+            document.getElementById('hca_endpoint_column_section').style.display = 'block';
+            // Populate key column dropdown with all candidates
+            const keySelect = document.getElementById('hca_endpoint_key_column');
+            keySelect.innerHTML = '';
+            const allCandidates = data.pca_candidates || [];
+            const commonCols = data.common_columns || [];
+            // Add common columns first with marker
+            const added = new Set();
+            commonCols.forEach(function(col) {
+                const opt = document.createElement('option');
+                opt.value = col;
+                opt.textContent = col + ' (common)';
+                if (col === data.key_column) opt.selected = true;
+                keySelect.appendChild(opt);
+                added.add(col);
+            });
+            // Add remaining candidates
+            allCandidates.forEach(function(col) {
+                if (!added.has(col)) {
+                    const opt = document.createElement('option');
+                    opt.value = col;
+                    opt.textContent = col;
+                    if (col === data.key_column) opt.selected = true;
+                    keySelect.appendChild(opt);
+                }
+            });
+            populateEndpointColumns(data.columns, data.column_types);
+        }
+
+        function populateEndpointColumns(columns, columnTypes) {
+            const colSelect = document.getElementById('hca_endpoint_column_select');
+            colSelect.innerHTML = '<option value="">-- None --</option>';
+            columns.forEach(function(col) {
+                const opt = document.createElement('option');
+                opt.value = col;
+                const ctype = (columnTypes && columnTypes[col]) || 'unknown';
+                opt.textContent = col + ' (' + ctype + ')';
+                colSelect.appendChild(opt);
+            });
+            syncEndpointColumn();
+        }
+
+        window.syncEndpointColumn = function() {
+            const colSelect = document.getElementById('hca_endpoint_column_select');
+            const hidden = document.getElementById('hca_endpoint_column_hidden');
+            if (colSelect && hidden) {
+                hidden.value = colSelect.value;
+            }
+        };
 
         // Dynamic color pickers for dendrogram categories
         const dendroColorSelect = document.getElementById('hca_dendro_color_column');

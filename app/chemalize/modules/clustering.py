@@ -1051,7 +1051,8 @@ def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_label
 def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_linkage='ward',
                                 col_linkage='ward', temp_path='temp/', height_scale=100, width_scale=100,
                                 row_color_column=None, show_zeros=False, custom_colors=None,
-                                x_axis_font_size=None, y_axis_font_size=None):
+                                x_axis_font_size=None, y_axis_font_size=None,
+                                endpoint_column=None, endpoint_data=None, endpoint_is_numeric=False):
     """
     Generate an interactive two-way hierarchical clustering heatmap using Plotly.
 
@@ -1091,6 +1092,12 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         Font size for X-axis labels (variables). If None, auto-calculated based on number of columns.
     y_axis_font_size : int, default=None
         Font size for Y-axis labels (groups). If None, auto-calculated based on number of rows.
+    endpoint_column : str, default=None
+        Name of the external endpoint column to display as a color strip next to the heatmap.
+    endpoint_data : pandas.Series, default=None
+        The endpoint data series, aligned with df rows. Produced by coloring.prepare_color_data().
+    endpoint_is_numeric : bool, default=False
+        Whether the endpoint data is numeric (gradient) or categorical (discrete colors).
 
     Returns:
     --------
@@ -1132,6 +1139,24 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
 
     if len(grouped_data) < 2:
         raise ValueError(f"At least 2 groups are required for row clustering. Found {len(grouped_data)} groups in '{grouping_column}'")
+
+    # Aggregate endpoint data by grouping column if provided
+    endpoint_grouped = None
+    endpoint_categories = None
+    endpoint_cat_colors = None
+    if endpoint_column is not None and endpoint_data is not None:
+        # Build a temporary df for aggregation
+        ep_df = pd.DataFrame({
+            grouping_column: heatmap_data[grouping_column].values,
+            'endpoint': endpoint_data.reindex(heatmap_data.index).values
+        })
+        if endpoint_is_numeric:
+            endpoint_grouped = ep_df.groupby(grouping_column)['endpoint'].mean()
+        else:
+            # Mode for categorical data
+            endpoint_grouped = ep_df.groupby(grouping_column)['endpoint'].agg(
+                lambda x: x.mode().iloc[0] if not x.mode().empty else None
+            )
 
     # Get group labels (Y axis)
     group_labels = grouped_data.index.astype(str).tolist()
@@ -1302,17 +1327,85 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     # Convert to ratio - use 1.5x multiplier for safety margin since labels extend leftward
     label_space = max(0.04, min(0.20, (estimated_label_width * 1.5) / preliminary_width))
 
-    # Create a subplot layout: row dendrogram | heatmap
-    #                          column dendrogram (above heatmap)
-    fig = make_subplots(
-        rows=2, cols=2,
-        row_heights=[top_ratio, 1 - top_ratio],
-        column_widths=[left_ratio, 1 - left_ratio],
-        specs=[[None, {'type': 'xy'}],
-               [{'type': 'xy'}, {'type': 'xy'}]],
-        horizontal_spacing=label_space,  # Gap for labels between dendrogram and heatmap
-        vertical_spacing=0  # No gap between top dendrogram and heatmap
-    )
+    # Determine if endpoint strip is needed
+    has_endpoint = (endpoint_column is not None and endpoint_data is not None and endpoint_grouped is not None)
+
+    if has_endpoint:
+        # Reorder endpoint_grouped to match row_order
+        endpoint_reordered_values = endpoint_grouped.reindex(
+            [grouped_data.index[i] for i in row_order]
+        ).values
+
+        if not endpoint_is_numeric:
+            # Build categorical color map
+            unique_cats = sorted(set(str(v) for v in endpoint_reordered_values if v is not None and str(v) != 'nan'))
+            from app.chemalize.visualization.coloring import generate_distinct_colors
+            cat_colors = generate_distinct_colors(len(unique_cats))
+            endpoint_cat_colors = {cat: cat_colors[i] for i, cat in enumerate(unique_cats)}
+            endpoint_categories = unique_cats
+
+    # Create a subplot layout
+    if has_endpoint:
+        # 2x3 grid: [None, col_dendro, None] / [row_dendro, heatmap, endpoint_strip]
+        # Use a tiny uniform spacing, then manually set domains so the big label gap
+        # is only between dendrogram (col 1) and heatmap (col 2), while the endpoint
+        # strip (col 3) sits flush against the heatmap.
+        endpoint_strip_width = 50
+        tiny_spacing = 0.005  # minimal gap between heatmap and endpoint strip
+        # Total usable width after accounting for the label gap and tiny gap
+        total_content_w = left_dendro_width + heatmap_width + endpoint_strip_width
+        fig = make_subplots(
+            rows=2, cols=3,
+            row_heights=[top_ratio, 1 - top_ratio],
+            column_widths=[left_dendro_width / total_content_w,
+                           heatmap_width / total_content_w,
+                           endpoint_strip_width / total_content_w],
+            specs=[[None, {'type': 'xy'}, None],
+                   [{'type': 'xy'}, {'type': 'xy'}, {'type': 'xy'}]],
+            horizontal_spacing=tiny_spacing,
+            vertical_spacing=0
+        )
+
+        # Manually adjust x-domains so the label gap only appears between col1 and col2.
+        # Compute target domain boundaries (0..1 paper coords):
+        dendro_end = left_dendro_width / total_content_w
+        heatmap_start = dendro_end + label_space          # big gap for Y-axis labels
+        strip_w_ratio = endpoint_strip_width / total_content_w
+        heatmap_end = 1.0 - strip_w_ratio - tiny_spacing  # leave room for strip
+        strip_start = heatmap_end + tiny_spacing
+        strip_end = 1.0
+
+        # Apply new x-domains to every axis that belongs to each column.
+        # Use to_plotly_json() to get plain-dict representation of the layout.
+        layout_dict = fig.layout.to_plotly_json()
+        for attr_name in list(layout_dict.keys()):
+            if not attr_name.startswith('xaxis'):
+                continue
+            dom = layout_dict[attr_name].get('domain')
+            if dom is None:
+                continue
+            mid = (dom[0] + dom[1]) / 2
+            # Classify which column this axis belongs to by its midpoint
+            if mid < dendro_end + 0.01:
+                # Column 1 (row dendrogram)
+                fig.layout[attr_name].domain = [0, dendro_end]
+            elif mid > 1.0 - strip_w_ratio - 0.01:
+                # Column 3 (endpoint strip)
+                fig.layout[attr_name].domain = [strip_start, strip_end]
+            else:
+                # Column 2 (heatmap / col dendrogram)
+                fig.layout[attr_name].domain = [heatmap_start, heatmap_end]
+    else:
+        # Original 2x2 grid
+        fig = make_subplots(
+            rows=2, cols=2,
+            row_heights=[top_ratio, 1 - top_ratio],
+            column_widths=[left_ratio, 1 - left_ratio],
+            specs=[[None, {'type': 'xy'}],
+                   [{'type': 'xy'}, {'type': 'xy'}]],
+            horizontal_spacing=label_space,
+            vertical_spacing=0
+        )
 
     # Add column dendrogram at top
     for trace in col_dendro_traces:
@@ -1382,9 +1475,88 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                 text=zero_hover_texts
             ), row=2, col=2)
 
+    # Get the axis references for the heatmap subplot (row=2, col=2)
+    # In 2x2 layout: heatmap is x3/y3; in 2x3 layout: heatmap is x4/y4
+    heatmap_xref = fig.get_subplot(2, 2).xaxis.plotly_name  # e.g., 'xaxis3' or 'xaxis4'
+    heatmap_yref = fig.get_subplot(2, 2).yaxis.plotly_name
+    heatmap_xmatch = heatmap_xref.replace('axis', '')  # e.g., 'x3' or 'x4'
+    heatmap_ymatch = heatmap_yref.replace('axis', '')
+
+    # Add endpoint strip if available
+    if has_endpoint:
+        if endpoint_is_numeric:
+            # Numeric: single-column heatmap with Viridis colorscale
+            ep_z = [[v] for v in endpoint_reordered_values]
+            ep_text = [[f'{endpoint_column}: {v:.4f}' if v is not None and not (isinstance(v, float) and np.isnan(v)) else f'{endpoint_column}: N/A'] for v in endpoint_reordered_values]
+            ep_heatmap = go.Heatmap(
+                z=ep_z,
+                x=[0],
+                y=reordered_row_positions,
+                colorscale='Viridis',
+                colorbar=dict(
+                    title=dict(text=endpoint_column, side='top'),
+                    x=1.15, y=0.5, yanchor='middle', len=0.4
+                ),
+                hovertemplate='%{text}<br>Group: %{customdata}<extra></extra>',
+                text=ep_text,
+                customdata=reordered_row_labels,
+                showscale=True
+            )
+            fig.add_trace(ep_heatmap, row=2, col=3)
+        else:
+            # Categorical: single-column heatmap with discrete colors
+            # Map categories to numeric indices
+            cat_to_idx = {cat: i for i, cat in enumerate(endpoint_categories)}
+            ep_z = [[cat_to_idx.get(str(v), -1)] for v in endpoint_reordered_values]
+            ep_text = [[f'{endpoint_column}: {v}'] for v in endpoint_reordered_values]
+
+            # Build discrete colorscale
+            n_cats = len(endpoint_categories)
+            discrete_colorscale = []
+            for i, cat in enumerate(endpoint_categories):
+                lower = i / n_cats
+                upper = (i + 1) / n_cats
+                color = endpoint_cat_colors[cat]
+                discrete_colorscale.append([lower, color])
+                discrete_colorscale.append([upper, color])
+
+            ep_heatmap = go.Heatmap(
+                z=ep_z,
+                x=[0],
+                y=reordered_row_positions,
+                colorscale=discrete_colorscale,
+                zmin=0, zmax=n_cats,
+                showscale=False,
+                hovertemplate='%{text}<br>Group: %{customdata}<extra></extra>',
+                text=ep_text,
+                customdata=reordered_row_labels
+            )
+            fig.add_trace(ep_heatmap, row=2, col=3)
+
+            # Add legend entries for categorical endpoint
+            show_legend = True
+            ep_legend_labels = [f'{endpoint_column}: {c}' for c in endpoint_categories]
+            max_category_len = max(max_category_len, max((len(l) for l in ep_legend_labels), default=0))
+            for cat_name in endpoint_categories:
+                fig.add_trace(go.Scatter(
+                    x=[None], y=[None],
+                    mode='markers',
+                    marker=dict(size=10, color=endpoint_cat_colors[cat_name], symbol='square'),
+                    name=f'{endpoint_column}: {cat_name}',
+                    showlegend=True
+                ))
+
+        # Configure endpoint strip axes
+        fig.update_xaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=3,
+                         tickmode='array', tickvals=[0], ticktext=[endpoint_column],
+                         tickangle=-45, tickfont=dict(size=10))
+        fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, row=2, col=3,
+                         matches=heatmap_ymatch)
+
     # Total figure size = heatmap + dendrogram + padding (no max limit - let it expand)
     final_height = max(500, heatmap_height + top_dendro_height + 150)
-    final_width = max(800, heatmap_width + left_dendro_width + 150)
+    endpoint_extra_width = 80 if has_endpoint else 0
+    final_width = max(800, heatmap_width + left_dendro_width + 150 + endpoint_extra_width)
 
     # Add extra width for legend if showing (based on longest category name)
     if show_legend:
@@ -1401,6 +1573,9 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         title_text += f' | Colored by {row_color_column}'
     if zeros_marked:
         title_text += ' | ✕ = 0'
+    if has_endpoint:
+        ep_type = 'numeric' if endpoint_is_numeric else 'categorical'
+        title_text += f' | Endpoint: {endpoint_column} ({ep_type})'
     title_text += '</sub>'
 
     # Adjust right margin for legend (based on longest category name)
@@ -1416,7 +1591,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         width=final_width,
         showlegend=show_legend,
         legend=dict(
-            title=dict(text=row_color_column if row_color_column else "Category"),
+            title=dict(text=row_color_column if row_color_column else (endpoint_column if has_endpoint else "Category")),
             orientation='v',
             yanchor='top',
             y=1.0,
@@ -1430,13 +1605,13 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     )
 
     # Update axes for column dendrogram - share X with heatmap, Y starts from 0
-    fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, matches='x3', row=1, col=2)
+    fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, matches=heatmap_xmatch, row=1, col=2)
     fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, row=1, col=2,
                      rangemode='nonnegative', automargin=False)
 
     # Update axes for row dendrogram - share Y with heatmap, X starts from 0 (reversed)
     fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, autorange='reversed', rangemode='tozero', row=2, col=1)
-    fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, matches='y3', row=2, col=1)
+    fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, matches=heatmap_ymatch, row=2, col=1)
 
     # Update axes for main heatmap (x3/y3)
     # Always use slight angle (-45°) for X-axis labels, adjust font size based on count

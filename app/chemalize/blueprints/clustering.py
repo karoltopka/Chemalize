@@ -13,6 +13,7 @@ from app.chemalize.preprocessing import generic_preprocessing as gp
 from app.chemalize.utils.descriptor_groups import parse_descriptor_groups, filter_dataframe_by_groups
 
 from app.chemalize.modules import clustering
+from app.chemalize.visualization import coloring
 
 
 clustering_bp = Blueprint('clustering', __name__)
@@ -115,7 +116,10 @@ def clustering_analysis():
             'twoway_hca_plot', 'twoway_hca_variables',
             'twoway_hca_row_linkage', 'twoway_hca_col_linkage',
             'twoway_hca_grouping_column', 'twoway_hca_height_scale', 'twoway_hca_width_scale',
-            'twoway_hca_dendro_color_column', 'twoway_hca_custom_colors', 'twoway_hca_show_zeros'
+            'twoway_hca_dendro_color_column', 'twoway_hca_custom_colors', 'twoway_hca_show_zeros',
+            'twoway_hca_endpoint_loaded', 'twoway_hca_endpoint_key_column',
+            'twoway_hca_endpoint_columns', 'twoway_hca_endpoint_column_types',
+            'twoway_hca_endpoint_selected_column'
         ] if session.get(k) is not None}
 
         render_params.update(result_params)
@@ -453,6 +457,12 @@ def generate_twoway_hca():
         # Get show zeros option
         show_zeros = request.form.get('hca_show_zeros') == '1'
 
+        # Get endpoint column (from external endpoint file)
+        hca_endpoint_column = request.form.get('hca_endpoint_column', '').strip()
+        endpoint_column = None
+        endpoint_data = None
+        endpoint_is_numeric = False
+
         # Get axis font sizes (optional)
         x_axis_font_size_str = request.form.get('hca_x_axis_font_size', '').strip()
         y_axis_font_size_str = request.form.get('hca_y_axis_font_size', '').strip()
@@ -495,6 +505,22 @@ def generate_twoway_hca():
                 flash(msg, 'danger')
                 return redirect(url_for('clustering.clustering_analysis'))
 
+        # Load endpoint data if selected
+        if hca_endpoint_column and session.get('twoway_hca_endpoint_loaded'):
+            endpoint_file_path = session.get('twoway_hca_endpoint_file_path')
+            endpoint_key_column = session.get('twoway_hca_endpoint_key_column')
+            if endpoint_file_path and endpoint_key_column and os.path.exists(endpoint_file_path):
+                df_endpoint = coloring.load_coloring_file(endpoint_file_path)
+                if df_endpoint is not None:
+                    color_result = coloring.prepare_color_data(
+                        results_df, df_endpoint, endpoint_key_column, hca_endpoint_column
+                    )
+                    if color_result['success']:
+                        endpoint_column = hca_endpoint_column
+                        endpoint_data = color_result['data']
+                        endpoint_is_numeric = color_result['is_numeric']
+                        session['twoway_hca_endpoint_selected_column'] = hca_endpoint_column
+
         # Generate the two-way HCA heatmap
         heatmap_html = clustering.generate_twoway_hca_heatmap(
             df=results_df,
@@ -509,7 +535,10 @@ def generate_twoway_hca():
             show_zeros=show_zeros,
             custom_colors=custom_colors,
             x_axis_font_size=x_axis_font_size,
-            y_axis_font_size=y_axis_font_size
+            y_axis_font_size=y_axis_font_size,
+            endpoint_column=endpoint_column,
+            endpoint_data=endpoint_data,
+            endpoint_is_numeric=endpoint_is_numeric
         )
 
         # Store the heatmap HTML in session
@@ -550,6 +579,142 @@ def generate_twoway_hca():
         flash(error_msg, 'danger')
 
     return redirect(url_for('clustering.clustering_analysis'))
+
+
+@clustering_bp.route("/upload_twoway_hca_endpoint", methods=['POST'])
+def upload_twoway_hca_endpoint():
+    """Upload an external endpoint file for the Two-Way HCA heatmap."""
+    if not check_dataset() or not session.get('clustering_performed'):
+        return jsonify({'success': False, 'error': 'No clustering results available'}), 400
+
+    if 'endpoint_file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file uploaded'}), 400
+
+    endpoint_file = request.files['endpoint_file']
+    if endpoint_file.filename == '':
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+    try:
+        temp_path = ensure_temp_dir()
+        filename = secure_filename(endpoint_file.filename)
+        file_path = os.path.join(temp_path, 'hca_endpoint_' + filename)
+        endpoint_file.save(file_path)
+
+        # Load the endpoint file
+        df_endpoint = coloring.load_coloring_file(file_path)
+        if df_endpoint is None:
+            return jsonify({'success': False, 'error': 'Could not read file. Supported formats: CSV, XLSX.'}), 400
+
+        # Load clustering results for key column detection
+        results_path = os.path.join(temp_path, 'clustering_results.csv')
+        if not os.path.exists(results_path):
+            return jsonify({'success': False, 'error': 'Clustering results not found. Run clustering first.'}), 400
+        results_df = pd.read_csv(results_path)
+
+        # Auto-detect key column
+        detection = coloring.detect_key_column(results_df, df_endpoint)
+
+        # Validate setup
+        key_column = detection.get('key_column')
+        validation = coloring.validate_coloring_setup(results_df, df_endpoint, key_column)
+
+        if not validation['valid'] and not key_column:
+            # Try common columns as fallback
+            common_cols = detection.get('common_columns', [])
+            if common_cols:
+                key_column = common_cols[0]
+                validation = coloring.validate_coloring_setup(results_df, df_endpoint, key_column)
+
+        # Get available columns and their types
+        columns = validation.get('available_color_columns', [])
+        column_types = validation.get('column_type_map', {})
+
+        if not columns:
+            # Fallback: list all non-key columns
+            columns = [c for c in df_endpoint.columns if c != key_column]
+            column_types = {}
+            for col in columns:
+                if pd.api.types.is_numeric_dtype(df_endpoint[col]):
+                    column_types[col] = 'numeric'
+                else:
+                    column_types[col] = 'categorical'
+
+        # Store in session
+        session['twoway_hca_endpoint_file_path'] = file_path
+        session['twoway_hca_endpoint_loaded'] = True
+        session['twoway_hca_endpoint_key_column'] = key_column
+        session['twoway_hca_endpoint_columns'] = columns
+        session['twoway_hca_endpoint_column_types'] = column_types
+
+        return jsonify({
+            'success': True,
+            'columns': columns,
+            'column_types': column_types,
+            'key_column': key_column,
+            'auto_detected': detection.get('found', False),
+            'pca_candidates': detection.get('pca_candidates', []),
+            'common_columns': detection.get('common_columns', []),
+            'message': f'File loaded: {len(df_endpoint)} rows, {len(df_endpoint.columns)} columns. '
+                       f'Key column: {key_column or "not detected"}.'
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Error processing file: {str(e)}'}), 500
+
+
+@clustering_bp.route("/confirm_twoway_hca_key_column", methods=['POST'])
+def confirm_twoway_hca_key_column():
+    """Manually override the key column for endpoint matching."""
+    if not check_dataset() or not session.get('clustering_performed'):
+        return jsonify({'success': False, 'error': 'No clustering results available'}), 400
+
+    key_column = request.form.get('key_column', '').strip()
+    if not key_column:
+        return jsonify({'success': False, 'error': 'No key column specified'}), 400
+
+    endpoint_file_path = session.get('twoway_hca_endpoint_file_path')
+    if not endpoint_file_path or not os.path.exists(endpoint_file_path):
+        return jsonify({'success': False, 'error': 'Endpoint file not found. Please re-upload.'}), 400
+
+    try:
+        temp_path = ensure_temp_dir()
+        df_endpoint = coloring.load_coloring_file(endpoint_file_path)
+        if df_endpoint is None:
+            return jsonify({'success': False, 'error': 'Could not re-read endpoint file.'}), 400
+
+        results_path = os.path.join(temp_path, 'clustering_results.csv')
+        results_df = pd.read_csv(results_path)
+
+        # Validate with the manually selected key column
+        validation = coloring.validate_coloring_setup(results_df, df_endpoint, key_column)
+
+        columns = validation.get('available_color_columns', [])
+        column_types = validation.get('column_type_map', {})
+
+        if not columns:
+            columns = [c for c in df_endpoint.columns if c != key_column]
+            column_types = {}
+            for col in columns:
+                if pd.api.types.is_numeric_dtype(df_endpoint[col]):
+                    column_types[col] = 'numeric'
+                else:
+                    column_types[col] = 'categorical'
+
+        # Update session
+        session['twoway_hca_endpoint_key_column'] = key_column
+        session['twoway_hca_endpoint_columns'] = columns
+        session['twoway_hca_endpoint_column_types'] = column_types
+
+        return jsonify({
+            'success': True,
+            'columns': columns,
+            'column_types': column_types,
+            'key_column': key_column,
+            'message': f'Key column updated to: {key_column}'
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Error: {str(e)}'}), 500
 
 
 @clustering_bp.route("/get_column_categories", methods=['POST'])
