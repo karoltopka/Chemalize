@@ -1051,7 +1051,7 @@ def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_label
 def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_linkage='ward',
                                 col_linkage='ward', temp_path='temp/', height_scale=100, width_scale=100,
                                 row_color_column=None, show_zeros=False, custom_colors=None,
-                                x_axis_font_size=None, y_axis_font_size=None,
+                                x_axis_font_size=None, y_axis_font_size=None, legend_font_size=None,
                                 endpoint_column=None, endpoint_data=None, endpoint_is_numeric=False):
     """
     Generate an interactive two-way hierarchical clustering heatmap using Plotly.
@@ -1092,6 +1092,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         Font size for X-axis labels (variables). If None, auto-calculated based on number of columns.
     y_axis_font_size : int, default=None
         Font size for Y-axis labels (groups). If None, auto-calculated based on number of rows.
+    legend_font_size : int, default=None
+        Font size for legend entries and legend title. If None, defaults to 11.
     endpoint_column : str, default=None
         Name of the external endpoint column to display as a color strip next to the heatmap.
     endpoint_data : pandas.Series, default=None
@@ -1263,6 +1265,9 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
             color="#000000"
         )
 
+    # Shared font size for legend and colorbar scales.
+    legend_font_size_value = legend_font_size if legend_font_size is not None else 11
+
     # Create the main heatmap
     heatmap_text = [[reordered_col_labels[j] for j in range(len(reordered_col_labels))]
                     for _ in reordered_row_labels]
@@ -1277,7 +1282,13 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         y=reordered_row_positions,
         colorscale='RdBu_r',
         zmid=0,
-        colorbar=dict(title=dict(text="Z-Score", side='top'), x=1.02, y=1.004, yanchor='top'),
+        colorbar=dict(
+            title=dict(text="Z-Score", side='top', font=dict(size=legend_font_size_value)),
+            tickfont=dict(size=legend_font_size_value),
+            x=1.02,
+            y=1.004,
+            yanchor='top'
+        ),
         hovertemplate='Variable: %{text}<br>Group: %{customdata[0]}<br>Original Value: %{customdata[1]:.4f}<br>Z-Score: %{z:.2f}<extra></extra>',
         text=heatmap_text,
         customdata=heatmap_customdata
@@ -1449,7 +1460,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                 y=reordered_row_positions,
                 colorscale='Viridis',
                 colorbar=dict(
-                    title=dict(text=endpoint_column, side='right'),
+                    title=dict(text=endpoint_column, side='right', font=dict(size=legend_font_size_value)),
+                    tickfont=dict(size=legend_font_size_value),
                     x=1.08, y=1.004, yanchor='top'
                 ),
                 hovertemplate='%{text}<br>Group: %{customdata[0]}<extra></extra>',
@@ -1546,12 +1558,16 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         width=final_width,
         showlegend=show_legend,
         legend=dict(
-            title=dict(text=row_color_column if row_color_column else (endpoint_column if has_endpoint else "Category")),
+            title=dict(
+                text=row_color_column if row_color_column else (endpoint_column if has_endpoint else "Category"),
+                font=dict(size=legend_font_size_value)
+            ),
             orientation='v',
             yanchor='top',
             y=legend_y,
             xanchor='left',
-            x=legend_x  # Keep legend away from endpoint colorbar.
+            x=legend_x,  # Keep legend away from endpoint colorbar.
+            font=dict(size=legend_font_size_value)
         ) if show_legend else None,
         hovermode='closest',
         plot_bgcolor='white',

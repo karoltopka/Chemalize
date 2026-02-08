@@ -117,6 +117,7 @@ def clustering_analysis():
             'twoway_hca_row_linkage', 'twoway_hca_col_linkage',
             'twoway_hca_grouping_column', 'twoway_hca_height_scale', 'twoway_hca_width_scale',
             'twoway_hca_dendro_color_column', 'twoway_hca_custom_colors', 'twoway_hca_show_zeros',
+            'twoway_hca_x_axis_font_size', 'twoway_hca_y_axis_font_size', 'twoway_hca_legend_font_size',
             'twoway_hca_endpoint_loaded', 'twoway_hca_endpoint_key_column',
             'twoway_hca_endpoint_columns', 'twoway_hca_endpoint_column_types',
             'twoway_hca_endpoint_selected_column'
@@ -466,8 +467,10 @@ def generate_twoway_hca():
         # Get axis font sizes (optional)
         x_axis_font_size_str = request.form.get('hca_x_axis_font_size', '').strip()
         y_axis_font_size_str = request.form.get('hca_y_axis_font_size', '').strip()
+        legend_font_size_str = request.form.get('hca_legend_font_size', '').strip()
         x_axis_font_size = int(x_axis_font_size_str) if x_axis_font_size_str else None
         y_axis_font_size = int(y_axis_font_size_str) if y_axis_font_size_str else None
+        legend_font_size = int(legend_font_size_str) if legend_font_size_str else None
 
         # Load the clustering results (which includes the Cluster column)
         results_path = os.path.join(ensure_temp_dir(), 'clustering_results.csv')
@@ -536,6 +539,7 @@ def generate_twoway_hca():
             custom_colors=custom_colors,
             x_axis_font_size=x_axis_font_size,
             y_axis_font_size=y_axis_font_size,
+            legend_font_size=legend_font_size,
             endpoint_column=endpoint_column,
             endpoint_data=endpoint_data,
             endpoint_is_numeric=endpoint_is_numeric
@@ -552,6 +556,7 @@ def generate_twoway_hca():
         session['twoway_hca_dendro_color_column'] = row_color_column
         session['twoway_hca_x_axis_font_size'] = x_axis_font_size
         session['twoway_hca_y_axis_font_size'] = y_axis_font_size
+        session['twoway_hca_legend_font_size'] = legend_font_size
         # Save custom colors per column for persistence
         if custom_colors and row_color_column:
             saved_colors = session.get('twoway_hca_custom_colors', {})

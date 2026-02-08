@@ -551,7 +551,7 @@
 
                                 <!-- Axis Font Size Settings -->
                                 <div class="row">
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <div class="form-group">
                                             <label for="hca_x_axis_font_size"><i class="fas fa-font"></i> X-Axis Font Size:</label>
                                             <div class="d-flex align-items-center">
@@ -564,7 +564,7 @@
                                             <small class="form-text text-muted">Font size for variable labels (X-axis).</small>
                                         </div>
                                     </div>
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <div class="form-group">
                                             <label for="hca_y_axis_font_size"><i class="fas fa-font"></i> Y-Axis Font Size:</label>
                                             <div class="d-flex align-items-center">
@@ -575,6 +575,19 @@
                                                 <span id="hca_y_axis_font_value" class="ml-2" style="min-width: 45px; font-size: 12px; font-weight: bold; background-color: #6c757d; color: #fff; padding: 2px 6px; border-radius: 4px;">{{ twoway_hca_y_axis_font_size or 10 }}px</span>
                                             </div>
                                             <small class="form-text text-muted">Font size for group labels (Y-axis).</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-group">
+                                            <label for="hca_legend_font_size"><i class="fas fa-font"></i> Legend Font Size:</label>
+                                            <div class="d-flex align-items-center">
+                                                <input type="range" class="custom-range flex-grow-1" id="hca_legend_font_size" name="hca_legend_font_size"
+                                                       min="6" max="24" step="1"
+                                                       value="{{ twoway_hca_legend_font_size or 11 }}"
+                                                       oninput="document.getElementById('hca_legend_font_value').textContent = this.value + 'px'">
+                                                <span id="hca_legend_font_value" class="ml-2" style="min-width: 45px; font-size: 12px; font-weight: bold; background-color: #6c757d; color: #fff; padding: 2px 6px; border-radius: 4px;">{{ twoway_hca_legend_font_size or 11 }}px</span>
+                                            </div>
+                                            <small class="form-text text-muted">Font size for category/endpoint legend.</small>
                                         </div>
                                     </div>
                                 </div>
