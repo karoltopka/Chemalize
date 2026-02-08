@@ -1441,6 +1441,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         if endpoint_is_numeric:
             ep_z = [[v] for v in endpoint_reordered_values]
             ep_text = [[f'{endpoint_column}: {v:.4f}' if v is not None and not (isinstance(v, float) and np.isnan(v)) else f'{endpoint_column}: N/A'] for v in endpoint_reordered_values]
+            ep_customdata = [[[reordered_row_labels[i]]] for i in range(len(reordered_row_labels))]
             ep_heatmap = go.Heatmap(
                 z=ep_z,
                 x0=endpoint_x_pos,
@@ -1451,9 +1452,9 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                     title=dict(text=endpoint_column, side='right'),
                     x=1.08, y=1.004, yanchor='top'
                 ),
-                hovertemplate='%{text}<br>Group: %{customdata}<extra></extra>',
+                hovertemplate='%{text}<br>Group: %{customdata[0]}<extra></extra>',
                 text=ep_text,
-                customdata=reordered_row_labels,
+                customdata=ep_customdata,
                 showscale=True
             )
             fig.add_trace(ep_heatmap, row=2, col=2)
@@ -1461,6 +1462,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
             cat_to_idx = {cat: i for i, cat in enumerate(endpoint_categories)}
             ep_z = [[cat_to_idx.get(str(v), -1)] for v in endpoint_reordered_values]
             ep_text = [[f'{endpoint_column}: {v}'] for v in endpoint_reordered_values]
+            ep_customdata = [[[reordered_row_labels[i]]] for i in range(len(reordered_row_labels))]
 
             n_cats = len(endpoint_categories)
             discrete_colorscale = []
@@ -1479,9 +1481,9 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                 colorscale=discrete_colorscale,
                 zmin=0, zmax=n_cats,
                 showscale=False,
-                hovertemplate='%{text}<br>Group: %{customdata}<extra></extra>',
+                hovertemplate='%{text}<br>Group: %{customdata[0]}<extra></extra>',
                 text=ep_text,
-                customdata=reordered_row_labels
+                customdata=ep_customdata
             )
             fig.add_trace(ep_heatmap, row=2, col=2)
 
