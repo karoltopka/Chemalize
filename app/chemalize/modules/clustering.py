@@ -1324,8 +1324,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     estimated_label_width = max_label_len * char_width + 20  # +20px padding
     # Calculate preliminary total width
     preliminary_width = max(800, heatmap_width + left_dendro_width + 150)
-    # Convert to ratio - use 1.5x multiplier for safety margin since labels extend leftward
-    label_space = max(0.04, min(0.20, (estimated_label_width * 1.5) / preliminary_width))
+    # Convert to ratio - make row dendrogram sit very close to Y labels.
+    label_space = max(0.0005, min(0.02, (estimated_label_width * 0.45) / preliminary_width))
 
     # Determine if endpoint strip is needed
     has_endpoint = (endpoint_column is not None and endpoint_data is not None and endpoint_grouped is not None)
@@ -1590,9 +1590,12 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     else:
         y_tickfont = dict(size=9) if n_rows > 30 else (dict(size=10) if n_rows > 15 else dict(size=11))
 
+    y_ticklabel_standoff = -50
+
     fig.update_yaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2, side='left',
                      tickmode='array', tickvals=reordered_row_positions, ticktext=reordered_row_labels,
-                     autorange='reversed', type='linear', tickfont=y_tickfont, ticklabelstandoff=0, automargin=False)
+                     autorange='reversed', type='linear', tickfont=y_tickfont,
+                     ticklabelstandoff=y_ticklabel_standoff, automargin=False)
 
     # Add annotation above the row dendrogram to label the grouping column
     fig.add_annotation(
