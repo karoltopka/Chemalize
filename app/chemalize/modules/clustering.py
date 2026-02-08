@@ -1351,7 +1351,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         # is only between dendrogram (col 1) and heatmap (col 2), while the endpoint
         # strip (col 3) sits flush against the heatmap.
         endpoint_strip_width = 50
-        tiny_spacing = 0.005  # minimal gap between heatmap and endpoint strip
+        tiny_spacing = 0.001  # minimal gap between heatmap and endpoint strip
         # Total usable width after accounting for the label gap and tiny gap
         total_content_w = left_dendro_width + heatmap_width + endpoint_strip_width
         fig = make_subplots(
@@ -1494,8 +1494,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                 y=reordered_row_positions,
                 colorscale='Viridis',
                 colorbar=dict(
-                    title=dict(text=endpoint_column, side='top'),
-                    x=1.15, y=0.5, yanchor='middle', len=0.4
+                    title=dict(text=endpoint_column, side='right'),
+                    x=1.08, y=1.004, yanchor='top'
                 ),
                 hovertemplate='%{text}<br>Group: %{customdata}<extra></extra>',
                 text=ep_text,
