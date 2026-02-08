@@ -1497,9 +1497,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                     showlegend=True
                 ))
 
-        # Add endpoint column name to heatmap x-axis tick labels
-        reordered_col_positions.append(endpoint_x_pos)
-        reordered_col_labels.append(endpoint_column)
+        # Endpoint label will be added as a separate annotation below the strip
+        # (not as an x-axis tick, so it can be horizontal while other ticks are angled)
 
     # Total figure size = heatmap + dendrogram + padding (no max limit - let it expand)
     final_height = max(500, heatmap_height + top_dendro_height + 150)
@@ -1604,6 +1603,21 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         align='left',
         font=dict(size=12, color='black')
     )
+
+    # Add endpoint column label below the strip (X axis), horizontal, bold
+    if has_endpoint:
+        fig.add_annotation(
+            text='<b>y</b>',
+            x=endpoint_x_pos,
+            xref=heatmap_xmatch,
+            y=0,
+            yref='paper',
+            yshift=-10,
+            xanchor='center', yanchor='top',
+            showarrow=False,
+            textangle=0,
+            font=dict(size=int(x_tickfont['size'] * 1.5), color='black')
+        )
 
     # Convert to HTML with higher resolution image export config
     config = {
