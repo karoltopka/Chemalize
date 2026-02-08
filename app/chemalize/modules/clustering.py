@@ -1532,8 +1532,13 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     # Colorbar takes ~60px, then we need space for legend
     if show_legend:
         right_margin = max(200, max_category_len * 8 + 140)  # Extra space for colorbar + legend
+        if has_endpoint:
+            right_margin = max(right_margin, max_category_len * 8 + 190)
     else:
         right_margin = 80  # Just colorbar
+
+    legend_x = 1.16 if has_endpoint else 1.10
+    legend_y = 1.08 if has_endpoint else 1.0
 
     fig.update_layout(
         title=title_text,
@@ -1544,9 +1549,9 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
             title=dict(text=row_color_column if row_color_column else (endpoint_column if has_endpoint else "Category")),
             orientation='v',
             yanchor='top',
-            y=1.0,
+            y=legend_y,
             xanchor='left',
-            x=1.10  # Position to the right of colorbar (which is at x=1.02)
+            x=legend_x  # Keep legend away from endpoint colorbar.
         ) if show_legend else None,
         hovermode='closest',
         plot_bgcolor='white',
