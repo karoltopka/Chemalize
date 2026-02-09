@@ -1265,6 +1265,16 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
             color="#000000"
         )
 
+    # Add a tiny right-side padding inside the row dendrogram subplot so branches
+    # do not touch the first characters of Y labels.
+    row_dendro_max_height = max(
+        (max(trace.x) for trace in row_dendro_traces if trace.x is not None and len(trace.x) > 0),
+        default=1.0
+    )
+    if not np.isfinite(row_dendro_max_height) or row_dendro_max_height <= 0:
+        row_dendro_max_height = 1.0
+    row_dendro_right_pad = max(0.03, row_dendro_max_height * 0.055)
+
     # Shared font size for legend and colorbar scales.
     legend_font_size_value = legend_font_size if legend_font_size is not None else 11
 
@@ -1327,16 +1337,19 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     top_ratio = top_dendro_height / (top_dendro_height + heatmap_height)
     left_ratio = left_dendro_width / (left_dendro_width + heatmap_width)
 
-    # Calculate space needed for Y-axis labels based on longest label width
+    # Calculate space needed for Y-axis labels based on longest label width.
+    # Respect user-selected Y-axis font size so large labels don't overlap dendrogram.
     max_label_len = max(len(str(label)) for label in reordered_row_labels)
-    # Estimate label width in pixels: ~6-7px per character at font size 10-11
-    y_font_size = 9 if n_rows > 30 else (10 if n_rows > 15 else 11)
-    char_width = y_font_size * 0.65  # Average character width relative to font size
+    y_font_size_auto = 9 if n_rows > 30 else (10 if n_rows > 15 else 11)
+    y_font_size_effective = y_axis_font_size if y_axis_font_size is not None else y_font_size_auto
+    char_width = y_font_size_effective * 0.65  # Average character width relative to font size
     estimated_label_width = max_label_len * char_width + 20  # +20px padding
     # Calculate preliminary total width
     preliminary_width = max(800, heatmap_width + left_dendro_width + 150)
-    # Convert to ratio - make row dendrogram sit very close to Y labels.
-    label_space = max(0.0005, min(0.02, (estimated_label_width * 0.45) / preliminary_width))
+    # Convert to ratio - keep spacing tight and stable across Y font sizes.
+    extra_font_size = max(0, y_font_size_effective - 11)
+    dynamic_label_space_max = min(0.024, 0.018 + extra_font_size * 0.0007)
+    label_space = max(0.0005, min(dynamic_label_space_max, (estimated_label_width * 0.34) / preliminary_width))
 
     # Determine if endpoint strip is needed
     has_endpoint = (endpoint_column is not None and endpoint_data is not None and endpoint_grouped is not None)
@@ -1355,11 +1368,12 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
             endpoint_cat_colors = {cat: cat_colors[i] for i, cat in enumerate(unique_cats)}
             endpoint_categories = unique_cats
 
-    # Compute endpoint strip x-position: just after the last heatmap column
+    # Compute endpoint strip x-position: just before the first heatmap column
     # Place it in the same subplot so there is no subplot-boundary gap.
     if has_endpoint:
         col_spacing = reordered_col_positions[1] - reordered_col_positions[0] if len(reordered_col_positions) > 1 else 10
-        endpoint_x_pos = reordered_col_positions[-1] + col_spacing
+        endpoint_gap_factor = 1.5
+        endpoint_x_pos = reordered_col_positions[0] - col_spacing * endpoint_gap_factor
 
     # Always use 2x2 grid (endpoint strip goes into the heatmap subplot)
     fig = make_subplots(
@@ -1581,7 +1595,10 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                      rangemode='nonnegative', automargin=False)
 
     # Update axes for row dendrogram - share Y with heatmap, X starts from 0 (reversed)
-    fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, autorange='reversed', rangemode='tozero', row=2, col=1)
+    fig.update_xaxes(
+        showticklabels=False, showgrid=False, zeroline=False, row=2, col=1,
+        range=[row_dendro_max_height, -row_dendro_right_pad], autorange=False
+    )
     fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, matches=heatmap_ymatch, row=2, col=1)
 
     # Update axes for main heatmap (x3/y3)
@@ -1607,13 +1624,17 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                      tickvals=reordered_col_positions, ticktext=reordered_col_labels, type='linear',
                      tickfont=x_tickfont, ticks='', ticklabelstandoff=x_ticklabel_standoff, automargin=True)
 
-    # Y-axis font size: use custom value if provided, otherwise auto-calculate
-    if y_axis_font_size is not None:
-        y_tickfont = dict(size=y_axis_font_size)
-    else:
-        y_tickfont = dict(size=9) if n_rows > 30 else (dict(size=10) if n_rows > 15 else dict(size=11))
+    # Y-axis font size
+    y_tickfont = dict(size=y_font_size_effective)
 
-    y_ticklabel_standoff = -50
+    if has_endpoint:
+        # Keep labels away from row dendrogram while endpoint stays at fixed left offset.
+        y_ticklabel_standoff = int(-28 - max(0, y_font_size_effective - 11) * 1.2)
+        y_ticklabel_standoff = max(-50, min(-24, y_ticklabel_standoff))
+    else:
+        # Without endpoint on the left, keep labels closer to heatmap to avoid dendrogram overlap.
+        y_ticklabel_standoff = int(-50 - max(0, y_font_size_effective - 11) * 2)
+        y_ticklabel_standoff = max(-80, y_ticklabel_standoff)
 
     fig.update_yaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2, side='left',
                      tickmode='array', tickvals=reordered_row_positions, ticktext=reordered_row_labels,
