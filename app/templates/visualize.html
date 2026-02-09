@@ -1907,6 +1907,20 @@
         const legendFontSize = legendFontSizeSlider ? parseInt(legendFontSizeSlider.value) : 10;
 
         let traces = [];
+        // Explicit matplotlib-like RdYlGn_r stops (green -> yellow -> red).
+        const MATPLOTLIB_RDYLGN_R = [
+            [0.00, '#006837'],
+            [0.10, '#1a9850'],
+            [0.20, '#66bd63'],
+            [0.30, '#a6d96a'],
+            [0.40, '#d9ef8b'],
+            [0.50, '#ffffbf'],
+            [0.60, '#fee08b'],
+            [0.70, '#fdae61'],
+            [0.80, '#f46d43'],
+            [0.90, '#d73027'],
+            [1.00, '#a50026']
+        ];
 
         // Create shape mapping if shape encoding is enabled
         let shapeMap = {};
@@ -2220,7 +2234,7 @@
                     marker: {
                         size: currentPointSize,
                         color: pcaData.color_data,
-                        colorscale: 'Viridis',
+                        colorscale: MATPLOTLIB_RDYLGN_R,
                         showscale: true,
                         colorbar: {
                             title: pcaData.color_by || 'Value',
@@ -2525,7 +2539,7 @@
                         marker: {
                             size: 10,
                             color: pcaData.new_compounds.color_data,
-                            colorscale: 'Viridis',
+                            colorscale: MATPLOTLIB_RDYLGN_R,
                             showscale: false,
                             cmin: cmin,
                             cmax: cmax,
@@ -2753,7 +2767,7 @@
             }
 
             layout.coloraxis = {
-                colorscale: 'Viridis',
+                colorscale: MATPLOTLIB_RDYLGN_R,
                 cmin: cmin,
                 cmax: cmax,
                 colorbar: {
