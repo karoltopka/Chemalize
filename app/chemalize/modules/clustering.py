@@ -1467,6 +1467,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
             ep_z = [[v] for v in endpoint_reordered_values]
             ep_text = [[f'{endpoint_column}: {v:.4f}' if v is not None and not (isinstance(v, float) and np.isnan(v)) else f'{endpoint_column}: N/A'] for v in endpoint_reordered_values]
             ep_customdata = [[[reordered_row_labels[i]]] for i in range(len(reordered_row_labels))]
+            # Keep endpoint scale on the far left, before the row dendrogram.
+            endpoint_colorbar_x = -0.015
             ep_heatmap = go.Heatmap(
                 z=ep_z,
                 x0=endpoint_x_pos,
@@ -1476,7 +1478,10 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                 colorbar=dict(
                     title=dict(text=endpoint_column, side='right', font=dict(size=legend_font_size_value)),
                     tickfont=dict(size=legend_font_size_value),
-                    x=1.08, y=1.004, yanchor='top'
+                    x=endpoint_colorbar_x,
+                    xanchor='right',
+                    y=1.004,
+                    yanchor='top'
                 ),
                 hovertemplate='%{text}<br>Group: %{customdata[0]}<extra></extra>',
                 text=ep_text,
@@ -1563,6 +1568,11 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     else:
         right_margin = 80  # Just colorbar
 
+    # Ensure enough room for a left-side endpoint scale (numeric endpoint mode).
+    left_margin = 120
+    if has_endpoint and endpoint_is_numeric:
+        left_margin = 240
+
     legend_x = 1.16 if has_endpoint else 1.10
     legend_y = 1.08 if has_endpoint else 1.0
 
@@ -1586,7 +1596,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         hovermode='closest',
         plot_bgcolor='white',
         dragmode='pan',
-        margin=dict(t=120, l=120, r=right_margin, b=bottom_margin)
+        margin=dict(t=120, l=left_margin, r=right_margin, b=bottom_margin)
     )
 
     # Update axes for column dendrogram - share X with heatmap, Y starts from 0
