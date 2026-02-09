@@ -1295,7 +1295,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         colorbar=dict(
             title=dict(text="Z-Score", side='top', font=dict(size=legend_font_size_value)),
             tickfont=dict(size=legend_font_size_value),
-            x=1.02,
+            x=1.0,
             y=1.004,
             yanchor='top'
         ),
@@ -1573,7 +1573,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     if has_endpoint and endpoint_is_numeric:
         left_margin = 240
 
-    legend_x = 1.16 if has_endpoint else 1.10
+    legend_x = 1.09 if has_endpoint else 1.05
     legend_y = 1.08 if has_endpoint else 1.0
 
     fig.update_layout(
