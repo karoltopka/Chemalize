@@ -1504,6 +1504,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
             ep_customdata = [[[reordered_row_labels[i]]] for i in range(len(reordered_row_labels))]
             # Keep endpoint scale on the far left, before the row dendrogram.
             endpoint_colorbar_x = -0.015
+            endpoint_colorbar_y = 0.985 if n_rows <= 12 else 1.004
             endpoint_colorbar_thickness = shared_colorbar_thickness
             ep_heatmap = go.Heatmap(
                 z=ep_z,
@@ -1516,7 +1517,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                     tickfont=dict(size=legend_font_size_value),
                     x=endpoint_colorbar_x,
                     xanchor='right',
-                    y=1.004,
+                    y=endpoint_colorbar_y,
                     yanchor='top',
                     thickness=endpoint_colorbar_thickness
                 ),
@@ -1590,11 +1591,31 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         # Endpoint label will be added as a separate annotation below the strip
         # (not as an x-axis tick, so it can be horizontal while other ticks are angled)
 
-    # Total figure size = heatmap + dendrogram + padding (no max limit - let it expand)
-    final_height = max(500, heatmap_height + top_dendro_height + 150)
-    # Add a bit of extra width for the endpoint strip column + colorbar
-    endpoint_extra_width = (cell_width + 100) if has_endpoint else 0
-    final_width = max(800, heatmap_width + left_dendro_width + 150 + endpoint_extra_width)
+    # Reserve margins based on optional endpoint scale placement.
+    left_margin = 240 if (has_endpoint and endpoint_is_numeric) else 120
+    base_left_margin = 120
+
+    # Additional canvas width so endpoint strip/colorbar doesn't compress heatmap cells.
+    if has_endpoint:
+        if endpoint_is_numeric:
+            endpoint_extra_width = int(cell_width * 3 + 220)
+        else:
+            endpoint_extra_width = int(cell_width * 2 + 80)
+    else:
+        endpoint_extra_width = 0
+
+    # Give title a dedicated top zone so it never overlaps endpoint colorbar.
+    if has_endpoint and endpoint_is_numeric:
+        top_margin = 210 if n_rows <= 12 else 185
+    else:
+        top_margin = 120
+
+    # Total figure size = heatmap + dendrogram + padding (expand with endpoint/title needs).
+    final_height = max(500, heatmap_height + top_dendro_height + 150 + (top_margin - 120))
+    final_width = max(
+        800,
+        heatmap_width + left_dendro_width + 150 + endpoint_extra_width + max(0, left_margin - base_left_margin)
+    )
 
     # Add extra width for legend if showing (based on longest category name)
     legend_width = 0
@@ -1634,10 +1655,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     else:
         right_margin = 80  # Just colorbar
 
-    # Ensure enough room for a left-side endpoint scale (numeric endpoint mode).
-    left_margin = 120
-    if has_endpoint and endpoint_is_numeric:
-        left_margin = 240
+    # left_margin already computed above (depends on endpoint scale mode).
 
     # Keep categorical legend away from the Z-score colorbar with a pixel-based gap.
     drawable_width = max(400, final_width - left_margin - right_margin)
@@ -1651,7 +1669,14 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     legend_y = 1.08 if has_endpoint else 1.0
 
     fig.update_layout(
-        title=title_text,
+        title=dict(
+            text=title_text,
+            x=0.5,
+            xanchor='center',
+            y=0.965,
+            yanchor='top',
+            pad=dict(t=8, b=12)
+        ),
         height=final_height,
         width=final_width,
         showlegend=show_legend,
@@ -1670,7 +1695,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         hovermode='closest',
         plot_bgcolor='white',
         dragmode='pan',
-        margin=dict(t=120, l=left_margin, r=right_margin, b=bottom_margin)
+        margin=dict(t=top_margin, l=left_margin, r=right_margin, b=bottom_margin)
     )
 
     # For numeric endpoint: add explicit missing-value key under endpoint scale.
@@ -1731,7 +1756,13 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     else:
         x_tickfont = dict(size=11)
 
-    x_ticklabel_standoff = -20
+    # Keep X labels outside the heatmap to prevent overlap when layout gets compressed.
+    if n_cols > 50:
+        x_ticklabel_standoff = 6
+    elif n_cols > 30:
+        x_ticklabel_standoff = 5
+    else:
+        x_ticklabel_standoff = 4
 
     fig.update_xaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2,
                      tickangle=x_tickangle, side='bottom', tickmode='array',
@@ -1769,8 +1800,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
 
     # Add endpoint column label below the strip (X axis), horizontal, bold
     if has_endpoint:
-        # Keep endpoint label in sync with custom X-axis label spacing.
-        endpoint_label_yshift = -10 - x_ticklabel_standoff + 10
+        # Keep endpoint label below X labels after moving labels outside the plot area.
+        endpoint_label_yshift = 0 - x_ticklabel_standoff
         fig.add_annotation(
             text='<b>y</b>',
             x=endpoint_x_pos,

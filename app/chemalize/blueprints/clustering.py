@@ -436,7 +436,7 @@ def generate_twoway_hca():
         row_linkage = request.form.get('hca_linkage_rows', 'ward')
         col_linkage = request.form.get('hca_linkage_cols', 'ward')
 
-        # Get scale parameters (percentage: 100-2000%)
+        # Get dendrogram scale parameters from form sliders (%)
         height_scale = int(request.form.get('hca_row_height', 100))
         width_scale = int(request.form.get('hca_col_width', 100))
 
