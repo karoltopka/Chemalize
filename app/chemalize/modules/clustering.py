@@ -1139,6 +1139,23 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     # Group by the grouping column and calculate mean for each group
     grouped_data = heatmap_data.groupby(grouping_column)[available_vars].mean()
 
+    # Hide variables that are all zeros across grouped rows - they carry no signal on the heatmap.
+    zero_only_mask = pd.Series(
+        np.isclose(grouped_data.values, 0.0, atol=1e-12).all(axis=0),
+        index=grouped_data.columns
+    )
+    zero_only_columns = grouped_data.columns[zero_only_mask].tolist()
+    if zero_only_columns:
+        grouped_data = grouped_data.loc[:, ~zero_only_mask]
+        available_vars = grouped_data.columns.tolist()
+
+    if len(available_vars) < 2:
+        if zero_only_columns:
+            raise ValueError(
+                f"After excluding {len(zero_only_columns)} all-zero column(s), at least 2 variables are required for column clustering"
+            )
+        raise ValueError("At least 2 variables are required for column clustering")
+
     if len(grouped_data) < 2:
         raise ValueError(f"At least 2 groups are required for row clustering. Found {len(grouped_data)} groups in '{grouping_column}'")
 
@@ -1146,6 +1163,9 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     endpoint_grouped = None
     endpoint_categories = None
     endpoint_cat_colors = None
+    endpoint_missing_mask = None
+    endpoint_missing_label = "N/A"
+    endpoint_missing_color = "#9E9E9E"
     if endpoint_column is not None and endpoint_data is not None:
         # Build a temporary df for aggregation
         ep_df = pd.DataFrame({
@@ -1286,6 +1306,9 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                            for j in range(len(reordered_col_labels))]
                           for i in range(len(reordered_row_labels))]
 
+    zscore_colorbar_x = 1.0
+    shared_colorbar_thickness = 30
+
     heatmap = go.Heatmap(
         z=heatmap_reordered,
         x=reordered_col_positions,
@@ -1295,9 +1318,10 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         colorbar=dict(
             title=dict(text="Z-Score", side='top', font=dict(size=legend_font_size_value)),
             tickfont=dict(size=legend_font_size_value),
-            x=1.0,
+            x=zscore_colorbar_x,
             y=1.004,
-            yanchor='top'
+            yanchor='top',
+            thickness=shared_colorbar_thickness
         ),
         hovertemplate='Variable: %{text}<br>Group: %{customdata[0]}<br>Original Value: %{customdata[1]:.4f}<br>Z-Score: %{z:.2f}<extra></extra>',
         text=heatmap_text,
@@ -1353,20 +1377,30 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
 
     # Determine if endpoint strip is needed
     has_endpoint = (endpoint_column is not None and endpoint_data is not None and endpoint_grouped is not None)
+    endpoint_colorbar_x = None
 
     if has_endpoint:
         # Reorder endpoint_grouped to match row_order
         endpoint_reordered_values = endpoint_grouped.reindex(
             [grouped_data.index[i] for i in row_order]
         ).values
+        endpoint_missing_mask = pd.isna(endpoint_reordered_values)
 
         if not endpoint_is_numeric:
             # Build categorical color map
-            unique_cats = sorted(set(str(v) for v in endpoint_reordered_values if v is not None and str(v) != 'nan'))
+            endpoint_reordered_values = np.array([
+                endpoint_missing_label if (pd.isna(v) or (isinstance(v, str) and v.strip() == '')) else str(v)
+                for v in endpoint_reordered_values
+            ], dtype=object)
+            non_missing_cats = sorted(set(cat for cat in endpoint_reordered_values if cat != endpoint_missing_label))
+            has_missing_endpoint = endpoint_missing_label in endpoint_reordered_values
+
             from app.chemalize.visualization.coloring import generate_distinct_colors
-            cat_colors = generate_distinct_colors(len(unique_cats))
-            endpoint_cat_colors = {cat: cat_colors[i] for i, cat in enumerate(unique_cats)}
-            endpoint_categories = unique_cats
+            cat_colors = generate_distinct_colors(len(non_missing_cats)) if non_missing_cats else []
+            endpoint_cat_colors = {cat: cat_colors[i] for i, cat in enumerate(non_missing_cats)}
+            if has_missing_endpoint:
+                endpoint_cat_colors[endpoint_missing_label] = endpoint_missing_color
+            endpoint_categories = non_missing_cats + ([endpoint_missing_label] if has_missing_endpoint else [])
 
     # Compute endpoint strip x-position: just before the first heatmap column
     # Place it in the same subplot so there is no subplot-boundary gap.
@@ -1464,11 +1498,13 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     # Add endpoint strip if available (same subplot as heatmap, col=2)
     if has_endpoint:
         if endpoint_is_numeric:
-            ep_z = [[v] for v in endpoint_reordered_values]
-            ep_text = [[f'{endpoint_column}: {v:.4f}' if v is not None and not (isinstance(v, float) and np.isnan(v)) else f'{endpoint_column}: N/A'] for v in endpoint_reordered_values]
+            ep_numeric_values = [float(v) if pd.notna(v) else np.nan for v in endpoint_reordered_values]
+            ep_z = [[v] for v in ep_numeric_values]
+            ep_text = [[f'{endpoint_column}: {v:.4f}' if pd.notna(v) else f'{endpoint_column}: {endpoint_missing_label}'] for v in ep_numeric_values]
             ep_customdata = [[[reordered_row_labels[i]]] for i in range(len(reordered_row_labels))]
             # Keep endpoint scale on the far left, before the row dendrogram.
             endpoint_colorbar_x = -0.015
+            endpoint_colorbar_thickness = shared_colorbar_thickness
             ep_heatmap = go.Heatmap(
                 z=ep_z,
                 x0=endpoint_x_pos,
@@ -1481,7 +1517,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                     x=endpoint_colorbar_x,
                     xanchor='right',
                     y=1.004,
-                    yanchor='top'
+                    yanchor='top',
+                    thickness=endpoint_colorbar_thickness
                 ),
                 hovertemplate='%{text}<br>Group: %{customdata[0]}<extra></extra>',
                 text=ep_text,
@@ -1489,9 +1526,29 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                 showscale=True
             )
             fig.add_trace(ep_heatmap, row=2, col=2)
+
+            # Overlay missing endpoint values as gray blocks for clear visual marking.
+            if endpoint_missing_mask is not None and endpoint_missing_mask.any():
+                missing_z = [[1.0 if endpoint_missing_mask[i] else np.nan] for i in range(len(endpoint_missing_mask))]
+                missing_text = [[f'{endpoint_column}: {endpoint_missing_label}'] for _ in reordered_row_labels]
+                missing_customdata = [[[reordered_row_labels[i]]] for i in range(len(reordered_row_labels))]
+                ep_missing_overlay = go.Heatmap(
+                    z=missing_z,
+                    x0=endpoint_x_pos,
+                    dx=col_spacing,
+                    y=reordered_row_positions,
+                    colorscale=[[0.0, endpoint_missing_color], [1.0, endpoint_missing_color]],
+                    zmin=0,
+                    zmax=1,
+                    showscale=False,
+                    hovertemplate='%{text}<br>Group: %{customdata[0]}<extra></extra>',
+                    text=missing_text,
+                    customdata=missing_customdata
+                )
+                fig.add_trace(ep_missing_overlay, row=2, col=2)
         else:
             cat_to_idx = {cat: i for i, cat in enumerate(endpoint_categories)}
-            ep_z = [[cat_to_idx.get(str(v), -1)] for v in endpoint_reordered_values]
+            ep_z = [[cat_to_idx[v]] for v in endpoint_reordered_values]
             ep_text = [[f'{endpoint_column}: {v}'] for v in endpoint_reordered_values]
             ep_customdata = [[[reordered_row_labels[i]]] for i in range(len(reordered_row_labels))]
 
@@ -1540,13 +1597,21 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     final_width = max(800, heatmap_width + left_dendro_width + 150 + endpoint_extra_width)
 
     # Add extra width for legend if showing (based on longest category name)
+    legend_width = 0
     if show_legend:
         # Estimate legend width: ~8px per character + padding
         legend_width = max(150, max_category_len * 8 + 80)
         final_width += legend_width
 
+    missing_endpoint_numeric = bool(
+        has_endpoint and endpoint_is_numeric and endpoint_missing_mask is not None and endpoint_missing_mask.any()
+    )
+
     # Bottom margin for -45° angled labels - will be auto-adjusted by automargin
     bottom_margin = 50
+    if missing_endpoint_numeric:
+        # Reserve space for the N/A key rendered below the endpoint scale.
+        bottom_margin = 86
 
     # Build title with optional color column info
     title_text = f'Two-Way Hierarchical Clustering Heatmap<br><sub>Groups by {grouping_column} | Row: {row_linkage} linkage | Column: {col_linkage} linkage | {n_cols} variables × {n_rows} groups'
@@ -1559,12 +1624,13 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         title_text += f' | Endpoint: {endpoint_column} ({ep_type})'
     title_text += '</sub>'
 
-    # Adjust right margin for legend (based on longest category name)
-    # Colorbar takes ~60px, then we need space for legend
+    # Adjust right margin for legend and colorbar spacing.
     if show_legend:
-        right_margin = max(200, max_category_len * 8 + 140)  # Extra space for colorbar + legend
         if has_endpoint:
-            right_margin = max(right_margin, max_category_len * 8 + 190)
+            right_margin = max(220, legend_width + 110)
+        else:
+            # No endpoint strip: keep extra room so categorical legend never covers Z-score colorbar.
+            right_margin = max(260, legend_width + 130)
     else:
         right_margin = 80  # Just colorbar
 
@@ -1573,7 +1639,15 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     if has_endpoint and endpoint_is_numeric:
         left_margin = 240
 
-    legend_x = 1.09 if has_endpoint else 1.05
+    # Keep categorical legend away from the Z-score colorbar with a pixel-based gap.
+    drawable_width = max(400, final_width - left_margin - right_margin)
+    if show_legend:
+        desired_gap_px = 96 if has_endpoint else 112
+        max_gap_px = max(24, right_margin - legend_width - 16)
+        legend_gap_px = min(desired_gap_px, max_gap_px)
+    else:
+        legend_gap_px = 78
+    legend_x = zscore_colorbar_x + (legend_gap_px / drawable_width)
     legend_y = 1.08 if has_endpoint else 1.0
 
     fig.update_layout(
@@ -1598,6 +1672,36 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         dragmode='pan',
         margin=dict(t=120, l=left_margin, r=right_margin, b=bottom_margin)
     )
+
+    # For numeric endpoint: add explicit missing-value key under endpoint scale.
+    if missing_endpoint_numeric and endpoint_colorbar_x is not None:
+        marker_y = -0.050
+        marker_size = endpoint_colorbar_thickness
+        marker_w_paper = marker_size / max(float(final_width), 1.0)
+        marker_h_paper = marker_size / max(float(final_height), 1.0)
+        # Keep original placement and apply only a tiny right shift (~4 px).
+        na_shift_paper = 4.0 / max(float(final_width), 1.0)
+        na_marker_x = endpoint_colorbar_x - 0.054 + na_shift_paper
+        na_text_x = endpoint_colorbar_x - 0.030 + na_shift_paper
+        fig.add_shape(
+            type='rect',
+            xref='paper', yref='paper',
+            x0=na_marker_x - marker_w_paper / 2,
+            x1=na_marker_x + marker_w_paper / 2,
+            y0=marker_y - marker_h_paper / 2,
+            y1=marker_y + marker_h_paper / 2,
+            line=dict(color=endpoint_missing_color, width=0),
+            fillcolor=endpoint_missing_color,
+            layer='above'
+        )
+        fig.add_annotation(
+            text='N/A',
+            xref='paper', yref='paper',
+            x=na_text_x, y=marker_y,
+            showarrow=False,
+            xanchor='left', yanchor='middle',
+            font=dict(size=max(12, legend_font_size_value + 1), color='black')
+        )
 
     # Update axes for column dendrogram - share X with heatmap, Y starts from 0
     fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, matches=heatmap_xmatch, row=1, col=2)
