@@ -1458,7 +1458,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                 x0=endpoint_x_pos,
                 dx=col_spacing,
                 y=reordered_row_positions,
-                colorscale='Viridis',
+                colorscale='RdYlGn_r',
                 colorbar=dict(
                     title=dict(text=endpoint_column, side='right', font=dict(size=legend_font_size_value)),
                     tickfont=dict(size=legend_font_size_value),
