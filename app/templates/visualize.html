@@ -655,6 +655,17 @@
 
                 <div class="form-group">
                     <label class="form-label">
+                        <i class="fas fa-tag"></i> Point Label Size
+                    </label>
+                    <div class="d-flex align-items-center">
+                        <input type="range" name="pca_label_size" id="pca_label_size_slider" class="form-range flex-grow-1"
+                               min="8" max="28" step="1" value="11">
+                        <span id="pca_label_size_value" class="ml-2" style="min-width: 40px; font-weight: bold;">11</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">
                         <i class="fas fa-font"></i> Axis Label Size
                     </label>
                     <div class="d-flex align-items-center">
@@ -886,6 +897,13 @@
     let currentFilterValues = null;
     let pcaResizeHandler = null;
     let clickedPoints = new Set(); // Persistent labels on click
+
+    function getPcaLabelFontSize() {
+        const slider = document.getElementById('pca_label_size_slider');
+        if (!slider) return 11;
+        const value = parseInt(slider.value);
+        return Number.isFinite(value) ? value : 11;
+    }
 
     // Global chart rendering functions
     function renderScatterPlot(data, xLabel, yLabel) {
@@ -1905,6 +1923,7 @@
         const axisFontSize = axisFontSizeSlider ? parseInt(axisFontSizeSlider.value) : 14;
         const legendFontSizeSlider = document.getElementById('legend_font_size_slider');
         const legendFontSize = legendFontSizeSlider ? parseInt(legendFontSizeSlider.value) : 10;
+        const pcaLabelFontSize = getPcaLabelFontSize();
 
         let traces = [];
         // Explicit matplotlib-like RdYlGn_r stops (green -> yellow -> red).
@@ -2382,7 +2401,7 @@
                             },
                             text: group.labels.length ? group.labels : null,
                             textposition: showOverlayLabels ? overlayTextPosition : undefined,
-                            textfont: showOverlayLabels ? { size: 10, color: '#111827' } : undefined,
+                            textfont: showOverlayLabels ? { size: pcaLabelFontSize, color: '#111827' } : undefined,
                             customdata: new Array(group.x.length).fill(group.colorCat),
                             hovertemplate: buildHoverTemplate({
                                 pcx: pcaData.pc_x,
@@ -2433,7 +2452,7 @@
                             },
                             text: group.labels.length ? group.labels : null,
                             textposition: showOverlayLabels ? overlayTextPosition : undefined,
-                            textfont: showOverlayLabels ? { size: 10, color: '#111827' } : undefined,
+                            textfont: showOverlayLabels ? { size: pcaLabelFontSize, color: '#111827' } : undefined,
                             customdata: new Array(group.x.length).fill(category),
                             hovertemplate: buildHoverTemplate({
                                 pcx: pcaData.pc_x,
@@ -2517,7 +2536,7 @@
                             },
                             text: group.labels.length ? group.labels : null,
                             textposition: showOverlayLabels ? overlayTextPosition : undefined,
-                            textfont: showOverlayLabels ? { size: 10, color: '#111827' } : undefined,
+                            textfont: showOverlayLabels ? { size: pcaLabelFontSize, color: '#111827' } : undefined,
                             customdata: group.customdata,
                             hovertemplate: buildHoverTemplate({
                                 pcx: pcaData.pc_x,
@@ -2549,7 +2568,7 @@
                         },
                         text: pcaData.new_compounds.labels || null,
                         textposition: showOverlayLabels ? overlayTextPosition : undefined,
-                        textfont: showOverlayLabels ? { size: 10, color: '#111827' } : undefined,
+                        textfont: showOverlayLabels ? { size: pcaLabelFontSize, color: '#111827' } : undefined,
                         customdata: colorDisplay,
                         hovertemplate: buildHoverTemplate({
                             pcx: pcaData.pc_x,
@@ -2603,7 +2622,7 @@
                             },
                             text: group.labels.length ? group.labels : null,
                             textposition: showOverlayLabels ? overlayTextPosition : undefined,
-                            textfont: showOverlayLabels ? { size: 10, color: '#111827' } : undefined,
+                            textfont: showOverlayLabels ? { size: pcaLabelFontSize, color: '#111827' } : undefined,
                             hovertemplate: group.labels.length
                                 ? '<b>%{text}</b><br>PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
                                 : 'PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
@@ -2629,7 +2648,7 @@
                         },
                         text: pcaData.new_compounds.labels || null,
                         textposition: showOverlayLabels ? overlayTextPosition : undefined,
-                        textfont: showOverlayLabels ? { size: 10, color: '#111827' } : undefined,
+                        textfont: showOverlayLabels ? { size: pcaLabelFontSize, color: '#111827' } : undefined,
                         hovertemplate: pcaData.new_compounds.labels
                             ? '<b>%{text}</b><br>PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
                             : 'PC' + pcaData.pc_x + ': %{x:.3f}<br>PC' + pcaData.pc_y + ': %{y:.3f}<extra></extra>'
@@ -2840,7 +2859,7 @@
                         borderwidth: 1,
                         borderpad: 4,
                         font: {
-                            size: 11,
+                            size: pcaLabelFontSize,
                             color: '#000'
                         }
                     });
@@ -2897,7 +2916,7 @@
                         borderwidth: 1,
                         borderpad: 4,
                         font: {
-                            size: 11,
+                            size: pcaLabelFontSize,
                             color: '#000'
                         }
                     });
@@ -3277,6 +3296,8 @@
         // Point size slider - update on the fly
         const pointSizeSlider = document.getElementById('point_size_slider');
         const pointSizeValueDisplay = document.getElementById('point_size_value');
+        const pcaLabelSizeSlider = document.getElementById('pca_label_size_slider');
+        const pcaLabelSizeValueDisplay = document.getElementById('pca_label_size_value');
 
         if (pointSizeSlider) {
             pointSizeSlider.addEventListener('input', function() {
@@ -3289,6 +3310,40 @@
                     // Update marker size for all traces
                     const update = { 'marker.size': currentPointSize };
                     Plotly.restyle(pcaPlotDiv, update);
+                }
+            });
+        }
+
+        // PCA label size slider - update labels on the fly
+        if (pcaLabelSizeSlider) {
+            pcaLabelSizeSlider.addEventListener('input', function() {
+                const labelSize = parseInt(this.value);
+                if (pcaLabelSizeValueDisplay) {
+                    pcaLabelSizeValueDisplay.textContent = labelSize;
+                }
+
+                const pcaPlotDiv = document.getElementById('pca-plotly');
+                if (!pcaPlotDiv) return;
+
+                // Update trace text labels (e.g., overlay labels with markers+text)
+                if (pcaPlotDiv.data) {
+                    pcaPlotDiv.data.forEach((trace, i) => {
+                        if (trace.mode && trace.mode.includes('text')) {
+                            Plotly.restyle(pcaPlotDiv, { 'textfont.size': labelSize }, [i]);
+                        }
+                    });
+                }
+
+                // Update already-visible point annotations (clicked/show-all labels)
+                if (pcaPlotDiv.layout && Array.isArray(pcaPlotDiv.layout.annotations) && pcaPlotDiv.layout.annotations.length > 0) {
+                    const resizedAnnotations = pcaPlotDiv.layout.annotations.map(annotation => ({
+                        ...annotation,
+                        font: {
+                            ...(annotation.font || {}),
+                            size: labelSize
+                        }
+                    }));
+                    Plotly.relayout(pcaPlotDiv, { 'annotations': resizedAnnotations });
                 }
             });
         }
@@ -4393,6 +4448,7 @@
             // Generate annotations for ALL points in ALL traces
             const allAnnotations = [];
             let totalPoints = 0;
+            const pcaLabelFontSize = getPcaLabelFontSize();
 
             // Count total points first
             plotData.forEach(trace => {
@@ -4432,7 +4488,7 @@
                         bgcolor: 'rgba(255, 255, 255, 0.7)',  // Semi-transparent background
                         borderpad: 1,  // Minimal padding
                         font: {
-                            size: 8,  // Small font
+                            size: pcaLabelFontSize,
                             color: '#000',
                             family: 'Arial, sans-serif'
                         }
