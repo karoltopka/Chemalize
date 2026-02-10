@@ -39,6 +39,67 @@
             overflow-x: hidden;
         }
 
+        /* Dot grid overlay */
+        .dot-grid {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            background-image: radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1px);
+            background-size: 30px 30px;
+            pointer-events: none;
+            opacity: 0.15;
+        }
+
+        /* Noise texture overlay */
+        .noise-overlay {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+            background-repeat: repeat;
+            background-size: 256px 256px;
+            opacity: 0.03;
+        }
+
+        /* Floating particles */
+        .particles {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            animation: float linear infinite;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) translateX(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-10vh) translateX(50px);
+                opacity: 0;
+            }
+        }
+
         /* Animated background */
         .bg-animation {
             position: fixed;
@@ -76,15 +137,30 @@
         }
 
         /* Header */
+        /* Page content is behind splash, always rendered for measurement */
+
         header {
             padding: 2rem 0;
             position: fixed;
             width: 100%;
             top: 0;
-            backdrop-filter: blur(10px);
-            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            background: rgba(10, 10, 10, 0.7);
             z-index: 1000;
-            transition: all 0.3s ease;
+            transition: padding 0.8s ease, box-shadow 0.8s ease;
+        }
+
+        header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), #ff6b6b, transparent);
+            opacity: 0;
+            transition: opacity 1s ease;
         }
 
         header.scrolled {
@@ -92,24 +168,196 @@
             box-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
         }
 
+        header.scrolled::after {
+            opacity: 1;
+        }
+
         nav {
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
         }
 
-        /* Logo - proste rozwiązanie */
-        .logo {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--accent);
-            animation: gradient 3s ease infinite;
-            display: inline-block;
+        /* Page elements hidden during splash, fade in after */
+        .splash-hidden {
+            opacity: 0 !important;
         }
 
-        @keyframes gradient {
-            0%, 100% { filter: hue-rotate(0deg); }
-            50% { filter: hue-rotate(30deg); }
+        .splash-hidden.visible {
+            transition: opacity 1s ease;
+        }
+
+        header.splash-hidden.visible {
+            opacity: 1 !important;
+        }
+        .particles.splash-hidden.visible {
+            opacity: 1 !important;
+        }
+        .bg-animation.splash-hidden.visible {
+            opacity: 0.3 !important;
+        }
+        .dot-grid.splash-hidden.visible {
+            opacity: 0.15 !important;
+        }
+        .noise-overlay.splash-hidden.visible {
+            opacity: 0.03 !important;
+        }
+
+        /* Title wrapper - contains h1 and splash text overlaid */
+        .title-wrapper {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        /* Splash text - absolute, overlays exactly on h1 */
+        .splash-text {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+            display: flex;
+            justify-content: center;
+            align-items: baseline;
+            gap: 0;
+            font-size: clamp(3rem, 8vw, 6rem);
+            font-weight: 700;
+            letter-spacing: -2px;
+            opacity: 0;
+            transform: scale(0.8);
+            animation: splashIn 0.8s ease 0.2s forwards, splashGap 0.5s ease 1.6s forwards;
+        }
+
+        .splash-text.done {
+            display: none;
+        }
+
+        .splash-part {
+            background: linear-gradient(135deg, #ffffff 0%, #646cff 50%, #ff6b6b 100%);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradientShift 6s ease infinite;
+            transition: transform 1s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+
+        .splash-topka { order: 0; }
+        .splash-karol { order: 1; }
+        .splash-surname { order: 2; }
+
+        .splash-text.reordered .splash-karol { order: 0; }
+        .splash-text.reordered .splash-topka { order: 1; }
+        .splash-text.reordered .splash-surname { order: 2; }
+
+        .splash-reveal {
+            display: inline;
+            font-size: 0;
+            opacity: 0;
+            animation: revealLetters 0.5s ease 1.8s forwards;
+        }
+
+        .splash-surname {
+            display: inline;
+            font-size: 0;
+            opacity: 0;
+        }
+
+        .splash-surname.show {
+            animation: revealSurname 0.6s ease forwards;
+        }
+
+        /* h1 invisible during splash (but takes up space for layout) */
+        .hero h1 {
+            visibility: hidden;
+        }
+
+        .hero h1.visible {
+            visibility: visible;
+        }
+
+        /* Hero below elements hidden during splash */
+        .hero-below {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+
+        .hero-below.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @keyframes splashIn {
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes splashGap {
+            to { gap: 0.4em; }
+        }
+
+        @keyframes revealLetters {
+            to { font-size: inherit; opacity: 1; }
+        }
+
+        @keyframes revealSurname {
+            to { font-size: inherit; opacity: 1; }
+        }
+
+        @keyframes lineExpand {
+            to { width: 120px; }
+        }
+
+        /* Mobile hamburger */
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+            padding: 5px;
+            z-index: 1001;
+        }
+
+        .hamburger span {
+            width: 25px;
+            height: 2px;
+            background: var(--text-primary);
+            transition: all 0.3s ease;
+            border-radius: 2px;
+        }
+
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(5px, -5px);
+        }
+
+        @media (max-width: 768px) {
+            .hamburger {
+                display: flex;
+            }
+            .nav-links {
+                position: fixed;
+                top: 0;
+                right: -100%;
+                width: 250px;
+                height: 100vh;
+                background: rgba(10, 10, 10, 0.95);
+                backdrop-filter: blur(20px);
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                transition: right 0.4s ease;
+                z-index: 1000;
+            }
+            .nav-links.open {
+                right: 0;
+            }
         }
 
         .nav-links {
@@ -151,22 +399,14 @@
             align-items: center;
             justify-content: center;
             padding: 80px 0;
+            position: relative;
         }
 
         .hero-content {
             text-align: center;
-            animation: fadeInUp 1s ease;
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         .hero h1 {
@@ -174,12 +414,75 @@
             font-weight: 700;
             margin-bottom: 1rem;
             letter-spacing: -2px;
+            background: linear-gradient(135deg, #ffffff 0%, #646cff 50%, #ff6b6b 100%);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradientShift 6s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
         }
 
         .hero .subtitle {
             font-size: 1.5rem;
             color: var(--text-secondary);
             margin-bottom: 3rem;
+            min-height: 2.4rem;
+        }
+
+        .typewriter-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.4rem;
+            background: var(--accent);
+            margin-left: 2px;
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        /* Scroll indicator */
+        .scroll-indicator {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: bounce 2s ease infinite;
+            cursor: pointer;
+            opacity: 0.6;
+            transition: opacity 0.3s ease;
+        }
+
+        .scroll-indicator:hover {
+            opacity: 1;
+        }
+
+        .scroll-indicator .mouse {
+            width: 26px;
+            height: 40px;
+            border: 2px solid var(--text-secondary);
+            border-radius: 13px;
+            position: relative;
+        }
+
+        .scroll-indicator .mouse::before {
+            content: '';
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 2px;
+            animation: scroll 2s ease infinite;
         }
 
         /* Social Links */
@@ -291,11 +594,13 @@
         }
 
         .project-card {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 20px;
             padding: 2rem;
-            transition: all 0.3s ease;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
         }
@@ -309,14 +614,16 @@
             height: 200%;
             background: radial-gradient(circle, rgba(100, 108, 255, 0.1) 0%, transparent 70%);
             opacity: 0;
-            transition: opacity 0.3s ease;
+            transition: opacity 0.4s ease;
             pointer-events: none;
         }
 
         .project-card:hover {
             transform: translateY(-10px);
-            border-color: var(--accent);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            border-color: rgba(100, 108, 255, 0.4);
+            box-shadow: 0 20px 60px rgba(100, 108, 255, 0.15),
+                        0 8px 20px rgba(0, 0, 0, 0.3);
+            background: rgba(255, 255, 255, 0.06);
         }
 
         .project-card:hover::before {
@@ -507,12 +814,19 @@
     </style>
 </head>
 <body>
-    <div class="bg-animation"></div>
+    <div class="bg-animation splash-hidden"></div>
+    <div class="dot-grid splash-hidden"></div>
+    <div class="noise-overlay splash-hidden"></div>
+    <div class="particles splash-hidden" id="particles"></div>
 
-    <header id="header">
+    <header id="header" class="splash-hidden">
         <nav class="container">
-            <div class="logo" id="logo">TopKarol</div>
-            <ul class="nav-links">
+            <div class="hamburger" id="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <ul class="nav-links" id="navLinks">
                 <li><a href="#home">Home</a></li>
                 <li><a href="#projects">Projekty</a></li>
                 <li><a href="#contact">Kontakt</a></li>
@@ -524,9 +838,17 @@
         <section id="home" class="hero">
             <div class="container">
                 <div class="hero-content">
-                    <h1>Karol Topka Kłończyński</h1>
+                    <div class="title-wrapper">
+                        <div class="splash-text" id="splashText">
+                            <span class="splash-part splash-topka">Top<span class="splash-reveal">ka</span></span>
+                            <span class="splash-part splash-karol">Karol</span>
+                            <span class="splash-part splash-surname" id="splashSurname">Kłończyński</span>
+                        </div>
+                        <h1 id="heroTitle">Karol Topka Kłończyński</h1>
+                    </div>
+                    <div class="hero-below" id="heroBelow">
                     <p class="subtitle"></p>
-                    
+
                     <div class="social-links">
                         <a href="https://www.linkedin.com/in/ktopka/" target="_blank" class="social-link" aria-label="LinkedIn">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
@@ -541,6 +863,7 @@
                     </div>
 
                     <a href="#projects" class="cta-button">Zobacz moje projekty</a>
+                    </div><!-- /hero-below -->
                 </div>
             </div>
         </section>
@@ -658,22 +981,67 @@
             <p>&copy; 2026 Karol Topka Kłończyński. Wszystkie prawa zastrzeżone.</p>
         </div>
     </footer>
-
     <script>
-        // Logo gradient dla kompatybilnych przeglądarek
-        const logo = document.getElementById('logo');
-        const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-        const isChrome = /chrome/i.test(navigator.userAgent) && /google inc/i.test(navigator.vendor);
-        
-        // Zastosuj gradient tylko w Chrome i Safari
-        if ((isChrome || isSafari) && !isFirefox) {
-            logo.style.background = 'linear-gradient(45deg, #646cff, #ff6b6b)';
-            logo.style.webkitBackgroundClip = 'text';
-            logo.style.backgroundClip = 'text';
-            logo.style.webkitTextFillColor = 'transparent';
-            logo.style.color = 'transparent';
-        }
+        // Splash → Hero transition
+        const splashText = document.getElementById('splashText');
+        const splashTopka = document.querySelector('.splash-topka');
+        const splashKarol = document.querySelector('.splash-karol');
+        const splashSurname = document.getElementById('splashSurname');
+        const heroTitle = document.getElementById('heroTitle');
+        const heroBelow = document.getElementById('heroBelow');
+
+        // Phase 1 (0-2.3s): CSS handles TopKarol → Topka Karol
+        // Phase 2 (2.5s): FLIP reorder "Topka Karol" → "Karol Topka" + reveal surname
+        setTimeout(() => {
+            // FIRST: record current positions
+            const topkaFirst = splashTopka.getBoundingClientRect();
+            const karolFirst = splashKarol.getBoundingClientRect();
+
+            // LAST: apply order change
+            splashText.classList.add('reordered');
+
+            // Force layout
+            const topkaLast = splashTopka.getBoundingClientRect();
+            const karolLast = splashKarol.getBoundingClientRect();
+
+            // INVERT: move them back to old positions
+            const topkaDx = topkaFirst.left - topkaLast.left;
+            const karolDx = karolFirst.left - karolLast.left;
+
+            splashTopka.style.transition = 'none';
+            splashKarol.style.transition = 'none';
+            splashTopka.style.transform = `translateX(${topkaDx}px)`;
+            splashKarol.style.transform = `translateX(${karolDx}px)`;
+
+            // PLAY: animate to new positions
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    splashTopka.style.transition = 'transform 1s cubic-bezier(0.25, 0.1, 0.25, 1)';
+                    splashKarol.style.transition = 'transform 1s cubic-bezier(0.25, 0.1, 0.25, 1)';
+                    splashTopka.style.transform = '';
+                    splashKarol.style.transform = '';
+                });
+            });
+
+            // Reveal surname after slide settles
+            setTimeout(() => splashSurname.classList.add('show'), 600);
+        }, 2500);
+
+        // Phase 3 (4.2s): Instant swap splash → h1, reveal page
+        setTimeout(() => {
+            splashText.classList.add('done');
+            heroTitle.classList.add('visible');
+            heroBelow.classList.add('visible');
+            document.querySelectorAll('.splash-hidden').forEach(el => el.classList.add('visible'));
+        }, 4200);
+
+        // Cleanup: remove splash classes so header gets its own transitions
+        setTimeout(() => {
+            document.querySelectorAll('.splash-hidden').forEach(el => {
+                el.classList.remove('splash-hidden', 'visible');
+            });
+            splashText.remove();
+        }, 5500);
 
         // Header scroll effect
         window.addEventListener('scroll', () => {
@@ -722,14 +1090,32 @@
             observer.observe(card);
         });
 
-        // Dodatkowe zabezpieczenie przed Firefox
-        if (navigator.userAgent.toLowerCase().indexOf('firefox') > -1) {
-            const logoSvg = document.querySelector('.logo svg');
-            const logoText = document.querySelector('.logo-text');
-            if (logoSvg && logoText) {
-                logoSvg.style.display = 'none';
-                logoText.style.display = 'inline-block';
-            }
+        // Hamburger menu
+        const hamburger = document.getElementById('hamburger');
+        const navLinks = document.getElementById('navLinks');
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            navLinks.classList.toggle('open');
+        });
+        navLinks.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburger.classList.remove('active');
+                navLinks.classList.remove('open');
+            });
+        });
+
+        // Floating particles
+        const particlesContainer = document.getElementById('particles');
+        for (let i = 0; i < 30; i++) {
+            const particle = document.createElement('div');
+            particle.classList.add('particle');
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.width = (Math.random() * 3 + 1) + 'px';
+            particle.style.height = particle.style.width;
+            particle.style.animationDuration = (Math.random() * 15 + 10) + 's';
+            particle.style.animationDelay = (Math.random() * 10) + 's';
+            particle.style.opacity = Math.random() * 0.5 + 0.1;
+            particlesContainer.appendChild(particle);
         }
     </script>
 </body>
