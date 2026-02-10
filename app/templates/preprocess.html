@@ -568,7 +568,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const modal = document.getElementById('modalRenameForm');
     
     if (modal) {
-        $('#modalRenameForm').on('show.bs.modal', function (e) {
+        modal.addEventListener('show.bs.modal', function (e) {
             const selectedCheckboxes = document.querySelectorAll('input[name="check_cols"]:checked');
             const selectedColumns = [];
             
@@ -620,7 +620,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        $('#modalRenameForm').on('hide.bs.modal', function (e) {
+        modal.addEventListener('hide.bs.modal', function () {
             const selectedList = document.getElementById('selectedColumnsList');
             const inputsList = document.getElementById('renameInputsList');
             
