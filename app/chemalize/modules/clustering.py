@@ -1052,7 +1052,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                                 col_linkage='ward', temp_path='temp/', height_scale=100, width_scale=100,
                                 row_color_column=None, show_zeros=False, custom_colors=None,
                                 x_axis_font_size=None, y_axis_font_size=None, legend_font_size=None,
-                                endpoint_column=None, endpoint_data=None, endpoint_is_numeric=False):
+                                endpoint_column=None, endpoint_data=None, endpoint_is_numeric=False,
+                                endpoint_reverse_colors=False):
     """
     Generate an interactive two-way hierarchical clustering heatmap using Plotly.
 
@@ -1100,6 +1101,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         The endpoint data series, aligned with df rows. Produced by coloring.prepare_color_data().
     endpoint_is_numeric : bool, default=False
         Whether the endpoint data is numeric (gradient) or categorical (discrete colors).
+    endpoint_reverse_colors : bool, default=False
+        If True, reverse endpoint color direction/palette.
 
     Returns:
     --------
@@ -1285,15 +1288,15 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
             color="#000000"
         )
 
-    # Add a tiny right-side padding inside the row dendrogram subplot so branches
-    # do not touch the first characters of Y labels.
+    # Add right-side padding inside the row dendrogram subplot so branches
+    # do not touch Y labels drawn between dendrogram and heatmap.
     row_dendro_max_height = max(
         (max(trace.x) for trace in row_dendro_traces if trace.x is not None and len(trace.x) > 0),
         default=1.0
     )
     if not np.isfinite(row_dendro_max_height) or row_dendro_max_height <= 0:
         row_dendro_max_height = 1.0
-    row_dendro_right_pad = max(0.04, row_dendro_max_height * 0.075)
+    row_dendro_right_pad_base = max(0.04, row_dendro_max_height * 0.075)
 
     # Shared font size for legend and colorbar scales.
     legend_font_size_value = legend_font_size if legend_font_size is not None else 11
@@ -1370,18 +1373,25 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     estimated_label_width = max_label_len * char_width + 20  # +20px padding
     # Calculate preliminary total width
     preliminary_width = max(800, heatmap_width + left_dendro_width + 150)
-    # Convert to ratio - keep spacing tight and stable across Y font sizes.
+    # Convert to ratio - baseline spacing before endpoint-aware adjustments.
     extra_font_size = max(0, y_font_size_effective - 11)
-    dynamic_label_space_max = min(0.024, 0.018 + extra_font_size * 0.0007)
-    label_space = max(0.0005, min(dynamic_label_space_max, (estimated_label_width * 0.34) / preliminary_width))
+    dynamic_label_space_max = min(0.035, 0.024 + extra_font_size * 0.0010)
+    label_space = max(0.0010, min(dynamic_label_space_max, (estimated_label_width * 0.42) / preliminary_width))
 
     # Determine if endpoint strip is needed
     has_endpoint = (endpoint_column is not None and endpoint_data is not None and endpoint_grouped is not None)
+    # Keep a dedicated corridor for Y labels between row dendrogram and heatmap.
+    # This must scale with user-selected label font size and label length.
     if has_endpoint:
-        # With endpoint and long Y labels, provide more inter-subplot space to avoid overlap with dendrogram.
-        endpoint_label_space_cap = min(0.09, 0.036 + extra_font_size * 0.0012)
-        endpoint_label_space = (estimated_label_width * 0.80) / preliminary_width
-        label_space = max(label_space, max(0.012, min(endpoint_label_space_cap, endpoint_label_space)))
+        label_space_cap = min(0.15, 0.070 + extra_font_size * 0.0025)
+        label_space_target = (estimated_label_width * 0.98) / preliminary_width
+        label_space_floor = 0.026
+    else:
+        label_space_cap = min(0.13, 0.056 + extra_font_size * 0.0020)
+        label_space_target = (estimated_label_width * 0.90) / preliminary_width
+        label_space_floor = 0.018
+    label_space = max(label_space, max(label_space_floor, min(label_space_cap, label_space_target)))
+    label_extra_width = int(min(420, max(60, estimated_label_width * (1.10 if has_endpoint else 1.00))))
 
     endpoint_colorbar_x = None
     col_spacing = reordered_col_positions[1] - reordered_col_positions[0] if len(reordered_col_positions) > 1 else 10
@@ -1404,6 +1414,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
 
             from app.chemalize.visualization.coloring import generate_distinct_colors
             cat_colors = generate_distinct_colors(len(non_missing_cats)) if non_missing_cats else []
+            if endpoint_reverse_colors:
+                cat_colors = list(reversed(cat_colors))
             endpoint_cat_colors = {cat: cat_colors[i] for i, cat in enumerate(non_missing_cats)}
             if has_missing_endpoint:
                 endpoint_cat_colors[endpoint_missing_label] = endpoint_missing_color
@@ -1426,6 +1438,14 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         x_range_min = heatmap_left_edge - col_spacing * 0.06
     x_range_max = heatmap_right_edge + col_spacing * 0.10
     heatmap_x_range = [x_range_min, x_range_max]
+
+    # Keep Y range deterministic to remove Plotly autorange padding,
+    # which can create an apparent vertical gap between heatmap cells and X-axis labels.
+    row_spacing = abs(reordered_row_positions[1] - reordered_row_positions[0]) if len(reordered_row_positions) > 1 else 10
+    y_min = min(reordered_row_positions) - row_spacing / 2.0
+    y_max = max(reordered_row_positions) + row_spacing / 2.0
+    # Preserve the original top-to-bottom order (same visual direction as autorange='reversed').
+    heatmap_y_range = [y_max, y_min]
 
     # Always use 2x2 grid (endpoint strip goes into the heatmap subplot)
     fig = make_subplots(
@@ -1518,8 +1538,12 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         if endpoint_is_numeric:
             ep_numeric_values = [float(v) if pd.notna(v) else np.nan for v in endpoint_reordered_values]
             ep_z = [[v] for v in ep_numeric_values]
-            ep_text = [[f'{endpoint_column}: {v:.4f}' if pd.notna(v) else f'{endpoint_column}: {endpoint_missing_label}'] for v in ep_numeric_values]
-            ep_customdata = [[[reordered_row_labels[i]]] for i in range(len(reordered_row_labels))]
+            ep_text = [[
+                f'Group: {reordered_row_labels[i]}<br>{endpoint_column}: '
+                f'{ep_numeric_values[i]:.4f}' if pd.notna(ep_numeric_values[i])
+                else f'Group: {reordered_row_labels[i]}<br>{endpoint_column}: {endpoint_missing_label}'
+            ] for i in range(len(reordered_row_labels))]
+
             # Keep endpoint scale on the far left, before the row dendrogram.
             endpoint_colorbar_x = -0.015
             endpoint_colorbar_y = 0.985 if n_rows <= 12 else 1.004
@@ -1529,19 +1553,22 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                 x0=endpoint_x_pos,
                 dx=col_spacing,
                 y=reordered_row_positions,
-                colorscale='RdYlGn_r',
+                colorscale='RdYlGn' if endpoint_reverse_colors else 'RdYlGn_r',
                 colorbar=dict(
                     title=dict(text=endpoint_column, side='right', font=dict(size=legend_font_size_value)),
                     tickfont=dict(size=legend_font_size_value),
                     x=endpoint_colorbar_x,
                     xanchor='right',
+                    xref='paper',
                     y=endpoint_colorbar_y,
                     yanchor='top',
-                    thickness=endpoint_colorbar_thickness
+                    thickness=endpoint_colorbar_thickness,
+                    thicknessmode='pixels',
+                    xpad=0
                 ),
-                hovertemplate='%{text}<br>Group: %{customdata[0]}<extra></extra>',
+                hovertemplate='%{text}<extra></extra>',
                 text=ep_text,
-                customdata=ep_customdata,
+                hoverongaps=False,
                 showscale=True
             )
             fig.add_trace(ep_heatmap, row=2, col=2)
@@ -1549,8 +1576,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
             # Overlay missing endpoint values as gray blocks for clear visual marking.
             if endpoint_missing_mask is not None and endpoint_missing_mask.any():
                 missing_z = [[1.0 if endpoint_missing_mask[i] else np.nan] for i in range(len(endpoint_missing_mask))]
-                missing_text = [[f'{endpoint_column}: {endpoint_missing_label}'] for _ in reordered_row_labels]
-                missing_customdata = [[[reordered_row_labels[i]]] for i in range(len(reordered_row_labels))]
+                missing_text = [[f'Group: {reordered_row_labels[i]}<br>{endpoint_column}: {endpoint_missing_label}']
+                                for i in range(len(reordered_row_labels))]
                 ep_missing_overlay = go.Heatmap(
                     z=missing_z,
                     x0=endpoint_x_pos,
@@ -1560,16 +1587,16 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                     zmin=0,
                     zmax=1,
                     showscale=False,
-                    hovertemplate='%{text}<br>Group: %{customdata[0]}<extra></extra>',
+                    hovertemplate='%{text}<extra></extra>',
                     text=missing_text,
-                    customdata=missing_customdata
+                    hoverongaps=False
                 )
                 fig.add_trace(ep_missing_overlay, row=2, col=2)
         else:
             cat_to_idx = {cat: i for i, cat in enumerate(endpoint_categories)}
             ep_z = [[cat_to_idx[v]] for v in endpoint_reordered_values]
-            ep_text = [[f'{endpoint_column}: {v}'] for v in endpoint_reordered_values]
-            ep_customdata = [[[reordered_row_labels[i]]] for i in range(len(reordered_row_labels))]
+            ep_text = [[f'Group: {reordered_row_labels[i]}<br>{endpoint_column}: {endpoint_reordered_values[i]}']
+                       for i in range(len(reordered_row_labels))]
 
             n_cats = len(endpoint_categories)
             discrete_colorscale = []
@@ -1588,9 +1615,9 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                 colorscale=discrete_colorscale,
                 zmin=0, zmax=n_cats,
                 showscale=False,
-                hovertemplate='%{text}<br>Group: %{customdata[0]}<extra></extra>',
+                hovertemplate='%{text}<extra></extra>',
                 text=ep_text,
-                customdata=ep_customdata
+                hoverongaps=False
             )
             fig.add_trace(ep_heatmap, row=2, col=2)
 
@@ -1632,7 +1659,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     final_height = max(500, heatmap_height + top_dendro_height + 150 + (top_margin - 120))
     final_width = max(
         800,
-        heatmap_width + left_dendro_width + 150 + endpoint_extra_width + max(0, left_margin - base_left_margin)
+        heatmap_width + left_dendro_width + 150 + endpoint_extra_width + max(0, left_margin - base_left_margin) + label_extra_width
     )
 
     # Add extra width for legend if showing (based on longest category name)
@@ -1649,8 +1676,8 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     # Bottom margin for -45° angled labels - will be auto-adjusted by automargin
     bottom_margin = 50
     if missing_endpoint_numeric:
-        # Reserve space for the N/A key rendered below the endpoint scale.
-        bottom_margin = 86
+        # Reserve room for a separate N/A square with a visible gap below endpoint colorbar.
+        bottom_margin = 104
 
     # Build title with optional color column info
     title_text = f'Two-Way Hierarchical Clustering Heatmap<br><sub>Groups by {grouping_column} | Row: {row_linkage} linkage | Column: {col_linkage} linkage | {n_cols} variables × {n_rows} groups'
@@ -1716,31 +1743,40 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         margin=dict(t=top_margin, l=left_margin, r=right_margin, b=bottom_margin)
     )
 
-    # For numeric endpoint: add explicit missing-value key under endpoint scale.
+    # Numeric endpoint: add a separate N/A square below colorbar (with a gap).
     if missing_endpoint_numeric and endpoint_colorbar_x is not None:
-        marker_y = -0.050
-        marker_size = endpoint_colorbar_thickness
-        marker_w_paper = marker_size / max(float(final_width), 1.0)
-        marker_h_paper = marker_size / max(float(final_height), 1.0)
-        # Keep original placement and apply only a tiny right shift (~4 px).
-        na_shift_paper = 4.0 / max(float(final_width), 1.0)
-        na_marker_x = endpoint_colorbar_x - 0.054 + na_shift_paper
-        na_text_x = endpoint_colorbar_x - 0.030 + na_shift_paper
+        plot_w_px = max(float(final_width - left_margin - right_margin), 1.0)
+        plot_h_px = max(float(final_height - top_margin - bottom_margin), 1.0)
+        square_gap_paper = 8.0 / plot_h_px
+        square_side_px = endpoint_colorbar_thickness
+        square_h_paper = square_side_px / plot_h_px
+        square_w_paper = square_side_px / plot_w_px
+        colorbar_bottom_y = endpoint_colorbar_y - 1.0  # default vertical colorbar len=1.0 (paper units)
+        square_top_y = colorbar_bottom_y - square_gap_paper
+        square_bottom_y = square_top_y - square_h_paper
+        # Strong left shift per UI request.
+        na_align_shift_paper = -71.0 / plot_w_px
+        square_left_x = endpoint_colorbar_x - square_w_paper + na_align_shift_paper
+        square_right_x = endpoint_colorbar_x + na_align_shift_paper
+        square_center_y = (square_top_y + square_bottom_y) / 2.0
+
         fig.add_shape(
             type='rect',
             xref='paper', yref='paper',
-            x0=na_marker_x - marker_w_paper / 2,
-            x1=na_marker_x + marker_w_paper / 2,
-            y0=marker_y - marker_h_paper / 2,
-            y1=marker_y + marker_h_paper / 2,
+            x0=square_left_x,
+            x1=square_right_x,
+            y0=square_bottom_y,
+            y1=square_top_y,
             line=dict(color=endpoint_missing_color, width=0),
             fillcolor=endpoint_missing_color,
             layer='above'
         )
+
         fig.add_annotation(
             text='N/A',
             xref='paper', yref='paper',
-            x=na_text_x, y=marker_y,
+            x=square_right_x + (6.0 / plot_w_px),
+            y=square_center_y,
             showarrow=False,
             xanchor='left', yanchor='middle',
             font=dict(size=max(12, legend_font_size_value + 1), color='black')
@@ -1752,6 +1788,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                      rangemode='nonnegative', automargin=False)
 
     # Update axes for row dendrogram - share Y with heatmap, X starts from 0 (reversed)
+    row_dendro_right_pad = row_dendro_right_pad_base * (1.0 + max(0, y_font_size_effective - 11) * 0.10)
     fig.update_xaxes(
         showticklabels=False, showgrid=False, zeroline=False, row=2, col=1,
         range=[row_dendro_max_height, -row_dendro_right_pad], autorange=False
@@ -1774,13 +1811,18 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     else:
         x_tickfont = dict(size=11)
 
-    # Keep X labels outside the heatmap to prevent overlap when layout gets compressed.
+    # Keep X labels very close to the heatmap.
+    # Slightly negative standoff reduces the visual gap without putting labels inside cells.
     if n_cols > 50:
-        x_ticklabel_standoff = 6
+        x_ticklabel_standoff = -1
     elif n_cols > 30:
-        x_ticklabel_standoff = 5
+        x_ticklabel_standoff = -2
     else:
-        x_ticklabel_standoff = 4
+        x_ticklabel_standoff = -3
+
+    # Slightly increase standoff only for explicitly large X-axis fonts.
+    if x_axis_font_size is not None and x_axis_font_size >= 14:
+        x_ticklabel_standoff = min(0, x_ticklabel_standoff + 1)
 
     fig.update_xaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2,
                      tickangle=x_tickangle, side='bottom', tickmode='array',
@@ -1796,14 +1838,15 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
         y_ticklabel_standoff = int(2 + max(0, y_font_size_effective - 11) * 0.5)
         y_ticklabel_standoff = max(1, min(8, y_ticklabel_standoff))
     else:
-        # Without endpoint on the left, keep labels closer to heatmap to avoid dendrogram overlap.
-        y_ticklabel_standoff = int(-50 - max(0, y_font_size_effective - 11) * 2)
-        y_ticklabel_standoff = max(-80, y_ticklabel_standoff)
+        # Keep labels outside the plot area; negative standoff pushes them into the heatmap.
+        y_ticklabel_standoff = int(2 + max(0, y_font_size_effective - 11) * 0.4)
+        y_ticklabel_standoff = max(1, min(7, y_ticklabel_standoff))
 
     fig.update_yaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2, side='left',
                      tickmode='array', tickvals=reordered_row_positions, ticktext=reordered_row_labels,
                      autorange='reversed', type='linear', tickfont=y_tickfont,
                      ticklabelposition='outside', ticklabelstandoff=y_ticklabel_standoff, automargin=False)
+    fig.update_yaxes(range=heatmap_y_range, autorange=False, row=2, col=2)
 
     # Add annotation above the row dendrogram to label the grouping column
     fig.add_annotation(
@@ -1820,7 +1863,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     # Add endpoint column label below the strip (X axis), horizontal, bold
     if has_endpoint:
         # Keep endpoint label below X labels after moving labels outside the plot area.
-        endpoint_label_yshift = 0 - x_ticklabel_standoff
+        endpoint_label_yshift = -max(0, x_ticklabel_standoff)
         fig.add_annotation(
             text='<b>y</b>',
             x=endpoint_x_pos,

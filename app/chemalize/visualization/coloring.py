@@ -103,12 +103,52 @@ def _coerce_numeric_series(s: pd.Series, min_numeric_ratio: float = 0.3) -> Tupl
 
 
 def _normalize_key_series(s: pd.Series) -> pd.Series:
-    """Ujednolica wartości klucza: cast na str, strip, NBSP → spacja."""
+    """
+    Ujednolica wartości klucza do porównania/łączenia.
+    Ważne:
+    - zachowuje braki danych jako NA (nie zamienia ich na string "nan"),
+    - czyści białe znaki (w tym NBSP),
+    - normalizuje liczby (np. 1, 1.0, "1,0" -> "1"),
+      ale zostawia identyfikatory z wiodącym zerem ("0012") bez zmian.
+    """
     if s is None:
         return s
-    return s.astype(str).str.replace("\u00A0", " ", regex=False)\
-                        .str.replace("\u202F", " ", regex=False)\
-                        .str.strip()
+
+    norm = s.astype("string")\
+            .str.replace("\u00A0", " ", regex=False)\
+            .str.replace("\u202F", " ", regex=False)\
+            .str.strip()
+
+    lower = norm.str.lower()
+    missing_tokens = {"", "nan", "none", "null", "nat", "n/a", "na"}
+    missing_mask = norm.isna() | lower.isin(missing_tokens)
+    norm = norm.mask(missing_mask)
+
+    if not norm.notna().any():
+        return norm.astype(object)
+
+    numeric_candidate = norm.str.replace(",", ".", regex=False)
+    numeric_values = pd.to_numeric(numeric_candidate, errors="coerce")
+    lead_zero_mask = norm.str.match(r"^0\d+$", na=False)
+    numeric_mask = numeric_values.notna() & norm.notna() & ~lead_zero_mask
+
+    out = norm.astype(object)
+    if numeric_mask.any():
+        numeric_subset = numeric_values.loc[numeric_mask]
+        rounded = np.round(numeric_subset.values)
+        is_int = np.isclose(numeric_subset.values, rounded, atol=1e-12)
+
+        int_idx = numeric_subset.index[is_int]
+        float_idx = numeric_subset.index[~is_int]
+
+        if len(int_idx) > 0:
+            out.loc[int_idx] = (
+                np.round(numeric_values.loc[int_idx]).astype(np.int64).astype(str)
+            )
+        if len(float_idx) > 0:
+            out.loc[float_idx] = numeric_values.loc[float_idx].map(lambda x: format(float(x), ".15g"))
+
+    return pd.Series(out, index=s.index, dtype=object)
 
 
 # ===========================
@@ -188,29 +228,29 @@ def detect_key_column(df_main: pd.DataFrame, df_color: pd.DataFrame) -> Dict[str
     if not pca_candidates:
         return {'found': False, 'key_column': None, 'pca_candidates': [], 'common_columns': [], 'confidence': 'none'}
 
-    # Score all PCA columns by uniqueness and overlap
+    # Score only common columns by overlap + uniqueness.
+    # Non-common columns cannot be used as join keys.
     candidates_info = []
-    for col in pca_candidates:
+    for col in common_columns:
         try:
-            uniq = df_main[col].nunique(dropna=True)
-            uniqueness = uniq / max(len(df_main), 1)
+            left_norm = _normalize_key_series(df_main[col])
+            right_norm = _normalize_key_series(df_color[col])
 
-            # Check overlap if column exists in both files
-            if col in df_color.columns:
-                overlap = check_column_overlap(df_main, df_color, col)
-            else:
-                overlap = 0.0
+            uniq_left = left_norm.nunique(dropna=True) / max(left_norm.notna().sum(), 1)
+            uniq_right = right_norm.nunique(dropna=True) / max(right_norm.notna().sum(), 1)
+            uniqueness = min(uniq_left, uniq_right)
 
-            # Prioritize uniqueness heavily (80%), overlap is secondary (20%)
-            # High uniqueness = likely an ID column
-            score = uniqueness * 0.8 + overlap * 0.2
+            overlap = check_column_overlap(df_main, df_color, col)
+
+            # Overlap is primary signal; uniqueness helps break ties.
+            score = overlap * 0.75 + uniqueness * 0.25
 
             candidates_info.append({
                 'column': col,
                 'uniqueness': uniqueness,
                 'overlap': overlap,
                 'score': score,
-                'is_common': col in common_columns
+                'is_common': True
             })
         except Exception:
             continue
@@ -224,10 +264,10 @@ def detect_key_column(df_main: pd.DataFrame, df_color: pd.DataFrame) -> Dict[str
     # Best candidate
     best = candidates_info[0]
 
-    # Auto-select if uniqueness is high (>80%) or if it's the only common column with good overlap
+    # Auto-select only when overlap suggests reliable mapping.
     auto_select = (
-        best['uniqueness'] > 0.8 or  # Very unique column
-        (best['is_common'] and best['overlap'] > 0.7)  # Good overlap on common column
+        best['overlap'] >= 0.60 or
+        (best['overlap'] >= 0.40 and best['uniqueness'] >= 0.80)
     )
 
     return {
@@ -236,7 +276,7 @@ def detect_key_column(df_main: pd.DataFrame, df_color: pd.DataFrame) -> Dict[str
         'pca_candidates': pca_candidates,
         'common_columns': common_columns,
         'candidates_info': candidates_info,  # All candidates with scores
-        'confidence': 'high' if best['score'] > 0.8 else ('medium' if best['score'] > 0.5 else 'low'),
+        'confidence': 'high' if best['overlap'] >= 0.75 else ('medium' if best['overlap'] >= 0.50 else 'low'),
         'uniqueness': best['uniqueness'],
         'overlap_ratio': best['overlap']
     }
@@ -307,7 +347,31 @@ def prepare_color_data(
         left['_key_norm_'] = _normalize_key_series(left[key_column])
         right['_key_norm_'] = _normalize_key_series(right[key_column])
 
-        right = right.drop_duplicates(subset=['_key_norm_'], keep='last')
+        # Never join on missing keys; this avoids accidental NA<->NA matches.
+        right = right[right['_key_norm_'].notna()].copy()
+
+        right_col_coerced, right_col_is_num = _coerce_numeric_series(right[color_column])
+        if right_col_is_num:
+            right[color_column] = right_col_coerced
+
+        # If the color file has duplicated keys:
+        # - numeric endpoint: average duplicates,
+        # - categorical endpoint: mode (fallback to first non-null).
+        if right['_key_norm_'].duplicated().any():
+            if right_col_is_num:
+                right = right.groupby('_key_norm_', as_index=False)[color_column].mean()
+            else:
+                def _mode_or_first(x: pd.Series):
+                    non_null = x.dropna()
+                    if non_null.empty:
+                        return np.nan
+                    mode_vals = non_null.mode()
+                    if not mode_vals.empty:
+                        return mode_vals.iloc[0]
+                    return non_null.iloc[0]
+                right = right.groupby('_key_norm_', as_index=False)[color_column].agg(_mode_or_first)
+        else:
+            right = right.drop_duplicates(subset=['_key_norm_'], keep='last')
 
         merged = pd.merge(
             left,

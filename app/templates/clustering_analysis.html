@@ -715,6 +715,13 @@
                                                     {% endfor %}
                                                 {% endif %}
                                             </select>
+                                            <div class="custom-control custom-checkbox mt-2">
+                                                <input type="checkbox" class="custom-control-input" id="hca_endpoint_reverse_colors" name="hca_endpoint_reverse_colors" value="1"
+                                                       {% if twoway_hca_endpoint_reverse_colors %}checked{% endif %}>
+                                                <label class="custom-control-label small" for="hca_endpoint_reverse_colors">
+                                                    Reverse endpoint colors
+                                                </label>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

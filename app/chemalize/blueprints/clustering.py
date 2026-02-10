@@ -120,7 +120,7 @@ def clustering_analysis():
             'twoway_hca_x_axis_font_size', 'twoway_hca_y_axis_font_size', 'twoway_hca_legend_font_size',
             'twoway_hca_endpoint_loaded', 'twoway_hca_endpoint_key_column',
             'twoway_hca_endpoint_columns', 'twoway_hca_endpoint_column_types',
-            'twoway_hca_endpoint_selected_column'
+            'twoway_hca_endpoint_selected_column', 'twoway_hca_endpoint_reverse_colors'
         ] if session.get(k) is not None}
 
         render_params.update(result_params)
@@ -460,9 +460,11 @@ def generate_twoway_hca():
 
         # Get endpoint column (from external endpoint file)
         hca_endpoint_column = request.form.get('hca_endpoint_column', '').strip()
+        endpoint_reverse_colors = request.form.get('hca_endpoint_reverse_colors') == '1'
         endpoint_column = None
         endpoint_data = None
         endpoint_is_numeric = False
+        endpoint_mapping_message = None
 
         # Get axis font sizes (optional)
         x_axis_font_size_str = request.form.get('hca_x_axis_font_size', '').strip()
@@ -523,6 +525,16 @@ def generate_twoway_hca():
                         endpoint_data = color_result['data']
                         endpoint_is_numeric = color_result['is_numeric']
                         session['twoway_hca_endpoint_selected_column'] = hca_endpoint_column
+                        matched = color_result.get('matched', 0)
+                        total = color_result.get('total', 0)
+                        match_ratio = color_result.get('match_ratio', 0.0)
+                        endpoint_mapping_message = (
+                            f" Endpoint mapping: {matched}/{total} ({match_ratio * 100:.1f}%)."
+                        )
+                    else:
+                        endpoint_mapping_message = (
+                            f" Endpoint mapping failed: {color_result.get('message', 'unknown error')}."
+                        )
 
         # Generate the two-way HCA heatmap
         heatmap_html = clustering.generate_twoway_hca_heatmap(
@@ -542,7 +554,8 @@ def generate_twoway_hca():
             legend_font_size=legend_font_size,
             endpoint_column=endpoint_column,
             endpoint_data=endpoint_data,
-            endpoint_is_numeric=endpoint_is_numeric
+            endpoint_is_numeric=endpoint_is_numeric,
+            endpoint_reverse_colors=endpoint_reverse_colors
         )
 
         # Store the heatmap HTML in session
@@ -557,6 +570,7 @@ def generate_twoway_hca():
         session['twoway_hca_x_axis_font_size'] = x_axis_font_size
         session['twoway_hca_y_axis_font_size'] = y_axis_font_size
         session['twoway_hca_legend_font_size'] = legend_font_size
+        session['twoway_hca_endpoint_reverse_colors'] = endpoint_reverse_colors
         # Save custom colors per column for persistence
         if custom_colors and row_color_column:
             saved_colors = session.get('twoway_hca_custom_colors', {})
@@ -567,6 +581,8 @@ def generate_twoway_hca():
         success_msg = f"Two-way HCA heatmap generated successfully with {len(selected_variables)} variables, grouped by '{grouping_column}'."
         if row_color_column:
             success_msg += f" Dendrogram colored by '{row_color_column}'."
+        if endpoint_mapping_message:
+            success_msg += endpoint_mapping_message
         if is_ajax:
             return jsonify({
                 'success': True,
@@ -619,16 +635,43 @@ def upload_twoway_hca_endpoint():
         # Auto-detect key column
         detection = coloring.detect_key_column(results_df, df_endpoint)
 
-        # Validate setup
+        # Pick best key candidate:
+        # 1) auto-detected key (if strong),
+        # 2) top scored common candidate,
+        # 3) best overlap among common columns.
         key_column = detection.get('key_column')
+        candidates_info = detection.get('candidates_info', [])
+        common_cols = detection.get('common_columns', [])
+
+        if not key_column and candidates_info:
+            key_column = candidates_info[0].get('column')
+
+        if (not key_column) and common_cols:
+            ranked_common = sorted(
+                common_cols,
+                key=lambda c: coloring.check_column_overlap(results_df, df_endpoint, c),
+                reverse=True
+            )
+            key_column = ranked_common[0]
+
+        # Final guard: key must exist in both datasets; otherwise keep as None.
+        if key_column and (key_column not in results_df.columns or key_column not in df_endpoint.columns):
+            key_column = None
+
         validation = coloring.validate_coloring_setup(results_df, df_endpoint, key_column)
 
-        if not validation['valid'] and not key_column:
-            # Try common columns as fallback
-            common_cols = detection.get('common_columns', [])
-            if common_cols:
-                key_column = common_cols[0]
-                validation = coloring.validate_coloring_setup(results_df, df_endpoint, key_column)
+        if not validation['valid'] and common_cols:
+            ranked_common = sorted(
+                common_cols,
+                key=lambda c: coloring.check_column_overlap(results_df, df_endpoint, c),
+                reverse=True
+            )
+            for candidate_key in ranked_common:
+                candidate_validation = coloring.validate_coloring_setup(results_df, df_endpoint, candidate_key)
+                if candidate_validation['valid']:
+                    key_column = candidate_key
+                    validation = candidate_validation
+                    break
 
         # Get available columns and their types
         columns = validation.get('available_color_columns', [])
@@ -643,6 +686,10 @@ def upload_twoway_hca_endpoint():
                     column_types[col] = 'numeric'
                 else:
                     column_types[col] = 'categorical'
+
+        key_overlap = 0.0
+        if key_column and key_column in results_df.columns and key_column in df_endpoint.columns:
+            key_overlap = coloring.check_column_overlap(results_df, df_endpoint, key_column)
 
         # Store in session
         session['twoway_hca_endpoint_file_path'] = file_path
@@ -659,8 +706,10 @@ def upload_twoway_hca_endpoint():
             'auto_detected': detection.get('found', False),
             'pca_candidates': detection.get('pca_candidates', []),
             'common_columns': detection.get('common_columns', []),
+            'key_overlap': key_overlap,
             'message': f'File loaded: {len(df_endpoint)} rows, {len(df_endpoint.columns)} columns. '
-                       f'Key column: {key_column or "not detected"}.'
+                       f'Key column: {key_column or "not detected"} '
+                       f'(overlap: {key_overlap * 100:.1f}%).'
         })
 
     except Exception as e:
@@ -690,6 +739,11 @@ def confirm_twoway_hca_key_column():
         results_path = os.path.join(temp_path, 'clustering_results.csv')
         results_df = pd.read_csv(results_path)
 
+        if key_column not in results_df.columns:
+            return jsonify({'success': False, 'error': f"Key column '{key_column}' not found in clustering results."}), 400
+        if key_column not in df_endpoint.columns:
+            return jsonify({'success': False, 'error': f"Key column '{key_column}' not found in endpoint file."}), 400
+
         # Validate with the manually selected key column
         validation = coloring.validate_coloring_setup(results_df, df_endpoint, key_column)
 
@@ -705,6 +759,8 @@ def confirm_twoway_hca_key_column():
                 else:
                     column_types[col] = 'categorical'
 
+        key_overlap = coloring.check_column_overlap(results_df, df_endpoint, key_column)
+
         # Update session
         session['twoway_hca_endpoint_key_column'] = key_column
         session['twoway_hca_endpoint_columns'] = columns
@@ -715,7 +771,8 @@ def confirm_twoway_hca_key_column():
             'columns': columns,
             'column_types': column_types,
             'key_column': key_column,
-            'message': f'Key column updated to: {key_column}'
+            'key_overlap': key_overlap,
+            'message': f'Key column updated to: {key_column} (overlap: {key_overlap * 100:.1f}%)'
         })
 
     except Exception as e:
