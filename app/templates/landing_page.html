@@ -784,8 +784,13 @@
                 gap: 1rem;
             }
 
-            .hero h1 {
-                font-size: 3rem;
+            .splash-text {
+                flex-wrap: wrap;
+                align-content: center;
+            }
+
+            .hero {
+                padding: 60px 1rem;
             }
 
             .projects-grid {
@@ -799,6 +804,16 @@
             .contact-item {
                 flex-direction: column;
                 text-align: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero .subtitle {
+                font-size: 1.1rem;
+            }
+
+            .hero {
+                padding: 40px 0.75rem;
             }
         }
 
