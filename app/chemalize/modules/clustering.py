@@ -1293,7 +1293,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     )
     if not np.isfinite(row_dendro_max_height) or row_dendro_max_height <= 0:
         row_dendro_max_height = 1.0
-    row_dendro_right_pad = max(0.03, row_dendro_max_height * 0.055)
+    row_dendro_right_pad = max(0.04, row_dendro_max_height * 0.075)
 
     # Shared font size for legend and colorbar scales.
     legend_font_size_value = legend_font_size if legend_font_size is not None else 11
@@ -1377,7 +1377,14 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
 
     # Determine if endpoint strip is needed
     has_endpoint = (endpoint_column is not None and endpoint_data is not None and endpoint_grouped is not None)
+    if has_endpoint:
+        # With endpoint and long Y labels, provide more inter-subplot space to avoid overlap with dendrogram.
+        endpoint_label_space_cap = min(0.09, 0.036 + extra_font_size * 0.0012)
+        endpoint_label_space = (estimated_label_width * 0.80) / preliminary_width
+        label_space = max(label_space, max(0.012, min(endpoint_label_space_cap, endpoint_label_space)))
+
     endpoint_colorbar_x = None
+    col_spacing = reordered_col_positions[1] - reordered_col_positions[0] if len(reordered_col_positions) > 1 else 10
 
     if has_endpoint:
         # Reorder endpoint_grouped to match row_order
@@ -1405,9 +1412,20 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     # Compute endpoint strip x-position: just before the first heatmap column
     # Place it in the same subplot so there is no subplot-boundary gap.
     if has_endpoint:
-        col_spacing = reordered_col_positions[1] - reordered_col_positions[0] if len(reordered_col_positions) > 1 else 10
-        endpoint_gap_factor = 1.5
+        endpoint_gap_factor = 1.7
         endpoint_x_pos = reordered_col_positions[0] - col_spacing * endpoint_gap_factor
+
+    # Keep X range deterministic so optional traces (e.g. zero markers) do not alter axis geometry.
+    # This prevents Y labels from drifting into the endpoint strip when marker traces are absent.
+    heatmap_left_edge = reordered_col_positions[0] - col_spacing / 2.0
+    heatmap_right_edge = reordered_col_positions[-1] + col_spacing / 2.0
+    if has_endpoint:
+        endpoint_left_edge = endpoint_x_pos - col_spacing / 2.0
+        x_range_min = endpoint_left_edge - col_spacing * 0.18
+    else:
+        x_range_min = heatmap_left_edge - col_spacing * 0.06
+    x_range_max = heatmap_right_edge + col_spacing * 0.10
+    heatmap_x_range = [x_range_min, x_range_max]
 
     # Always use 2x2 grid (endpoint strip goes into the heatmap subplot)
     fig = make_subplots(
@@ -1767,15 +1785,16 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     fig.update_xaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2,
                      tickangle=x_tickangle, side='bottom', tickmode='array',
                      tickvals=reordered_col_positions, ticktext=reordered_col_labels, type='linear',
-                     tickfont=x_tickfont, ticks='', ticklabelstandoff=x_ticklabel_standoff, automargin=True)
+                     tickfont=x_tickfont, ticks='', ticklabelstandoff=x_ticklabel_standoff, automargin=True,
+                     range=heatmap_x_range, autorange=False)
 
     # Y-axis font size
     y_tickfont = dict(size=y_font_size_effective)
 
     if has_endpoint:
-        # Keep labels away from row dendrogram while endpoint stays at fixed left offset.
-        y_ticklabel_standoff = int(-28 - max(0, y_font_size_effective - 11) * 1.2)
-        y_ticklabel_standoff = max(-50, min(-24, y_ticklabel_standoff))
+        # Keep endpoint-safe labels outside the axis and reserve the inter-subplot gap for text.
+        y_ticklabel_standoff = int(2 + max(0, y_font_size_effective - 11) * 0.5)
+        y_ticklabel_standoff = max(1, min(8, y_ticklabel_standoff))
     else:
         # Without endpoint on the left, keep labels closer to heatmap to avoid dendrogram overlap.
         y_ticklabel_standoff = int(-50 - max(0, y_font_size_effective - 11) * 2)
@@ -1784,7 +1803,7 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
     fig.update_yaxes(showticklabels=True, showgrid=False, zeroline=False, row=2, col=2, side='left',
                      tickmode='array', tickvals=reordered_row_positions, ticktext=reordered_row_labels,
                      autorange='reversed', type='linear', tickfont=y_tickfont,
-                     ticklabelstandoff=y_ticklabel_standoff, automargin=False)
+                     ticklabelposition='outside', ticklabelstandoff=y_ticklabel_standoff, automargin=False)
 
     # Add annotation above the row dendrogram to label the grouping column
     fig.add_annotation(
