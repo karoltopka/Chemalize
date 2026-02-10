@@ -1270,7 +1270,6 @@
 
         async function addEntryToSubsection(section, subsection) {
             // Add new Name/Topic to existing subsection (does NOT create new subsection)
-            console.log('addEntryToSubsection called:', section, subsection);
             try {
                 const response = await fetch('/scopehub/api/add_entry_unified', {
                     method: 'POST',
@@ -1284,7 +1283,6 @@
                 });
 
                 const result = await response.json();
-                console.log('Add entry response:', result);
 
                 if (response.ok) {
                     showNotification(`Added new topic to ${subsection}`, 'success');

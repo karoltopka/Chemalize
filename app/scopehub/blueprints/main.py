@@ -42,7 +42,6 @@ def get_scopehub_data_unified():
     """Get ScopeHub data in unified format (one list with all 3 formulas)"""
     sheets = get_scopehub_data()
     unified = sheets_to_unified(sheets)
-    print(f"DEBUG get_scopehub_data_unified: Returning {len(unified)} entries")
     return unified
 
 
@@ -411,14 +410,12 @@ def add_entry_unified():
     name = req_data.get('name', '')
     comments = req_data.get('comments', '')
 
-    print(f"DEBUG add_entry_unified: section={section}, subsection={subsection}, name={name}")
 
     if not section:
         return jsonify({'error': 'Section is required'}), 400
 
     try:
         data = get_scopehub_data_unified()
-        print(f"DEBUG: Current data has {len(data)} entries")
 
         # If no subsection provided, auto-generate from existing entries
         if not subsection:
@@ -442,7 +439,6 @@ def add_entry_unified():
                 # First entry in section - use section + 1
                 subsection = f"{section}1"
 
-        print(f"DEBUG: Final subsection = {subsection}")
 
         # Add new entry
         new_entry = {
@@ -460,10 +456,8 @@ def add_entry_unified():
         }
 
         data.append(new_entry)
-        print(f"DEBUG: After append, data has {len(data)} entries")
 
         set_scopehub_data_unified(data)
-        print(f"DEBUG: After set_scopehub_data_unified")
 
         return jsonify({'success': True, 'message': 'Entry added successfully'})
     except Exception as e:
@@ -635,9 +629,8 @@ def generate_batch_unified():
                         from app.scopehub.utils.llm_generator import is_spelling_correction
                         if is_spelling_correction(name, best_corrected):
                             data[index]['Name_Corrected'] = best_corrected
-                            print(f"DEBUG: Detected spelling correction: '{name}' -> '{best_corrected}'")
                         else:
-                            print(f"DEBUG: Skipped non-spelling change: '{name}' -> '{best_corrected}' (concept change, not typo)")
+                            pass
 
                     generated_count += 1
 
@@ -725,4 +718,3 @@ def update_llm_backend():
         'backend': backend,
         'message': f'Backend switched to {backend}. Note: This is temporary. To make permanent, set LLM_BACKEND={backend} in your .env file and restart the application.'
     })
-

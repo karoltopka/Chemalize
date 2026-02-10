@@ -287,11 +287,9 @@ def calculate_cv_metrics(X, y, n_folds=5, include_intercept=True):
     r2_test_scores = []
     rmse_test_scores = []
 
-    # DEBUG: print fold indices
     fold_num = 0
     for train_idx, test_idx in kf.split(X):
         fold_num += 1
-        print(f"DEBUG MLR fold {fold_num}: train_idx[:5]={train_idx[:5]}, test_idx[:5]={test_idx[:5]}")
         X_train_cv, X_test_cv = X.iloc[train_idx], X.iloc[test_idx]
         y_train_cv, y_test_cv = y.iloc[train_idx], y.iloc[test_idx]
 
@@ -310,8 +308,6 @@ def calculate_cv_metrics(X, y, n_folds=5, include_intercept=True):
         rmse_test_scores.append(np.sqrt(mean_squared_error(y_test_cv, y_pred_test)))
 
     r2cv = np.mean(r2_test_scores)
-    # DEBUG: show individual fold scores
-    print(f"DEBUG calculate_cv_metrics: r2_test_scores={r2_test_scores}, mean={r2cv:.4f}")
 
     return {
         'r2cv': r2cv,              # R²cv on TEST folds (honest, same as GA_MLR)
@@ -1402,8 +1398,6 @@ def perform_mlr(df, target_var, selected_features, include_intercept=True,
     train_data_for_cv = result_df[result_df['dataset'] == 'train']
     X_train_cv = train_data_for_cv[selected_features]
     y_train_cv = train_data_for_cv.iloc[:, 1]  # Second column is target
-    # DEBUG: print info before MLR R²cv calculation
-    print(f"DEBUG MLR calculate_cv_metrics:")
     print(f"  X_train_cv.shape={X_train_cv.shape}, y_train_cv.shape={y_train_cv.shape}")
     print(f"  selected_features={selected_features}")
     print(f"  X_train_cv range: {X_train_cv.values.min():.4f} to {X_train_cv.values.max():.4f}")

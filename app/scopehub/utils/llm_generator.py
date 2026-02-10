@@ -150,8 +150,6 @@ def call_lm_studio(prompt: str, temperature: float = 0.3, max_tokens: int = 400)
         if response.status_code == 200:
             result = response.json()
             generated_text = result['choices'][0]['message']['content'].strip()
-            print(f"DEBUG LM Studio: Generated text length: {len(generated_text)} chars")
-            print(f"DEBUG LM Studio: Generated text preview: {generated_text[:200]}...")
             return generated_text
         else:
             print(f"LM Studio API error: {response.status_code} - {response.text}")
@@ -205,11 +203,6 @@ def call_openwebui(prompt: str, temperature: float = 0.3, max_tokens: int = 200)
             "stream": False
         }
 
-        print(f"DEBUG OpenWebUI: URL={OPENWEBUI_URL}")
-        print(f"DEBUG OpenWebUI: Model={OPENWEBUI_MODEL}")
-        print(f"DEBUG OpenWebUI: Timeout={OPENWEBUI_TIMEOUT}s")
-        print(f"DEBUG OpenWebUI: Has API Key={bool(OPENWEBUI_API_KEY)}")
-        print(f"DEBUG OpenWebUI: Prompt length={len(prompt)} chars")
 
         import time
         start_time = time.time()
@@ -222,14 +215,10 @@ def call_openwebui(prompt: str, temperature: float = 0.3, max_tokens: int = 200)
         )
 
         elapsed_time = time.time() - start_time
-        print(f"DEBUG OpenWebUI: Request took {elapsed_time:.2f}s")
 
         if response.status_code == 200:
             result = response.json()
             generated_text = result['choices'][0]['message']['content'].strip()
-            print(f"DEBUG OpenWebUI: Success! Response keys: {result.keys()}")
-            print(f"DEBUG OpenWebUI: Generated text length: {len(generated_text)} chars")
-            print(f"DEBUG OpenWebUI: Generated text preview: {generated_text[:200]}...")
             return generated_text
         elif response.status_code == 401:
             print(f"OpenWebUI API error: 401 - Authentication required")
@@ -277,10 +266,6 @@ def call_google_ai_studio(prompt: str, temperature: float = 0.3, max_tokens: int
         return None
 
     try:
-        print(f"DEBUG Google AI Studio: Model={GOOGLE_AI_STUDIO_MODEL}")
-        print(f"DEBUG Google AI Studio: Temperature={temperature}")
-        print(f"DEBUG Google AI Studio: Max tokens={max_tokens}")
-        print(f"DEBUG Google AI Studio: Prompt length={len(prompt)} chars")
 
         import time
         start_time = time.time()
@@ -324,7 +309,6 @@ def call_google_ai_studio(prompt: str, temperature: float = 0.3, max_tokens: int
         )
 
         elapsed_time = time.time() - start_time
-        print(f"DEBUG Google AI Studio: Request took {elapsed_time:.2f}s")
 
         # Check if response was blocked by safety filters
         if response.prompt_feedback.block_reason:
@@ -336,8 +320,6 @@ def call_google_ai_studio(prompt: str, temperature: float = 0.3, max_tokens: int
         # Extract text from response
         if response and response.text:
             generated_text = response.text.strip()
-            print(f"DEBUG Google AI Studio: Success! Generated text length: {len(generated_text)} chars")
-            print(f"DEBUG Google AI Studio: Generated text preview: {generated_text[:200]}...")
             return generated_text
 
         # Check if response has parts but finish_reason indicates issue
@@ -669,17 +651,13 @@ def generate_all_queries(name: str, context: dict = None) -> dict:
     # Step 1: Generate PubMed query first
     pubmed_result = generate_search_query(name, 'Pubmed', context)
 
-    print(f"DEBUG generate_all_queries: PubMed query='{pubmed_result['query'][:100]}...' error={pubmed_result['error_message']}")
 
     # Step 2: If PubMed succeeded, use it as base for WOS and Scopus
     if pubmed_result['query'] and not pubmed_result['error_message']:
-        print(f"DEBUG generate_all_queries: Using REGEX to convert PubMed to WOS/Scopus")
         # Adapt PubMed query for WOS and Scopus by removing field tags with regex
         # This ensures WOS and Scopus are IDENTICAL (just remove tags, keep everything else)
         wos_query = remove_field_tags(pubmed_result['query'])
         scopus_query = remove_field_tags(pubmed_result['query'])
-        print(f"DEBUG generate_all_queries: WOS query (regex)='{wos_query[:100]}...'")
-        print(f"DEBUG generate_all_queries: Scopus query (regex)='{scopus_query[:100]}...'")
 
         wos_result = {
             'query': wos_query,
@@ -694,7 +672,6 @@ def generate_all_queries(name: str, context: dict = None) -> dict:
         }
     else:
         # If PubMed failed, generate WOS and Scopus from scratch
-        print(f"DEBUG generate_all_queries: PubMed FAILED, using LLM fallback for WOS/Scopus")
         wos_result = generate_search_query(name, 'WOS', context)
         scopus_result = generate_search_query(name, 'Scopus', context)
 

@@ -745,11 +745,9 @@
 
         function setFeatureMode(mode, options = {}) {
             const { force = false, userAction = false } = options;
-            console.log('setFeatureMode called:', mode, 'options:', options, 'current:', activeFeatureMode, 'locked:', featureModeLocked);
 
             // If mode is locked and this isn't a forced change or user action, block it
             if (featureModeLocked && mode === 'none' && !force && !userAction) {
-                console.log('BLOCKED: mode is locked');
                 return; // Silently block - mode is locked
             }
 
@@ -757,7 +755,6 @@
             if (mode === 'none' && activeFeatureMode === 'correlation' && !force) {
                 const hiddenCorr = document.getElementById('use_correlated_features');
                 if (hiddenCorr && hiddenCorr.value === '1') {
-                    console.log('BLOCKED: correlation features are active');
                     return; // Don't change mode - correlation features are active
                 }
             }
@@ -766,28 +763,21 @@
             if (mode === 'none' && activeFeatureMode === 'groups' && !force) {
                 const checkedGroups = document.querySelectorAll('.group-checkbox:checked');
                 if (checkedGroups && checkedGroups.length > 0) {
-                    console.log('BLOCKED: descriptor groups are active');
                     return; // Don't change mode - descriptor groups are active
                 }
             }
 
-            console.log('Setting activeFeatureMode to:', mode);
             activeFeatureMode = mode;
 
             // Lock mode when user explicitly selects groups or correlation
             if (mode === 'groups' || mode === 'correlation') {
                 featureModeLocked = true;
-                console.log('Mode locked');
             } else if (mode === 'none' && (force || userAction)) {
                 featureModeLocked = false;
-                console.log('Mode unlocked');
             }
 
             if (mode === 'correlation') {
                 // Hide groups content, show overlay
-                console.log('Applying correlation mode - hiding groups, showing overlay');
-                console.log('groupsContentWrapper:', groupsContentWrapper);
-                console.log('groupsDisabledOverlay:', groupsDisabledOverlay);
                 if (groupsContentWrapper) groupsContentWrapper.style.display = 'none';
                 if (groupsDisabledOverlay) groupsDisabledOverlay.style.display = 'block';
                 // Show correlation content
@@ -1186,9 +1176,6 @@
         }
 
         function applyCorrelationSelection() {
-            console.log('=== applyCorrelationSelection called ===');
-            console.log('Current activeFeatureMode:', activeFeatureMode);
-            console.log('Current featureModeLocked:', featureModeLocked);
 
             if (!correlationResults || correlationResults.length === 0) {
                 correlationSelectionStatus.innerHTML = 'Run correlation analysis first.';
@@ -1198,7 +1185,6 @@
             }
 
             const selected = getSelectedCorrelationFeatures();
-            console.log('Selected features:', selected);
             if (selected.length < 2) {
                 correlationSelectionStatus.innerHTML = 'Select at least two variables to build PCA.';
                 correlationSelectionStatus.className = 'text-danger small';
@@ -1215,12 +1201,8 @@
             updateCombinationPreview(selected);
 
             // Set mode to correlation when features are applied
-            console.log('About to call setFeatureMode("correlation")');
             clearGroupsSelection();
             setFeatureMode('correlation', { force: true, userAction: true });
-            console.log('After setFeatureMode - activeFeatureMode:', activeFeatureMode);
-            console.log('groupsContentWrapper display:', groupsContentWrapper ? groupsContentWrapper.style.display : 'null');
-            console.log('groupsDisabledOverlay display:', groupsDisabledOverlay ? groupsDisabledOverlay.style.display : 'null');
 
             correlationSelectionStatus.innerHTML = `Selected ${selected.length} variables will be used in the next PCA run.`;
             correlationSelectionStatus.className = 'text-success small';
@@ -1407,7 +1389,6 @@
 
                 if (selectedIds.length > 0) {
                     selectedGroupsInput.value = selectedIds.join(',');
-                    console.log('Selected descriptor groups:', selectedIds);
                 } else {
                     selectedGroupsInput.value = '';
                 }

@@ -180,7 +180,6 @@
                 document.documentElement.setAttribute('data-theme', 'dark');
                 localStorage.setItem('theme', 'dark');
                 applyDarkThemeStyles();
-                console.log('Dark theme activated');
             });
         }
 
@@ -190,13 +189,11 @@
                 document.documentElement.setAttribute('data-theme', 'light');
                 localStorage.setItem('theme', 'light');
                 applyLightThemeStyles();
-                console.log('Light theme activated');
             });
         }
 
         // Initialize theme on load
         const savedTheme = localStorage.getItem('theme') || 'light';
-        console.log('Saved theme:', savedTheme);
         
         if (savedTheme === 'dark') {
             document.body.classList.add('dark-theme');

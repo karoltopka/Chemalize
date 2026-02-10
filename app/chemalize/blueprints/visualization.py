@@ -383,8 +383,6 @@ def visualize():
                     use_external_coloring = request.form.get("use_external_coloring") == "1"
                     external_filter_column = request.form.get("external_filter_column", "")  # POPRAWIONE!
                     
-                    print(f"DEBUG: use_external_coloring={use_external_coloring}")
-                    print(f"DEBUG: external_filter_column={external_filter_column}")
 
                     temp_path = ensure_temp_dir()
                     pca_file = os.path.join(temp_path, 'pca_components.csv')
@@ -421,7 +419,6 @@ def visualize():
                         key_column = request.form.get("external_key_column")
                         color_column = request.form.get("external_color_column")
                         
-                        print(f"DEBUG: key_column={key_column}, color_column={color_column}")
                         
                         if not key_column:
                             error_msg = "External key column missing"
@@ -499,7 +496,6 @@ def visualize():
                                 print(f"Warning: Could not prepare data for column {col_name}: {e}")
                                 continue
                                 
-                        print(f"DEBUG: external_data keys: {list(external_data.keys())}")
 
                     else:
                         # Kolorowanie z danych PCA
@@ -553,7 +549,6 @@ def visualize():
                         if pc_df[shape_by_column].dtype == 'object' or pd.api.types.is_categorical_dtype(pc_df[shape_by_column]):
                             shape_categories = pc_df[shape_by_column].tolist()
                             shape_by = shape_by_column
-                            print(f"DEBUG: Shape encoding enabled for column '{shape_by}' with {len(set(shape_categories))} unique values")
 
                     # Variance explained
                     pca_summary = session.get('pca_summary', [])
@@ -592,7 +587,6 @@ def visualize():
                         # Dodaj external_data jeśli dostępne (dla filtrowania)
                         if external_data:
                             response_data["external_data"] = external_data
-                            print(f"DEBUG: Sending external_data with {len(external_data)} columns")
 
                         # Add new compounds data if available
                         if session.get('new_compounds_loaded'):
@@ -628,17 +622,14 @@ def visualize():
                                                         new_compounds_plot_data['is_numeric'] = False
 
                                                     new_compounds_plot_data['color_column'] = color_column
-                                                    print(f"DEBUG: Added coloring data for new compounds (column: {color_column})")
 
                                         # Add shape data for new compounds if shape encoding is active
                                         if shape_by and shape_by in pc_df_new.columns:
                                             if pc_df_new[shape_by].dtype == 'object' or pd.api.types.is_categorical_dtype(pc_df_new[shape_by]):
                                                 new_compounds_plot_data['shape_categories'] = pc_df_new[shape_by].tolist()
                                                 new_compounds_plot_data['shape_by'] = shape_by
-                                                print(f"DEBUG: Added shape data for new compounds (column: {shape_by})")
 
                                         response_data["new_compounds"] = new_compounds_plot_data
-                                        print(f"DEBUG: Added {len(pc_df_new)} new compounds to visualization")
                                 except Exception as e:
                                     print(f"Warning: Could not load new compounds data: {e}")
 

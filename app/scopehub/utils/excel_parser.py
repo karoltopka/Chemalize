@@ -300,10 +300,8 @@ def sheets_to_unified(sheets: Dict[str, pd.DataFrame]) -> List[Dict[str, Any]]:
 
     # Start with Pubmed as base
     if pubmed_df.empty:
-        print("DEBUG: Pubmed dataframe is empty")
         return []
 
-    print(f"DEBUG: Pubmed has {len(pubmed_df)} rows, columns: {pubmed_df.columns.tolist()}")
 
     unified = []
 
@@ -378,7 +376,6 @@ def sheets_to_unified(sheets: Dict[str, pd.DataFrame]) -> List[Dict[str, Any]]:
 
         unified.append(entry)
 
-    print(f"DEBUG: Converted {len(unified)} entries to unified format")
     return unified
 
 
@@ -612,7 +609,6 @@ def unified_to_sheets(unified: List[Dict[str, Any]]) -> Dict[str, pd.DataFrame]:
 
             # WOS: Extract TS= prefix if all formulas use it
             if wos_formulas:
-                print(f"DEBUG WOS combining: {len(wos_formulas)} formulas")
                 for i, f in enumerate(wos_formulas):
                     print(f"  Formula {i}: '{f[:80]}...'")
 
@@ -656,7 +652,6 @@ def unified_to_sheets(unified: List[Dict[str, Any]]) -> Dict[str, pd.DataFrame]:
 
             # Scopus: Extract TITLE-ABS-KEY prefix if all formulas use it
             if scopus_formulas:
-                print(f"DEBUG Scopus combining: {len(scopus_formulas)} formulas")
                 for i, f in enumerate(scopus_formulas):
                     print(f"  Formula {i}: '{f[:80]}...'")
 

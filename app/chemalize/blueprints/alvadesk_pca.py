@@ -787,9 +787,7 @@ def save_alvadesk_colored_plot():
 
         # Draw biplot arrows if provided
         biplot_arrows = payload.get('biplot_arrows')
-        print(f"DEBUG: biplot_arrows received: {biplot_arrows is not None}")
         if biplot_arrows:
-            print(f"DEBUG: arrows_by_pc keys: {biplot_arrows.get('arrows_by_pc', {}).keys()}")
             arrows_by_pc = biplot_arrows.get('arrows_by_pc', {})
             show_labels = biplot_arrows.get('show_labels', False)
 
@@ -823,22 +821,17 @@ def save_alvadesk_colored_plot():
 
             # Draw arrows for each PC
             arrow_count = 0
-            print(f"DEBUG: arrows_by_pc type: {type(arrows_by_pc)}")
-            print(f"DEBUG: arrows_by_pc content: {arrows_by_pc}")
 
             for pc_str, arrows in arrows_by_pc.items():
-                print(f"DEBUG: Processing pc_str='{pc_str}' (type: {type(pc_str)})")
                 pc_num = int(pc_str)
                 shaft_color = pc_colors.get(pc_num, (1.0, 0.0, 1.0, 0.2))
                 head_color = pc_colors_head.get(pc_num, (1.0, 0.0, 1.0, 0.35))
-                print(f"DEBUG: Drawing {len(arrows)} arrows for PC{pc_num}, shaft_color={shaft_color}")
 
                 for arrow in arrows:
                     arrow_count += 1
                     arrow_x = arrow['x'] * scale_factor
                     arrow_y = arrow['y'] * scale_factor
 
-                    print(f"DEBUG: Drawing arrow '{arrow.get('name', 'unknown')}' at ({arrow_x:.3f}, {arrow_y:.3f})")
 
                     # Calculate arrowhead size
                     arrow_length = np.sqrt(arrow_x**2 + arrow_y**2)
@@ -866,7 +859,6 @@ def save_alvadesk_colored_plot():
                                bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
                                        alpha=0.7, edgecolor='none'))
 
-            print(f"DEBUG: Total arrows drawn: {arrow_count}")
 
         temp_path = ensure_temp_dir()
         filename = f"alvadesk_pca_colored_{int(time.time() * 1000)}.png"

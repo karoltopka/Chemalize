@@ -77,15 +77,12 @@ def _coerce_numeric_series(s: pd.Series, min_numeric_ratio: float = 0.3) -> Tupl
     # If decimal comma detected, force numeric treatment (ignore ratio threshold)
     if has_decimal_comma:
         if ratio_pl > 0:
-            print(f"DEBUG: Detected decimal comma, forcing numeric (ratio={ratio_pl:.2%})")
             return num_pl.reindex(s.index), True
         else:
-            print(f"DEBUG: Detected decimal comma but ratio_pl=0, trying fallback")
             # Fallback: try simple comma-to-dot replacement
             simple_replace = s.dropna().astype(str).str.replace(',', '.', regex=False)
             simple_numeric = pd.to_numeric(simple_replace, errors='coerce')
             if simple_numeric.notna().any():
-                print(f"DEBUG: Fallback succeeded, ratio={simple_numeric.notna().mean():.2%}")
                 return simple_numeric.reindex(s.index), True
 
     if ratio_pl >= min_numeric_ratio:

@@ -2405,14 +2405,11 @@ function formatGANumber(value) {
 
 function pollGAProgress() {
     if (!gaSessionId) {
-        console.log('pollGAProgress: no gaSessionId, skipping');
         return;
     }
-    console.log('pollGAProgress: fetching with session_id:', gaSessionId);
     fetch(`{{ url_for('mlr_ga.mlr_ga_get_progress') }}?session_id=${gaSessionId}`)
         .then(response => response.json())
         .then(data => {
-            console.log('Progress update:', data);
 
             // Update progress bar (retry-based)
             if (data.retry && data.max_retries) {
@@ -2505,20 +2502,16 @@ function startGAPolling(sessionId) {
 // Resume GA polling if GA was running when page loaded
 function resumeGAIfRunning() {
     if (gaIsRunning) {
-        console.log('GA is running, resuming progress tracking...');
         // Fetch current progress to get session_id and start polling
         fetch(`{{ url_for('mlr_ga.mlr_ga_get_progress') }}`)
             .then(response => response.json())
             .then(data => {
-                console.log('Initial progress data:', data);
                 // Always start polling if gaIsRunning is true (server confirmed GA is running)
                 gaSessionId = data.session_id || 'default';
-                console.log('Using session_id:', gaSessionId);
                 // Start polling - overlay is already visible from Jinja
                 if (!gaPollInterval) {
                     gaPollInterval = setInterval(pollGAProgress, 200);
                     pollGAProgress();
-                    console.log('Polling started');
                 }
             })
             .catch(error => {
@@ -2548,7 +2541,6 @@ function showGALoadingScreen(event) {
     .then(response => response.json())
     .then(data => {
         if (data.status === 'started') {
-            console.log('GA started successfully');
             startGAPolling(data.session_id || 'default');
         } else {
             clearInterval(gaPollInterval);

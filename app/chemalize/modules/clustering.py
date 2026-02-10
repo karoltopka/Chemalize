@@ -951,11 +951,6 @@ def _create_dendrogram_traces_colored(linkage_matrix, leaf_positions, leaf_label
     for (dendro_idx, _), (linkage_idx, _) in zip(dendro_heights, linkage_heights):
         dendro_to_linkage[dendro_idx] = linkage_idx
 
-    # Debug: show some cluster categories
-    single_cat_clusters = [(k, v) for k, v in cluster_categories.items() if len(v) == 1]
-    print(f"DEBUG: Clusters with single category: {len(single_cat_clusters)} out of {len(cluster_categories)}")
-    print(f"DEBUG: Sample single-cat clusters: {single_cat_clusters[:5]}")
-
     traces = []
 
     for link_idx in range(len(icoord)):
@@ -1259,8 +1254,6 @@ def generate_twoway_hca_heatmap(df, selected_variables, grouping_column, row_lin
                         color_mapping[group_label] = str(most_common.iloc[0])
 
         if color_mapping:
-            print(f"DEBUG color_mapping: {color_mapping}")
-            print(f"DEBUG group_labels: {group_labels}")
             row_dendro_traces, category_colors = _create_dendrogram_traces_colored(
                 row_linkage_matrix,
                 reordered_row_positions,

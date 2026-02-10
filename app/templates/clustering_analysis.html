@@ -855,8 +855,6 @@
         // Get selected mode
         const selectedRadio = document.querySelector('input[name="feature_selection"]:checked');
         const mode = selectedRadio ? selectedRadio.value : 'all';
-        console.log('Feature selection mode changed to:', mode);
-
         // Get divs
         const manualDiv = document.getElementById('manual_selection_div');
         const groupSelectionDiv = document.getElementById('group_selection_div');
@@ -869,11 +867,9 @@
 
         // Show the appropriate div based on mode
         if (mode === 'select') {
-            console.log('Showing manual selection div');
             if (manualDiv) manualDiv.style.display = 'block';
             updateSelectedFeaturesSummary();
         } else if (mode === 'groups') {
-            console.log('Showing group upload and selection');
             // Show the upload section inline
             if (uploadGroupsInline) uploadGroupsInline.style.display = 'block';
             // Show group selection checkboxes if groups are uploaded
@@ -883,8 +879,6 @@
                     groupSelectionDiv.style.display = 'block';
                 }
             }
-        } else {
-            console.log('All features mode - hiding all selection divs');
         }
     }
 
@@ -941,7 +935,6 @@
     }
 
     function submitClusteringForm() {
-        console.log('Submitting clustering form...');
         const form = document.getElementById('clustering_form');
         if (form) {
             form.submit();

@@ -1175,13 +1175,8 @@
 
     // Advanced filter function (from visualize.html)
     function filterAlvadeskPCAData(pcaData, filterColumn, filterValues) {
-        console.log('=== filterAlvadeskPCAData ===');
-        console.log('Filter column:', filterColumn);
-        console.log('Filter values:', filterValues);
-        console.log('Input pcaData:', pcaData);
 
         const filteredData = JSON.parse(JSON.stringify(pcaData));
-        console.log('Deep copied data');
 
         let filterDataArray = null;
         if (pcaData.external_data && pcaData.external_data[filterColumn]) {
@@ -1201,7 +1196,6 @@
         const keepIndices = [];
         if (Array.isArray(filterValues)) {
             // Categorical filtering
-            console.log('Categorical filtering with', filterValues.length, 'values');
 
             filterDataArray.forEach((value, idx) => {
                 if (value === null || value === undefined) {
@@ -1238,7 +1232,6 @@
                 }
             });
 
-            console.log('Found', keepIndices.length, 'matching indices');
         } else if (filterValues && filterValues.min !== undefined && filterValues.max !== undefined) {
             // Numeric filtering
             filterDataArray.forEach((value, idx) => {
@@ -1381,11 +1374,6 @@
                 }
                 // Update color_data for mixed mode
                 if (hasMixedMode && newColorData) {
-                    console.log('Mixed mode: updating color_data');
-                    console.log('  Original color_data length:', pcaData.color_data ? pcaData.color_data.length : 0);
-                    console.log('  Filtered color_data length:', newColorData.length);
-                    console.log('  First trace filtered length:', newPlotData[0] ? (newPlotData[0].x ? newPlotData[0].x.length : 'no x') : 'no first trace');
-                    console.log('  Sample filtered color values:', newColorData.slice(0, 5));
                     filteredData.color_data = newColorData;
                 }
             } else {
@@ -1413,7 +1401,6 @@
 
         if (hasMixedMode) {
             // color_data already filtered in mixed mode block above
-            console.log('Skipping color_data filtering - already done in mixed mode');
         } else if (pcaData.color_data) {
             filteredData.color_data = filterArrayByIndices(pcaData.color_data);
         } else {
@@ -1665,7 +1652,6 @@
                 return response.json();
             })
             .then(data => {
-                console.log('Received data:', data);
 
                 if (data.status === 'success') {
                     // Get color source to determine filter column
@@ -2243,10 +2229,7 @@
         // Add biplot arrows if available
         if (currentBiplotArrows) {
             payload.biplot_arrows = currentBiplotArrows;
-            console.log('DEBUG: Sending biplot arrows:', currentBiplotArrows);
-            console.log('DEBUG: Number of PCs with arrows:', Object.keys(currentBiplotArrows.arrows_by_pc || {}).length);
         } else {
-            console.log('DEBUG: No biplot arrows to send (currentBiplotArrows is null)');
         }
 
         fetch('{{ url_for("alvadesk_pca.save_alvadesk_colored_plot") }}', {
@@ -2290,7 +2273,6 @@
 
     // Setup filter controls after plot is generated
     function setupAlvadeskFilterControls(pcaData, filterColumn) {
-        console.log('setupAlvadeskFilterControls called with filterColumn:', filterColumn);
 
         const filterSection = document.getElementById('alvadesk-filter-section');
         const filterBadge = document.getElementById('alvadesk-filter-column-badge');
@@ -2308,7 +2290,6 @@
         const values = pcaData.external_data[filterColumn];
 
         if (!values || values.length === 0) {
-            console.warn('No filter data available for column:', filterColumn);
             filterSection.style.display = 'none';
             return;
         }
@@ -2333,8 +2314,6 @@
         const isNumeric = (numericValues.length > 0 && numericValues.length > values.length * 0.5) ||
             (numericValues.length > 10 && uniqueValues.length > 10);
 
-        console.log('Filter column:', filterColumn, 'isNumeric:', isNumeric,
-            'numericCount:', numericValues.length, 'totalCount:', values.length);
 
         // Update badge
         filterBadge.innerHTML = `<span class="badge badge-info">${filterColumn}</span>`;
@@ -2431,7 +2410,6 @@
 
     // Apply filter
     function applyAlvadeskFilter() {
-        console.log('=== applyAlvadeskFilter ===');
 
         if (!currentAlvadeskFilterColumn || !originalAlvadeskPCAData) {
             alert('Please select a filter column first!');
@@ -2455,7 +2433,6 @@
                 }
 
                 filterValues = { min: minVal, max: maxVal };
-                console.log('Numeric filter:', filterValues);
             } else {
                 // Categorical filtering
                 const checkboxes = document.querySelectorAll('.alvadesk-filter-checkbox:checked');
@@ -2466,23 +2443,18 @@
                     return;
                 }
 
-                console.log('Categorical filter:', filterValues.length, 'values selected');
             }
 
             // Store current filter values
             currentAlvadeskFilterValues = filterValues;
 
-            console.log('Calling filterAlvadeskPCAData...');
             // Apply filter to original data
             const filteredData = filterAlvadeskPCAData(originalAlvadeskPCAData, currentAlvadeskFilterColumn, filterValues);
 
-            console.log('Filtered data:', filteredData);
-            console.log('Calling renderAlvadeskPCAPlot...');
 
             // Re-render plot with filtered data
             renderAlvadeskPCAPlot(filteredData);
 
-            console.log('Filter applied successfully');
         } catch (error) {
             console.error('Error applying filter:', error);
             alert('Error applying filter: ' + error.message);
@@ -2491,10 +2463,8 @@
 
     // Clear filter
     function clearAlvadeskFilter() {
-        console.log('=== clearAlvadeskFilter ===');
 
         if (!originalAlvadeskPCAData) {
-            console.warn('No original data to restore');
             return;
         }
 
@@ -2523,12 +2493,10 @@
         // Re-render plot with original unfiltered data
         renderAlvadeskPCAPlot(originalAlvadeskPCAData);
 
-        console.log('Filter cleared, showing all data');
     }
 
     // Generate biplot with loading vectors
     function generateAlvadeskBiplot() {
-        console.log('=== generateAlvadeskBiplot ===');
 
         if (!latestAlvadeskPlotResponse) {
             alert('Please generate PCA plot first!');
@@ -2561,7 +2529,6 @@
                 return response.json();
             })
             .then(data => {
-                console.log('Biplot data received:', data);
 
                 if (data.status === 'success') {
                     // Add arrows to the current plot - now with arrows_by_pc
@@ -2578,10 +2545,6 @@
 
     // Render biplot (PCA plot with loading vectors overlay for each PC)
     function renderAlvadeskBiplot(pcaData, arrowsByPC, pcX, pcY, showLabels) {
-        console.log('=== renderAlvadeskBiplot ===');
-        console.log('Arrows by PC:', arrowsByPC);
-        console.log('PC X:', pcX, 'PC Y:', pcY);
-        console.log('Show labels:', showLabels);
 
         // Get the plotly div - plot should already exist
         const plotDiv = document.getElementById('pca-plotly');
@@ -2762,7 +2725,6 @@
             annotations: annotations
         });
 
-        console.log('Biplot rendered with', totalArrows, 'total arrows from', Object.keys(arrowsByPC).length, 'PCs');
 
         // Store arrow data for saving plot
         currentBiplotArrows = {
@@ -2804,7 +2766,6 @@
     function updatePointDisplay() {
         const plotDiv = document.getElementById('pca-plotly');
         if (!plotDiv || !plotDiv.data) {
-            console.log('Plot not ready');
             return;
         }
 
@@ -2812,7 +2773,6 @@
         const opacity = parseFloat(document.getElementById('alvadesk-opacity').value);
         const markerSize = parseInt(document.getElementById('alvadesk-marker-size').value);
 
-        console.log('Updating display - Jitter:', jitterAmount, 'Opacity:', opacity, 'Size:', markerSize);
 
         // Calculate data range for jitter scaling
         let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
@@ -2892,7 +2852,6 @@
             }, traceIndices);
         }
 
-        console.log('Display updated for', traceIndices.length, 'traces');
     }
 
     // Find and highlight overlapping points with different sizes
@@ -2975,9 +2934,7 @@
             overlapCount.textContent = overlappingGroups.length;
 
             // Log overlapping groups to console
-            console.log('Overlapping groups found:', overlappingGroups.length);
             overlappingGroups.forEach((group, idx) => {
-                console.log(`Group ${idx + 1}:`, group.map(p => p.label).join(', '));
             });
 
             // Assign cascade sizes: first point LARGEST (bottom), last point SMALLEST (top, visible)
@@ -3161,13 +3118,11 @@
     // Add projected compounds to the plot with unified legend
     function addProjectedToPlot() {
         if (!projectedCompoundsData || !projectedCompoundsData.plot_data) {
-            console.log('No projected data to add');
             return;
         }
 
         const plotDiv = document.getElementById('pca-plotly');
         if (!plotDiv || !plotDiv.data) {
-            console.log('Plot not ready yet');
             return;
         }
 
@@ -3195,7 +3150,6 @@
         }
 
         const colorType = projectedCompoundsData.color_type || 'none';
-        console.log('Adding projected compounds with color_type:', colorType);
 
         // Remove any existing projected traces
         removeProjectedFromPlot();
@@ -3486,15 +3440,12 @@
 
     // Initialize on page load
     document.addEventListener('DOMContentLoaded', function () {
-        console.log('Alvadesk PCA page loaded');
 
         // Check if PCA was performed
         const pcaPerformed = {{ 'true' if pca_performed else 'false' }};
-        console.log('PCA performed:', pcaPerformed);
 
         if (pcaPerformed) {
             const nComponents = {{ pca_n_components if pca_n_components else 0 }};
-            console.log('Number of components:', nComponents);
         }
 
     updateSelectedCount();

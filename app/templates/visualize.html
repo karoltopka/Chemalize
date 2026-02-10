@@ -851,7 +851,6 @@
         const plotlyScript = document.createElement('script');
         plotlyScript.src = 'https://cdn.jsdelivr.net/npm/plotly.js@2.24.2/dist/plotly.min.js';
         plotlyScript.onload = function () {
-            console.log('Plotly loaded successfully!');
         };
         document.head.appendChild(plotlyScript);
     }
@@ -1275,17 +1274,11 @@
     }
 
     function filterPCAData(pcaData, filterColumn, filterValues) {
-        console.log('=== filterPCAData CALLED ===');
-        console.log('filterColumn:', filterColumn);
-        console.log('filterValues:', filterValues);
-        console.log('filterValues type:', typeof filterValues, 'isArray:', Array.isArray(filterValues));
 
         if (!filterColumn || !filterValues) {
-            console.log('No filter column or values, returning original data');
             return pcaData;
         }
 
-        console.log('filterPCAData called with:', filterColumn, filterValues);
 
         const filteredData = JSON.parse(JSON.stringify(pcaData));
 
@@ -1293,12 +1286,9 @@
         let filterDataArray = null;
         let isExternalColumn = false;
 
-        console.log('Checking data sources...');
-        console.log('pcaData.external_data:', pcaData.external_data ? Object.keys(pcaData.external_data) : 'none');
 
         // 1. Priorytet: pcaData.external_data (dane z backendu)
         if (pcaData.external_data && pcaData.external_data[filterColumn]) {
-            console.log('Using pcaData.external_data');
             filterDataArray = pcaData.external_data[filterColumn];
             isExternalColumn = true;
         }
@@ -1306,18 +1296,15 @@
         else {
             const externalData = getExternalColumnData(filterColumn);
             if (externalData) {
-                console.log('Using getExternalColumnData');
                 filterDataArray = externalData;
                 isExternalColumn = true;
             }
             // 3. hover_text
             else if (pcaData.hover_column === filterColumn && pcaData.plot_data && pcaData.plot_data[0]) {
-                console.log('Using hover_text');
                 filterDataArray = pcaData.plot_data[0].hover_text || [];
             }
             // 4. color_data
             else if (pcaData.color_by === filterColumn && pcaData.color_data) {
-                console.log('Using color_data');
                 filterDataArray = pcaData.color_data;
             }
         }
@@ -1328,20 +1315,13 @@
             return pcaData;
         }
 
-        console.log('Filter data array length:', filterDataArray.length);
-        console.log('Sample values:', filterDataArray.slice(0, 10));
-        console.log('Unique values (first 20):', [...new Set(filterDataArray.slice(0, 100))].slice(0, 20));
-        console.log('Filter values to match:', filterValues);
 
         // Determine if we're filtering numeric or categorical data
         const isNumericFilter = Array.isArray(filterValues) && filterValues.length === 2 &&
             typeof filterValues[0] === 'number';
 
-        console.log('Is numeric filter:', isNumericFilter);
 
         if (!isNumericFilter) {
-            console.log('Categorical filter - will match these values:', filterValues);
-            console.log('Sample of data to filter against:', filterDataArray.slice(0, 10));
         }
 
         // Create index mask for filtering
@@ -1363,28 +1343,23 @@
                 }
                 // Debug: pokaż pierwsze kilka porównań
                 if (idx < 5) {
-                    console.log(`Comparing: "${strVal}" in [${filterValues.slice(0, 3).join(', ')}...] = ${keep}`);
                 }
             }
 
             if (keep) keepIndices.push(idx);
         });
 
-        console.log('Keep indices:', keepIndices.length, '/', filterDataArray.length);
 
         if (keepIndices.length === 0) {
-            console.warn('No points match the filter criteria');
             showFlashMessage('No points match the filter criteria', 'warning');
             return pcaData;
         }
 
         // Apply filter to plot_data
         if (filteredData.plot_data && filteredData.plot_data.length > 0) {
-            console.log('Filtering plot_data, original datasets:', filteredData.plot_data.length);
 
             // For categorical data with dataset.data format, rebuild from color_data
             if (pcaData.color_categories && pcaData.color_by && filteredData.plot_data[0].data && !filteredData.plot_data[0].x) {
-                console.log('Categorical data detected - rebuilding filtered datasets using color_data');
 
                 // Get the color data (should match filter data length)
                 let colorDataArray = null;
@@ -1395,11 +1370,9 @@
                 }
 
                 if (colorDataArray && colorDataArray.length === filterDataArray.length) {
-                    console.log('Found color data array with', colorDataArray.length, 'values');
 
                     // Check if we have raw PC arrays (needed for proper filtering)
                     const hasRawPCArrays = pcaData.pc_x_raw && pcaData.pc_y_raw;
-                    console.log('Has raw PC arrays:', hasRawPCArrays);
 
                     if (!hasRawPCArrays) {
                         console.error('CRITICAL: Cannot filter categorical data without raw PC arrays!');
@@ -1413,28 +1386,20 @@
 
                     // Get hover text if available - prioritize external_data for correct indexing
                     let hoverTextArray = null;
-                    console.log('Looking for hover text. pcaData.hover_column:', pcaData.hover_column);
-                    console.log('pcaData.external_data exists:', !!pcaData.external_data);
 
                     // Try 1: External data (for columns from uploaded file)
                     if (pcaData.hover_column && pcaData.external_data) {
-                        console.log('Checking if hover column exists in external_data...');
                         if (pcaData.external_data[pcaData.hover_column]) {
                             hoverTextArray = pcaData.external_data[pcaData.hover_column];
-                            console.log('✓ Using hover text from external_data:', hoverTextArray.length, 'values');
-                            console.log('Sample hover values:', hoverTextArray.slice(0, 5));
                         } else {
-                            console.warn('✗ Hover column not found in external_data:', pcaData.hover_column);
                         }
                     }
 
                     // Try 2: Reconstruct from datasets hover_text (for columns from PCA like SF_ID)
                     if (!hoverTextArray && pcaData.hover_column) {
-                        console.log('Trying to reconstruct hover text from datasets...');
 
                         // Check if we have color_data to know ordering
                         if (colorDataArray && colorDataArray.length === pcXArray.length) {
-                            console.log('Reconstructing hover text using color categories...');
 
                             // Build a map: globalIndex -> hoverValue
                             const globalHoverMap = new Array(pcXArray.length);
@@ -1444,7 +1409,6 @@
                                 const categoryLabel = dataset.label;
                                 const datasetHoverText = dataset.hover_text || [];
 
-                                console.log(`Dataset ${dsIdx} (${categoryLabel}): ${dataset.data.length} points, ${datasetHoverText.length} hover texts`);
 
                                 if (datasetHoverText.length === dataset.data.length) {
                                     // Map each point in this dataset to its global position
@@ -1455,21 +1419,16 @@
                                             localIdx++;
                                         }
                                     }
-                                    console.log(`  Mapped ${localIdx} hover texts for category ${categoryLabel}`);
                                 } else {
-                                    console.warn(`  Hover text length mismatch for ${categoryLabel}: ${datasetHoverText.length} vs ${dataset.data.length}`);
                                 }
                             });
 
                             // Convert to array
                             hoverTextArray = globalHoverMap;
-                            console.log('✓ Reconstructed hover text array with', hoverTextArray.filter(v => v !== undefined).length, 'values');
-                            console.log('Sample reconstructed hover values:', hoverTextArray.slice(0, 10));
                         }
                     }
 
                     if (!hoverTextArray) {
-                        console.warn('✗ Cannot get hover text - no suitable source found');
                     }
 
                     // Rebuild datasets for each category using GLOBAL indices
@@ -1477,15 +1436,11 @@
 
                     pcaData.plot_data.forEach((originalDataset, idx) => {
                         const categoryLabel = originalDataset.label;
-                        console.log(`Processing category: ${categoryLabel}`);
 
                         // Find all points that: (1) match this category AND (2) pass the filter
                         const categoryPoints = [];
                         const categoryHoverText = [];
 
-                        console.log(`Color data length: ${colorDataArray.length}`);
-                        console.log(`Keep indices count: ${keepIndices.length}`);
-                        console.log(`PC arrays length: ${pcXArray.length}`);
 
                         // For each kept index, check if it matches this category
                         keepIndices.forEach(globalIdx => {
@@ -1506,7 +1461,6 @@
                             }
                         });
 
-                        console.log(`  Category "${categoryLabel}": ${categoryPoints.length} points after filtering`);
 
                         if (categoryPoints.length > 0) {
                             const newDataset = {
@@ -1516,7 +1470,6 @@
 
                             if (categoryHoverText.length > 0) {
                                 newDataset.hover_text = categoryHoverText;
-                                console.log(`    Added ${categoryHoverText.length} hover text entries`);
                             }
 
                             newDatasets.push(newDataset);
@@ -1524,23 +1477,18 @@
                     });
 
                     filteredData.plot_data = newDatasets;
-                    console.log(`Rebuilt ${newDatasets.length} categories with filtered data`);
                 } else {
-                    console.warn('Cannot rebuild categorical data - color data not available or length mismatch');
-                    console.warn(`colorDataArray: ${colorDataArray ? colorDataArray.length : 'null'}, filterDataArray: ${filterDataArray.length}`);
                 }
             } else {
                 // Non-categorical or already has x/y format - use standard filtering
                 filteredData.plot_data = filteredData.plot_data.map((dataset, datasetIdx) => {
                     const filtered = { ...dataset };
 
-                    console.log(`Dataset ${datasetIdx}: has x=${!!dataset.x}, y=${!!dataset.y}, data=${!!dataset.data}`);
 
                     if (dataset.x && dataset.y) {
                         filtered.x = keepIndices.map(i => dataset.x[i]);
                         filtered.y = keepIndices.map(i => dataset.y[i]);
 
-                        console.log(`  Filtered x/y from ${dataset.x.length} to ${filtered.x.length} points`);
 
                         if (dataset.hover_text) {
                             filtered.hover_text = keepIndices.map(i => dataset.hover_text[i]);
@@ -1557,7 +1505,6 @@
                 });
             }
 
-            console.log('After filtering, datasets:', filteredData.plot_data.length);
         }
 
         // Apply filter to color_data if present
@@ -1584,7 +1531,6 @@
                 }
                 return false;
             });
-            console.log('After filtering empty traces:', filteredData.plot_data.length, 'traces remaining');
         }
 
         // Add filter info to the data
@@ -1602,16 +1548,8 @@
         // Preserve important metadata
         if (pcaData.hover_column && !filteredData.hover_column) {
             filteredData.hover_column = pcaData.hover_column;
-            console.log('Preserved hover_column:', pcaData.hover_column);
         }
 
-        console.log('Filtered data created successfully');
-        console.log('Filter summary:', {
-            column: filterColumn,
-            total: totalPoints,
-            filtered: keepIndices.length,
-            percentage: ((keepIndices.length / totalPoints) * 100).toFixed(1) + '%'
-        });
 
         return filteredData;
     }
@@ -1622,9 +1560,6 @@
         const filterControls = document.getElementById('pca-filter-controls');
         const filterColumnBadge = document.getElementById('filter-column-badge');
 
-        console.log('setupPCAFilterControls called with filterColumn:', filterColumn);
-        console.log('colorFileData:', colorFileData);
-        console.log('pcaData.external_data:', pcaData.external_data);
 
         if (!filterColumn) {
             filterControls.style.display = 'none';
@@ -1641,7 +1576,6 @@
 
         // Najpierw sprawdź external_data w pcaData
         if (pcaData.external_data && pcaData.external_data[filterColumn]) {
-            console.log('Found filter data in pcaData.external_data');
             filterValues = pcaData.external_data[filterColumn];
             const numericValues = filterValues.filter(v => v !== null && !isNaN(parseFloat(v)));
             isNumeric = numericValues.length > filterValues.length * 0.8;
@@ -1650,14 +1584,12 @@
         else {
             const externalData = getExternalColumnData(filterColumn);
             if (externalData) {
-                console.log('Found filter data in colorFileData.merged_data');
                 filterValues = externalData;
                 const numericValues = filterValues.filter(v => v !== null && !isNaN(parseFloat(v)));
                 isNumeric = numericValues.length > filterValues.length * 0.8;
             }
             // Sprawdź hover_text
             else if (pcaData.hover_column === filterColumn && pcaData.plot_data && pcaData.plot_data[0]) {
-                console.log('Found filter data in hover_text');
                 filterValues = pcaData.plot_data[0].hover_text || [];
                 dataSource = 'hover';
                 const numericValues = filterValues.filter(v => !isNaN(parseFloat(v)));
@@ -1665,25 +1597,21 @@
             }
             // Sprawdź color_data
             else if (pcaData.color_by === filterColumn && pcaData.color_data) {
-                console.log('Found filter data in color_data');
                 filterValues = pcaData.color_data.filter(v => v !== null && v !== undefined);
                 dataSource = 'color';
                 isNumeric = true;
             }
             else if (pcaData.color_categories && pcaData.color_by === filterColumn) {
-                console.log('Found filter data in color_categories');
                 filterValues = pcaData.color_categories;
                 dataSource = 'color';
                 isNumeric = false;
             }
         }
 
-        console.log('Filter values found:', filterValues.length, 'isNumeric:', isNumeric);
 
         const filterOptionsDiv = document.getElementById('pca-filter-options');
 
         if (filterValues.length === 0) {
-            console.warn('No filter data available for column:', filterColumn);
             filterOptionsDiv.innerHTML = `
             <div class="modern-alert alert-warning">
                 <i class="fas fa-exclamation-triangle"></i>
@@ -1842,7 +1770,6 @@
         }
 
         filterControls.style.display = 'block';
-        console.log('Filter controls setup complete');
     }
 
     // Global point size variable
@@ -1852,10 +1779,6 @@
        renderPCAPlot
        =========================== */
     function renderPCAPlot(pcaData, applyFilter = false) {
-        console.log('=== renderPCAPlot CALLED ===');
-        console.log('applyFilter:', applyFilter);
-        console.log('currentFilterColumn:', currentFilterColumn);
-        console.log('currentFilterValues:', currentFilterValues);
 
         if (typeof Plotly === 'undefined') {
             console.error('Plotly.js not available for PCA plot');
@@ -1866,29 +1789,16 @@
             return;
         }
 
-        console.log('renderPCAPlot called with applyFilter:', applyFilter);
-        console.log('pcaData.external_data:', pcaData.external_data ? Object.keys(pcaData.external_data).length + ' columns' : 'none');
-        console.log('pcaData.plot_data length:', pcaData.plot_data ? pcaData.plot_data.length : 'none');
 
         // Store original data on first render
         if (!applyFilter) {
             originalPCAData = JSON.parse(JSON.stringify(pcaData));
-            console.log('Stored originalPCAData with external_data:', originalPCAData.external_data ? Object.keys(originalPCAData.external_data).length + ' columns' : 'none');
         }
 
         // Apply filtering if requested
         if (applyFilter && currentFilterColumn && currentFilterValues) {
-            console.log('Applying filter...');
-            console.log('  Filter column:', currentFilterColumn);
-            console.log('  Filter values:', currentFilterValues);
             pcaData = filterPCAData(pcaData, currentFilterColumn, currentFilterValues);
-            console.log('After filtering - plot_data length:', pcaData.plot_data ? pcaData.plot_data.length : 'null');
         } else {
-            console.log('NOT applying filter:', {
-                applyFilter,
-                hasFilterColumn: !!currentFilterColumn,
-                hasFilterValues: !!currentFilterValues
-            });
         }
 
         const container = document.getElementById('pca-plot-container');
@@ -1962,15 +1872,8 @@
                 shapeMap[shape] = overrideSymbol || MARKER_SYMBOLS[idx % MARKER_SYMBOLS.length];
             });
 
-            console.log('Shape encoding enabled for:', pcaData.shape_by);
-            console.log('Shape mapping (including new compounds):', shapeMap);
         }
 
-        console.log('Building traces...');
-        console.log('pcaData.color_categories:', pcaData.color_categories);
-        console.log('pcaData.color_data:', pcaData.color_data ? 'exists (' + pcaData.color_data.length + ' values)' : 'null');
-        console.log('pcaData.plot_data:', pcaData.plot_data ? pcaData.plot_data.length + ' datasets' : 'null');
-        console.log('pcaData.shape_categories:', pcaData.shape_categories ? 'exists (' + pcaData.shape_categories.length + ' values)' : 'null');
 
         // Helpers for color overrides
         const colorOverridesActive = !!(pcaData.color_by && colorOverrides.column === pcaData.color_by && colorOverrides.map);
@@ -1978,12 +1881,9 @@
         const paletteColor = (idx) => COLOR_PALETTE[idx % COLOR_PALETTE.length];
 
         if (pcaData.plot_data && pcaData.plot_data.length > 0) {
-            console.log('First dataset structure:', Object.keys(pcaData.plot_data[0]));
             if (pcaData.plot_data[0].x) {
-                console.log('First dataset x length:', pcaData.plot_data[0].x.length);
             }
             if (pcaData.plot_data[0].data) {
-                console.log('First dataset data length:', pcaData.plot_data[0].data.length);
             }
         }
 
@@ -2000,7 +1900,6 @@
             // Kategoryczne kolorowanie - może być z kształtami lub bez
             if (pcaData.shape_categories && pcaData.shape_by) {
                 // BOTH color and shape encoding - create traces for each combination
-                console.log('Rendering with BOTH color and shape encoding');
 
                 // Check if we have flat format (new backend style) or grouped format (old style)
                 const isFlatFormat = pcaData.plot_data.length === 1 &&
@@ -2010,7 +1909,6 @@
 
                 if (isFlatFormat) {
                     // NEW: Flat format - color_categories and shape_categories are parallel arrays
-                    console.log('Using flat format for color+shape encoding');
                     const base = pcaData.plot_data[0];
 
                     // Generate distinct colors for each unique color category
@@ -2073,7 +1971,6 @@
 
                 } else {
                     // OLD: Grouped format - each dataset in plot_data represents a color category
-                    console.log('Using grouped format for color+shape encoding');
                     pcaData.plot_data.forEach((dataset, idx) => {
                         // Extract coordinates
                         let xs, ys;
@@ -2199,7 +2096,6 @@
 
             if (pcaData.shape_categories && pcaData.shape_by) {
                 // Numeric color + shape encoding - create trace for each shape with GLOBAL color scale
-                console.log('Rendering with numeric color and shape encoding (global scale)');
                 const shapeGroups = {};
                 base.x.forEach((x, i) => {
                     const shapeCat = pcaData.shape_categories[i];
@@ -2280,7 +2176,6 @@
             }
         } else if (pcaData.shape_categories && pcaData.shape_by) {
             // Shape encoding only (no color)
-            console.log('Rendering with shape encoding only');
             const base = pcaData.plot_data[0];
             const shapeGroups = {};
 
@@ -2345,11 +2240,9 @@
         // Add new compounds overlay if available and checkbox is checked
         const showOverlay = document.getElementById('show-overlay-checkbox')?.checked ?? true;
         if (pcaData.new_compounds && showOverlay) {
-            console.log('Adding new compounds overlay:', pcaData.new_compounds);
 
             // Check if new compounds have categorical coloring data
             if (pcaData.new_compounds.color_categories) {
-                console.log('New compounds with categorical coloring');
 
                 // Build a map of category -> color from existing traces
                 const categoryColorMap = {};
@@ -2473,11 +2366,9 @@
                     });
                 }
 
-                console.log(`Added ${pcaData.new_compounds.x.length} new compounds with categorical coloring`);
 
             } else if (pcaData.new_compounds.color_data && pcaData.new_compounds.is_numeric) {
                 // Numeric coloring with same colorscale as original data
-                console.log('New compounds with numeric coloring');
 
                 const colorDisplay = (pcaData.new_compounds.color_data || []).map(v =>
                     (v === null || !isFinite(v)) ? 'NA' : (+v).toFixed(4)
@@ -2580,11 +2471,9 @@
                     traces.push(newTrace);
                 }
 
-                console.log(`Added ${pcaData.new_compounds.x.length} new compounds with numeric coloring`);
 
             } else {
                 // No coloring data
-                console.log('New compounds without coloring');
 
                 // Check if shape encoding is active
                 const hasShapeEncoding = !!(pcaData.new_compounds.shape_categories && pcaData.new_compounds.shape_by);
@@ -2656,7 +2545,6 @@
                     traces.push(newTrace);
                 }
 
-                console.log(`Added ${pcaData.new_compounds.x.length} new compounds to visualization`);
             }
         }
 
@@ -2955,7 +2843,6 @@
         // Setup filter controls if filter_column is selected
         // Show controls both on initial render AND after applying filter
         if (colorFileData.filter_column) {
-            console.log('Setting up filter controls for:', colorFileData.filter_column);
             setupPCAFilterControls(originalPCAData);
         } else {
             // Hide filter controls if no filter column selected
@@ -3616,7 +3503,6 @@
                                 if (changeBtn) {
                                     changeBtn.addEventListener('click', function() {
                                         const newKey = document.getElementById('change_key_column').value;
-                                        console.log('Change mapping column clicked. Current:', data.key_column, 'New:', newKey);
 
                                         if (newKey && newKey !== data.key_column) {
                                             // Show loading state
@@ -3628,7 +3514,6 @@
                                             formData.append('action', 'confirm_key_column');
                                             formData.append('key_column', newKey);
 
-                                            console.log('Sending confirm_key_column request...');
 
                                             fetch('/chemalize/visualize', {
                                                 method: 'POST',
@@ -3636,11 +3521,9 @@
                                                 headers: {'X-Requested-With': 'XMLHttpRequest'}
                                             })
                                             .then(response => {
-                                                console.log('Response received:', response.status);
                                                 return safelyParseResponse(response);
                                             })
                                             .then(changeData => {
-                                                console.log('Change data:', changeData);
 
                                                 if (changeData && changeData.status === 'success') {
                                                     // Update colorFileData
@@ -3695,10 +3578,8 @@
                                                 // Always re-enable button
                                                 changeBtn.disabled = false;
                                                 changeBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Update Mapping Column';
-                                                console.log('Button reset');
                                             });
                                         } else {
-                                            console.log('Same column selected, no change needed');
                                         }
                                     });
                                 }
@@ -4101,7 +3982,6 @@
             filterColumnSelect.addEventListener('change', function () {
                 const selectedColumn = this.value;
 
-                console.log('Filter column changed to:', selectedColumn);
 
                 if (selectedColumn && colorFileData.uploaded && colorFileData.key_column) {
                     colorFileData.filter_column = selectedColumn;
@@ -4113,7 +3993,6 @@
 
                     // Jeśli plot już jest wyrenderowany, spróbuj ustawić kontrolki filtra
                     if (originalPCAData) {
-                        console.log('Plot already rendered, setting up filter controls...');
                         try {
                             setupPCAFilterControls(originalPCAData);
                         } catch (e) {
@@ -4329,14 +4208,11 @@
                     .then(response => safelyParseResponse(response))
                     .then(data => {
                         if (data.status === 'success') {
-                            console.log('PCA data received:', data);
-                            console.log('external_data in response:', data.external_data ? Object.keys(data.external_data).length + ' columns' : 'none');
 
                             // WAŻNE: NIE nadpisuj data.external_data!
                             // Backend już wysłał external_data w response
                             // Tylko dodaj jeśli NIE MA w response (dla kompatybilności wstecznej)
                             if (!data.external_data && colorFileData.merged_data) {
-                                console.log('Adding external_data from colorFileData.merged_data');
                                 data.external_data = colorFileData.merged_data;
                             }
 
@@ -4379,10 +4255,6 @@
 
         // PCA Filter button handlers
         document.getElementById('apply-pca-filter')?.addEventListener('click', function () {
-            console.log('=== APPLY FILTER CLICKED ===');
-            console.log('originalPCAData exists:', !!originalPCAData);
-            console.log('currentFilterColumn:', currentFilterColumn);
-            console.log('currentFilterValues (before):', currentFilterValues);
 
             if (!originalPCAData) {
                 showFlashMessage('No PCA data to filter', 'warning');
@@ -4397,13 +4269,10 @@
                 const minVal = parseFloat(document.getElementById('filter-min').value);
                 const maxVal = parseFloat(document.getElementById('filter-max').value);
                 currentFilterValues = [minVal, maxVal];
-                console.log('Numeric filter values:', currentFilterValues);
             } else {
                 // Categorical filter
                 const checkedBoxes = filterOptionsDiv.querySelectorAll('.filter-category-checkbox:checked');
                 currentFilterValues = Array.from(checkedBoxes).map(cb => cb.value);
-                console.log('Categorical filter - checked boxes:', checkedBoxes.length);
-                console.log('Categorical filter values:', currentFilterValues);
 
                 if (currentFilterValues.length === 0) {
                     showFlashMessage('Please select at least one category', 'warning');
@@ -4411,7 +4280,6 @@
                 }
             }
 
-            console.log('Calling renderPCAPlot with applyFilter=true');
             renderPCAPlot(originalPCAData, true);
             showFlashMessage('Filter applied successfully', 'success');
         });
@@ -4460,7 +4328,6 @@
             const maxTotalLabels = 200;
 
             // Create compact annotations for all points
-            console.log(`Total points: ${totalPoints}, showing ${shouldSample ? 'sampled' : 'all'} labels`);
             const samplingRate = shouldSample ? (maxTotalLabels / totalPoints) : 1.0;
 
             plotData.forEach((trace, traceIdx) => {
