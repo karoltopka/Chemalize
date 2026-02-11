@@ -650,6 +650,27 @@
                 </div>
             </div>
 
+            <!-- Axis Label Size Controls -->
+            <div class="mt-3">
+                <div class="row align-items-end">
+                    <div class="col-md-3">
+                        <label for="alvadesk-x-axis-label-size" class="form-label">X Axis Label Size:</label>
+                        <input type="number" class="form-control" id="alvadesk-x-axis-label-size"
+                            value="14" min="8" max="40" step="1">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="alvadesk-y-axis-label-size" class="form-label">Y Axis Label Size:</label>
+                        <input type="number" class="form-control" id="alvadesk-y-axis-label-size"
+                            value="14" min="8" max="40" step="1">
+                    </div>
+                    <div class="col-md-3">
+                        <button type="button" class="btn btn-outline-primary w-100" onclick="applyAlvadeskAxisLabelSizes()">
+                            <i class="fas fa-text-height"></i> Apply Label Sizes
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Generate Plot Button -->
             <div class="mt-4 d-flex flex-wrap gap-3">
                 <button type="button" class="btn btn-primary btn-lg" onclick="generateAlvadeskPCAPlot()">
@@ -1721,6 +1742,53 @@
             });
     }
 
+    function sanitizeAxisLabelSize(value, fallback = 14) {
+        const parsed = parseInt(value, 10);
+        if (!Number.isFinite(parsed)) {
+            return fallback;
+        }
+        return Math.min(40, Math.max(8, parsed));
+    }
+
+    function getAlvadeskAxisLabelSizes() {
+        const xInput = document.getElementById('alvadesk-x-axis-label-size');
+        const yInput = document.getElementById('alvadesk-y-axis-label-size');
+
+        const xSize = sanitizeAxisLabelSize(xInput ? xInput.value : 14, 14);
+        const ySize = sanitizeAxisLabelSize(yInput ? yInput.value : 14, 14);
+
+        if (xInput) xInput.value = xSize;
+        if (yInput) yInput.value = ySize;
+
+        return { xSize, ySize };
+    }
+
+    function applyAlvadeskAxisLabelSizes() {
+        const plotDiv = document.getElementById('pca-plotly');
+        if (!plotDiv || !plotDiv.data) {
+            return;
+        }
+
+        const { xSize, ySize } = getAlvadeskAxisLabelSizes();
+        const colorbarTitleSize = ySize;
+        const colorbarTickSize = Math.max(8, ySize - 2);
+
+        Plotly.relayout(plotDiv, {
+            'xaxis.titlefont.size': xSize,
+            'yaxis.titlefont.size': ySize
+        });
+
+        // Update colorbar label/ticks for traces using numeric color scale
+        plotDiv.data.forEach((trace, traceIdx) => {
+            if (trace && trace.marker && trace.marker.showscale) {
+                Plotly.restyle(plotDiv, {
+                    'marker.colorbar.title.font.size': colorbarTitleSize,
+                    'marker.colorbar.tickfont.size': colorbarTickSize
+                }, [traceIdx]);
+            }
+        });
+    }
+
     // Render PCA plot with Plotly
     function renderAlvadeskPCAPlot(data) {
         // Reset point display settings for new plot
@@ -1786,6 +1854,9 @@
         let titleText = `PC${data.pc_x} vs PC${data.pc_y}`;
         let filterBadge = '';
         let colorBadge = '';
+        const { xSize, ySize } = getAlvadeskAxisLabelSizes();
+        const colorbarTitleSize = ySize;
+        const colorbarTickSize = Math.max(8, ySize - 2);
 
         if (data.color_by) {
             colorBadge = `<span class="badge badge-info ml-2">Colored by: ${data.color_by}</span>`;
@@ -2001,11 +2072,12 @@
                     trace.marker.colorbar = {
                         title: {
                             text: data.color_by || 'Value',
-                            side: 'right'
+                            side: 'right',
+                            font: { size: colorbarTitleSize }
                         },
                         len: 0.75,
                         thickness: 20,
-                        tickfont: { size: 10 }
+                        tickfont: { size: colorbarTickSize }
                     };
                 }
 
@@ -2076,11 +2148,12 @@
                 trace.marker.colorbar = {
                     title: {
                         text: data.color_by || 'Value',
-                        side: 'right'
+                        side: 'right',
+                        font: { size: colorbarTitleSize }
                     },
                     len: 0.75,
                     thickness: 20,
-                    tickfont: { size: 10 }
+                    tickfont: { size: colorbarTickSize }
                 };
             }
 
@@ -2096,7 +2169,7 @@
             xaxis: {
                 title: `PC${data.pc_x} (${data.variance_x}% variance)`,
                 gridcolor: 'rgba(230, 230, 230, 0.8)',
-                titlefont: { color: '#1f2937', size: 14 },
+                titlefont: { color: '#1f2937', size: xSize },
                 zeroline: true,
                 zerolinecolor: 'rgba(0, 0, 0, 0.3)',
                 zerolinewidth: 1,
@@ -2107,7 +2180,7 @@
             yaxis: {
                 title: `PC${data.pc_y} (${data.variance_y}% variance)`,
                 gridcolor: 'rgba(230, 230, 230, 0.8)',
-                titlefont: { color: '#1f2937', size: 14 },
+                titlefont: { color: '#1f2937', size: ySize },
                 zeroline: true,
                 zerolinecolor: 'rgba(0, 0, 0, 0.3)',
                 zerolinewidth: 1,
@@ -2196,11 +2269,16 @@
             saveBtn.disabled = true;
         }
 
+        const axisSizes = getAlvadeskAxisLabelSizes();
         const payload = {
             pc_x: latestAlvadeskPlotResponse.pc_x,
             pc_y: latestAlvadeskPlotResponse.pc_y,
             variance_x: latestAlvadeskPlotResponse.variance_x,
             variance_y: latestAlvadeskPlotResponse.variance_y,
+            x_axis_label_size: axisSizes.xSize,
+            y_axis_label_size: axisSizes.ySize,
+            colorbar_label_size: axisSizes.ySize,
+            colorbar_tick_size: Math.max(8, axisSizes.ySize - 2),
             color_by: latestAlvadeskPlotResponse.color_by,
             color_categories: latestAlvadeskPlotResponse.color_categories,
             color_data: latestAlvadeskPlotResponse.color_data,

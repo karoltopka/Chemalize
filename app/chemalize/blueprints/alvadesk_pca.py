@@ -706,10 +706,24 @@ def save_alvadesk_colored_plot():
         return jsonify({"status": "error", "message": "No plot data provided."}), 400
 
     try:
+        def _parse_axis_label_size(value, default=14):
+            try:
+                size = int(value)
+            except (TypeError, ValueError):
+                return default
+            return max(8, min(40, size))
+
         pc_x = payload.get('pc_x', 1)
         pc_y = payload.get('pc_y', 2)
         variance_x = payload.get('variance_x', 0)
         variance_y = payload.get('variance_y', 0)
+        x_axis_label_size = _parse_axis_label_size(payload.get('x_axis_label_size'), 14)
+        y_axis_label_size = _parse_axis_label_size(payload.get('y_axis_label_size'), 14)
+        colorbar_label_size = _parse_axis_label_size(payload.get('colorbar_label_size'), y_axis_label_size)
+        colorbar_tick_size = _parse_axis_label_size(
+            payload.get('colorbar_tick_size'),
+            max(8, y_axis_label_size - 2)
+        )
         color_by = payload.get('color_by')
         title = payload.get('title') or f"PC{pc_x} vs PC{pc_y}"
         color_categories = payload.get('color_categories')
@@ -755,12 +769,13 @@ def save_alvadesk_colored_plot():
                 scatter = ax.scatter(xs, ys, c=colors, cmap='viridis', s=40,
                                      edgecolors='white', linewidths=0.3)
                 cbar = fig.colorbar(scatter, ax=ax)
-                cbar.set_label(color_by or 'Value')
+                cbar.set_label(color_by or 'Value', size=colorbar_label_size)
+                cbar.ax.tick_params(labelsize=colorbar_tick_size)
             else:
                 ax.scatter(xs, ys, s=40, color='#2563eb', edgecolors='white', linewidths=0.3)
 
-        ax.set_xlabel(f'PC{pc_x} ({variance_x:.2f}% variance)')
-        ax.set_ylabel(f'PC{pc_y} ({variance_y:.2f}% variance)')
+        ax.set_xlabel(f'PC{pc_x} ({variance_x:.2f}% variance)', fontsize=x_axis_label_size)
+        ax.set_ylabel(f'PC{pc_y} ({variance_y:.2f}% variance)', fontsize=y_axis_label_size)
         ax.set_title(title)
         ax.grid(True, linestyle='--', linewidth=0.3, alpha=0.4)
         ax.set_aspect('equal', adjustable='box')
