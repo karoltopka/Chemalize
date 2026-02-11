@@ -240,9 +240,10 @@
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
+            color: transparent;
             animation: gradientShift 6s ease infinite;
-            transition: transform 1s cubic-bezier(0.25, 0.1, 0.25, 1);
             flex-shrink: 0;
+            position: relative;
         }
 
         /* "ka" hidden via width, own gradient needed for inline-block + overflow */
@@ -261,7 +262,7 @@
             animation: gradientShift 6s ease infinite;
         }
 
-        /* Surname hidden via width; already has gradient from .splash-part */
+        /* Surname hidden via width on desktop, opacity-only on mobile */
         .splash-surname {
             width: 0;
             min-width: 0;
@@ -269,6 +270,7 @@
             white-space: nowrap;
             opacity: 0;
         }
+
 
         /* h1 invisible during splash (but takes up space for layout) */
         .hero h1 {
@@ -781,6 +783,7 @@
             .splash-text {
                 flex-wrap: wrap;
                 align-content: center;
+                justify-content: center;
             }
 
             .hero {
@@ -1020,52 +1023,58 @@
             splashReveal.style.opacity = '1';
         }, 1800);
 
-        // Phase 2 (2.5s): FLIP reorder "Topka Karol" → "Karol Topka" + reveal surname
+        // Phase 2 (2.5s): Swap "Topka Karol" → "Karol Topka"
+        // Uses CSS order (layout change) + left animation (NOT transform - avoids Firefox background-clip bug)
         setTimeout(() => {
             // FIRST: record current positions
             const topkaFirst = splashTopka.getBoundingClientRect();
             const karolFirst = splashKarol.getBoundingClientRect();
 
-            // Hide during DOM reorder to prevent flash
-            splashTopka.style.visibility = 'hidden';
-            splashKarol.style.visibility = 'hidden';
-
-            // Physically reorder DOM: move Karol before Topka
-            splashText.insertBefore(splashKarol, splashTopka);
+            // Change layout via CSS order
+            splashKarol.style.order = '-1';
 
             // LAST: measure new positions
             const topkaLast = splashTopka.getBoundingClientRect();
             const karolLast = splashKarol.getBoundingClientRect();
 
-            // INVERT: translate back to old visual positions
+            // Animate using 'left'+'top' smooth arcs (not transform - avoids Firefox background-clip bug)
             const topkaDx = topkaFirst.left - topkaLast.left;
             const karolDx = karolFirst.left - karolLast.left;
+            const isMobile = window.innerWidth <= 768;
+            const arcH = isMobile ? 25 : 50;
+            const animOpts = { duration: 1400, easing: 'ease-in-out' };
 
-            splashTopka.style.transition = 'none';
-            splashKarol.style.transition = 'none';
-            splashTopka.style.transform = `translateX(${topkaDx}px)`;
-            splashKarol.style.transform = `translateX(${karolDx}px)`;
+            // Generate smooth elliptical arc keyframes
+            function arcFrames(dx, direction, steps) {
+                const frames = [];
+                for (let i = 0; i <= steps; i++) {
+                    const t = i / steps;
+                    const x = dx * (1 - t);
+                    const y = direction * arcH * Math.sin(t * Math.PI);
+                    frames.push({ left: x + 'px', top: y + 'px' });
+                }
+                return frames;
+            }
 
-            // Force reflow to commit transforms before showing
-            void splashTopka.offsetWidth;
-
-            // Show - now visually at original positions
-            splashTopka.style.visibility = '';
-            splashKarol.style.visibility = '';
-
-            // PLAY: animate to final positions
-            requestAnimationFrame(() => {
-                splashTopka.style.transition = 'transform 1s cubic-bezier(0.25, 0.1, 0.25, 1)';
-                splashKarol.style.transition = 'transform 1s cubic-bezier(0.25, 0.1, 0.25, 1)';
-                splashTopka.style.transform = '';
-                splashKarol.style.transform = '';
-            });
+            // Topka arcs down, Karol arcs up
+            splashTopka.animate(arcFrames(topkaDx, 1, 20), animOpts);
+            splashKarol.animate(arcFrames(karolDx, -1, 20), animOpts);
 
             // Reveal surname after slide settles
             setTimeout(() => {
-                splashSurname.style.transition = 'width 0.6s ease, opacity 0.6s ease';
-                splashSurname.style.width = surnameWidth + 'px';
-                splashSurname.style.opacity = '1';
+                if (isMobile) {
+                    // Mobile: snap width (invisible), then smooth fade + slide up
+                    splashSurname.style.width = surnameWidth + 'px';
+                    splashSurname.style.opacity = '1';
+                    splashSurname.animate([
+                        { opacity: 0, top: '15px' },
+                        { opacity: 1, top: '0px' }
+                    ], { duration: 700, easing: 'ease-out' });
+                } else {
+                    splashSurname.style.transition = 'width 0.6s ease, opacity 0.6s ease';
+                    splashSurname.style.width = surnameWidth + 'px';
+                    splashSurname.style.opacity = '1';
+                }
             }, 600);
         }, 2500);
 
