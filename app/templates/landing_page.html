@@ -220,6 +220,7 @@
             display: flex;
             justify-content: center;
             align-items: baseline;
+            flex-wrap: nowrap;
             gap: 0;
             font-size: clamp(3rem, 8vw, 6rem);
             font-weight: 700;
@@ -241,31 +242,32 @@
             -webkit-text-fill-color: transparent;
             animation: gradientShift 6s ease infinite;
             transition: transform 1s cubic-bezier(0.25, 0.1, 0.25, 1);
+            flex-shrink: 0;
         }
 
-        .splash-topka { order: 0; }
-        .splash-karol { order: 1; }
-        .splash-surname { order: 2; }
-
-        .splash-text.reordered .splash-karol { order: 0; }
-        .splash-text.reordered .splash-topka { order: 1; }
-        .splash-text.reordered .splash-surname { order: 2; }
-
+        /* "ka" hidden via width, own gradient needed for inline-block + overflow */
         .splash-reveal {
-            display: inline;
-            font-size: 0;
+            display: inline-block;
+            width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            vertical-align: top;
             opacity: 0;
-            animation: revealLetters 0.5s ease 1.8s forwards;
+            background: linear-gradient(135deg, #ffffff 0%, #646cff 50%, #ff6b6b 100%);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradientShift 6s ease infinite;
         }
 
+        /* Surname hidden via width; already has gradient from .splash-part */
         .splash-surname {
-            display: inline;
-            font-size: 0;
+            width: 0;
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
             opacity: 0;
-        }
-
-        .splash-surname.show {
-            animation: revealSurname 0.6s ease forwards;
         }
 
         /* h1 invisible during splash (but takes up space for layout) */
@@ -295,14 +297,6 @@
 
         @keyframes splashGap {
             to { gap: 0.4em; }
-        }
-
-        @keyframes revealLetters {
-            to { font-size: inherit; opacity: 1; }
-        }
-
-        @keyframes revealSurname {
-            to { font-size: inherit; opacity: 1; }
         }
 
         @keyframes lineExpand {
@@ -1001,25 +995,49 @@
         const splashText = document.getElementById('splashText');
         const splashTopka = document.querySelector('.splash-topka');
         const splashKarol = document.querySelector('.splash-karol');
+        const splashReveal = document.querySelector('.splash-reveal');
         const splashSurname = document.getElementById('splashSurname');
         const heroTitle = document.getElementById('heroTitle');
         const heroBelow = document.getElementById('heroBelow');
 
-        // Phase 1 (0-2.3s): CSS handles TopKarol → Topka Karol
+        // Measure natural widths while elements are invisible (opacity:0)
+        // Must wait for splashIn scale(1) to complete for accurate measurement
+        let kaWidth, surnameWidth;
+        setTimeout(() => {
+            splashReveal.style.width = 'auto';
+            kaWidth = splashReveal.getBoundingClientRect().width;
+            splashReveal.style.width = '0';
+
+            splashSurname.style.width = 'auto';
+            surnameWidth = splashSurname.getBoundingClientRect().width;
+            splashSurname.style.width = '0';
+        }, 1200);
+
+        // Phase 1 (1.8s): Reveal "ka" via width transition
+        setTimeout(() => {
+            splashReveal.style.transition = 'width 0.5s ease, opacity 0.5s ease';
+            splashReveal.style.width = kaWidth + 'px';
+            splashReveal.style.opacity = '1';
+        }, 1800);
+
         // Phase 2 (2.5s): FLIP reorder "Topka Karol" → "Karol Topka" + reveal surname
         setTimeout(() => {
             // FIRST: record current positions
             const topkaFirst = splashTopka.getBoundingClientRect();
             const karolFirst = splashKarol.getBoundingClientRect();
 
-            // LAST: apply order change
-            splashText.classList.add('reordered');
+            // Hide during DOM reorder to prevent flash
+            splashTopka.style.visibility = 'hidden';
+            splashKarol.style.visibility = 'hidden';
 
-            // Force layout
+            // Physically reorder DOM: move Karol before Topka
+            splashText.insertBefore(splashKarol, splashTopka);
+
+            // LAST: measure new positions
             const topkaLast = splashTopka.getBoundingClientRect();
             const karolLast = splashKarol.getBoundingClientRect();
 
-            // INVERT: move them back to old positions
+            // INVERT: translate back to old visual positions
             const topkaDx = topkaFirst.left - topkaLast.left;
             const karolDx = karolFirst.left - karolLast.left;
 
@@ -1028,18 +1046,27 @@
             splashTopka.style.transform = `translateX(${topkaDx}px)`;
             splashKarol.style.transform = `translateX(${karolDx}px)`;
 
-            // PLAY: animate to new positions
+            // Force reflow to commit transforms before showing
+            void splashTopka.offsetWidth;
+
+            // Show - now visually at original positions
+            splashTopka.style.visibility = '';
+            splashKarol.style.visibility = '';
+
+            // PLAY: animate to final positions
             requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    splashTopka.style.transition = 'transform 1s cubic-bezier(0.25, 0.1, 0.25, 1)';
-                    splashKarol.style.transition = 'transform 1s cubic-bezier(0.25, 0.1, 0.25, 1)';
-                    splashTopka.style.transform = '';
-                    splashKarol.style.transform = '';
-                });
+                splashTopka.style.transition = 'transform 1s cubic-bezier(0.25, 0.1, 0.25, 1)';
+                splashKarol.style.transition = 'transform 1s cubic-bezier(0.25, 0.1, 0.25, 1)';
+                splashTopka.style.transform = '';
+                splashKarol.style.transform = '';
             });
 
             // Reveal surname after slide settles
-            setTimeout(() => splashSurname.classList.add('show'), 600);
+            setTimeout(() => {
+                splashSurname.style.transition = 'width 0.6s ease, opacity 0.6s ease';
+                splashSurname.style.width = surnameWidth + 'px';
+                splashSurname.style.opacity = '1';
+            }, 600);
         }, 2500);
 
         // Phase 3 (4.2s): Instant swap splash → h1, reveal page
