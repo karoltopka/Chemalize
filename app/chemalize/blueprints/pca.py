@@ -39,6 +39,9 @@ def pca_analysis():
         'show_feature_importance', 'export_feature_importance', 'export_selected_features',
         'top_n_arrows'
     ]}
+    # Default to scaling on first visit when no prior choice exists.
+    if pca_params.get('scale_data') is None:
+        pca_params['scale_data'] = True
     
     # Custom descriptor groups data
     custom_groups = session.get('custom_descriptor_groups', None)
