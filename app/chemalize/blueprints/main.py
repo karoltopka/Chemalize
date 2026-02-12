@@ -1,7 +1,8 @@
 """
 Main routes - Home and basic pages
 """
-from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify, send_file
+from datetime import datetime
+from flask import Blueprint, render_template, request, session, flash, redirect, url_for, jsonify, send_file, Response
 import os
 import pandas as pd
 import numpy as np
@@ -30,4 +31,43 @@ def clear():
     session.clear()
     return redirect(url_for('preprocessing.preprocess'))
 
+
+@main_bp.route("/sitemap.xml", methods=["GET"])
+def sitemap():
+    """
+    Dynamic XML sitemap for public pages.
+    """
+    today = datetime.utcnow().date().isoformat()
+    pages = []
+
+    sitemap_routes = [
+        ("main.home", "daily", "1.0"),
+        ("main.chemalize_home", "daily", "0.9"),
+        ("preprocessing.preprocess", "daily", "0.8"),
+        ("analysis.analysis_dashboard", "daily", "0.8"),
+        ("pca.pca_analysis", "daily", "0.8"),
+        ("visualization.visualize", "daily", "0.8"),
+        ("alvadesk_pca.alvadesk_pca_analysis", "weekly", "0.7"),
+        ("scopehub_main.scopehub_home", "weekly", "0.7"),
+        ("scopehub_main.scopehub_database", "weekly", "0.6"),
+        ("scopehub_main.query_manager", "weekly", "0.6"),
+        ("nanotox_main.nanotox_home", "weekly", "0.7"),
+        ("nanotox_main.nanotox_predict", "weekly", "0.6"),
+        ("nanotox_main.nanotox_batch", "weekly", "0.6"),
+    ]
+
+    for endpoint, changefreq, priority in sitemap_routes:
+        try:
+            pages.append({
+                "loc": url_for(endpoint, _external=True),
+                "lastmod": today,
+                "changefreq": changefreq,
+                "priority": priority,
+            })
+        except Exception:
+            # Skip routes that cannot be built in current runtime context.
+            continue
+
+    xml = render_template("sitemap.xml", pages=pages)
+    return Response(xml, mimetype="application/xml")
 
