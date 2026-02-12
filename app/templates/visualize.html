@@ -186,6 +186,42 @@
         text-align: center;
     }
 
+    /* Keep upload input and action button on one row in PCA upload sections */
+    .upload-inline-row {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .upload-inline-row .form-group {
+        margin-bottom: 0;
+    }
+
+    .upload-inline-row .form-group:first-child {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .upload-inline-row .form-group:last-child {
+        flex: 0 0 220px;
+    }
+
+    .upload-inline-row .upload-inline-action {
+        display: flex;
+        align-items: center;
+    }
+
+    .upload-inline-row .upload-inline-action .modern-btn {
+        width: 100%;
+        white-space: nowrap;
+    }
+
+    /* Keep Numeric Palette aligned to top with neighboring controls (e.g., Shape By) */
+    #numeric-palette-controls {
+        align-self: start;
+    }
+
     .bins-slider-row .modern-btn {
         flex-shrink: 0;
         padding: 6px 14px;
@@ -246,6 +282,7 @@
     body.dark-theme .bins-label-max {
         color: #9ca3af;
     }
+
 </style>
 {% endblock %}
 
@@ -441,7 +478,7 @@
             <p class="text-muted mb-3">Upload a file with additional data to color and filter your PCA points</p>
 
             <form id="color-file-upload-form" enctype="multipart/form-data" class="mb-3">
-                <div class="form-row">
+                <div class="upload-inline-row">
                     <div class="form-group flex-grow-1">
                         <label class="form-label">
                             <i class="fas fa-file-upload"></i> Upload External Data File (CSV, XLSX, XLS)
@@ -453,8 +490,7 @@
                             coloring/filtering
                         </small>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">&nbsp;</label>
+                    <div class="form-group upload-inline-action">
                         <button type="submit" class="modern-btn btn-info-modern w-100">
                             <i class="fas fa-upload"></i> Upload & Analyze
                         </button>
@@ -526,7 +562,7 @@
             <p class="text-muted mb-3">Upload new compounds to project them onto the existing PCA space</p>
 
             <form id="new-compounds-upload-form" enctype="multipart/form-data" class="mb-3">
-                <div class="form-row">
+                <div class="upload-inline-row">
                     <div class="form-group flex-grow-1">
                         <label class="form-label">
                             <i class="fas fa-file-upload"></i> Upload New Compounds (CSV, XLSX, XLS)
@@ -537,8 +573,7 @@
                             File must contain the same descriptors/features as your original PCA data
                         </small>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">&nbsp;</label>
+                    <div class="form-group upload-inline-action">
                         <button type="submit" class="modern-btn btn-success-modern w-100">
                             <i class="fas fa-upload"></i> Project & Overlay
                         </button>
@@ -610,6 +645,30 @@
                     <button type="button" class="modern-btn btn-outline-secondary w-100 mt-2" id="open-color-editor-btn">
                         <i class="fas fa-edit"></i> Color Editor
                     </button>
+                </div>
+
+                <div class="form-group" id="numeric-palette-controls" style="display: none;">
+                    <label class="form-label">
+                        <i class="fas fa-fill-drip"></i> Numeric Palette
+                    </label>
+                    <select name="pca_numeric_palette" id="pca_numeric_palette" class="form-control">
+                        <option value="viridis" selected>Viridis (default)</option>
+                        <option value="cividis">Cividis</option>
+                        <option value="plasma">Plasma</option>
+                        <option value="turbo">Turbo</option>
+                        <option value="bluered">Blue-Red</option>
+                        <option value="rdylbu">RdYlBu</option>
+                        <option value="rdylgn">RdYlGn</option>
+                    </select>
+                    <div class="form-check mt-2">
+                        <input type="checkbox" class="form-check-input" id="pca_reverse_numeric_palette" name="pca_reverse_numeric_palette" value="1">
+                        <label class="form-check-label" for="pca_reverse_numeric_palette">
+                            Reverse numeric colors
+                        </label>
+                    </div>
+                    <small class="form-text text-muted">
+                        Used only for numeric color columns
+                    </small>
                 </div>
 
                 <div class="form-group">
@@ -868,6 +927,7 @@
         data: null,
         merged_data: null
     };
+    const PCA_COLOR_COLUMN_INFO = {{ pca_color_column_info|default({})|tojson }};
 
     // Shape editor state
     const MARKER_SYMBOLS = ['circle', 'square', 'diamond', 'cross', 'x', 'triangle-up', 'triangle-down',
@@ -1850,6 +1910,32 @@
             [0.90, '#d73027'],
             [1.00, '#a50026']
         ];
+        const NUMERIC_COLOR_SCALES = {
+            rdylgn: MATPLOTLIB_RDYLGN_R,
+            viridis: 'Viridis',
+            cividis: 'Cividis',
+            plasma: 'Plasma',
+            turbo: 'Turbo',
+            bluered: 'Bluered',
+            rdylbu: [
+                [0.00, '#a50026'],
+                [0.10, '#d73027'],
+                [0.20, '#f46d43'],
+                [0.30, '#fdae61'],
+                [0.40, '#fee090'],
+                [0.50, '#ffffbf'],
+                [0.60, '#e0f3f8'],
+                [0.70, '#abd9e9'],
+                [0.80, '#74add1'],
+                [0.90, '#4575b4'],
+                [1.00, '#313695']
+            ]
+        };
+        const numericPaletteSelectElement = document.getElementById('pca_numeric_palette');
+        const reverseNumericPaletteElement = document.getElementById('pca_reverse_numeric_palette');
+        const selectedNumericPalette = numericPaletteSelectElement ? numericPaletteSelectElement.value : 'viridis';
+        const reverseNumericPalette = !!(reverseNumericPaletteElement && reverseNumericPaletteElement.checked);
+        const selectedNumericColorscale = NUMERIC_COLOR_SCALES[selectedNumericPalette] || 'Viridis';
 
         // Create shape mapping if shape encoding is enabled
         let shapeMap = {};
@@ -2149,7 +2235,8 @@
                     marker: {
                         size: currentPointSize,
                         color: pcaData.color_data,
-                        colorscale: MATPLOTLIB_RDYLGN_R,
+                        colorscale: selectedNumericColorscale,
+                        reversescale: reverseNumericPalette,
                         showscale: true,
                         colorbar: {
                             title: pcaData.color_by || 'Value',
@@ -2449,7 +2536,8 @@
                         marker: {
                             size: 10,
                             color: pcaData.new_compounds.color_data,
-                            colorscale: MATPLOTLIB_RDYLGN_R,
+                            colorscale: selectedNumericColorscale,
+                            reversescale: reverseNumericPalette,
                             showscale: false,
                             cmin: cmin,
                             cmax: cmax,
@@ -2674,7 +2762,8 @@
             }
 
             layout.coloraxis = {
-                colorscale: MATPLOTLIB_RDYLGN_R,
+                colorscale: selectedNumericColorscale,
+                reversescale: reverseNumericPalette,
                 cmin: cmin,
                 cmax: cmax,
                 colorbar: {
@@ -3066,6 +3155,36 @@
         modal.show();
     }
 
+    function updateNumericPaletteVisibility(currentResponseData = null) {
+        const paletteControls = document.getElementById('numeric-palette-controls');
+        if (!paletteControls) return;
+
+        const useExternalColoring = document.getElementById('use_external_coloring')?.value === '1';
+        const pcaColorSelect = document.getElementById('pca_color_by_select');
+        const externalColorInput = document.getElementById('external_color_column');
+
+        const selectedPcaColorColumn = pcaColorSelect ? pcaColorSelect.value : '';
+        const selectedExternalColorColumn = externalColorInput ? externalColorInput.value : '';
+
+        let numericPossible = false;
+
+        if (useExternalColoring && selectedExternalColorColumn) {
+            numericPossible = !!(colorFileData.column_info &&
+                                colorFileData.column_info[selectedExternalColorColumn] &&
+                                colorFileData.column_info[selectedExternalColorColumn].is_numeric);
+        } else if (!useExternalColoring && selectedPcaColorColumn) {
+            numericPossible = !!(PCA_COLOR_COLUMN_INFO[selectedPcaColorColumn] &&
+                                PCA_COLOR_COLUMN_INFO[selectedPcaColorColumn].is_numeric);
+        }
+
+        const dataToCheck = currentResponseData || originalPCAData;
+        if (!numericPossible && dataToCheck && Array.isArray(dataToCheck.color_data) && dataToCheck.color_data.length > 0) {
+            numericPossible = true;
+        }
+
+        paletteControls.style.display = numericPossible ? '' : 'none';
+    }
+
     function showExternalColumnSelection(columns, columnInfo) {
         const externalColumnSelection = document.getElementById('external-column-selection');
         const colorColumnSelect = document.getElementById('color_column_select');
@@ -3134,6 +3253,7 @@
         }
 
         externalColumnSelection.style.display = 'block';
+        updateNumericPaletteVisibility();
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -3171,6 +3291,9 @@
         const colorColumnSelect = document.getElementById('color_column_select');
         const filterColumnSelect = document.getElementById('filter_column_select');
         const confirmKeyButton = document.getElementById('confirm-key-column');
+        const pcaColorSelect = document.getElementById('pca_color_by_select');
+        const numericPaletteSelect = document.getElementById('pca_numeric_palette');
+        const reverseNumericPaletteCheckbox = document.getElementById('pca_reverse_numeric_palette');
 
         // Elementy nowych związków
         const newCompoundsForm = document.getElementById('new-compounds-upload-form');
@@ -3290,6 +3413,30 @@
                         });
                     }
                 }
+            });
+        }
+
+        if (numericPaletteSelect) {
+            numericPaletteSelect.addEventListener('change', function() {
+                if (!originalPCAData) return;
+                const filterActive = !!(currentFilterColumn && currentFilterValues);
+                renderPCAPlot(originalPCAData, filterActive);
+                showFlashMessage('Numeric palette updated', 'info');
+            });
+        }
+
+        if (reverseNumericPaletteCheckbox) {
+            reverseNumericPaletteCheckbox.addEventListener('change', function() {
+                if (!originalPCAData) return;
+                const filterActive = !!(currentFilterColumn && currentFilterValues);
+                renderPCAPlot(originalPCAData, filterActive);
+                showFlashMessage('Numeric palette direction updated', 'info');
+            });
+        }
+
+        if (pcaColorSelect) {
+            pcaColorSelect.addEventListener('change', function () {
+                updateNumericPaletteVisibility();
             });
         }
 
@@ -3958,21 +4105,22 @@
                     document.getElementById('external_color_column').value = selectedColumn;
 
                     // Wyłącz select z PCA data
-                    const pcaColorSelect = document.getElementById('pca_color_by_select');
                     if (pcaColorSelect) {
                         pcaColorSelect.value = '';
                         pcaColorSelect.disabled = true;
                     }
 
                     showFlashMessage(`External coloring: ${selectedColumn}`, 'success');
+                    updateNumericPaletteVisibility();
                 } else {
                     // Włącz z powrotem select z PCA data
                     document.getElementById('use_external_coloring').value = '0';
-                    const pcaColorSelect = document.getElementById('pca_color_by_select');
                     if (pcaColorSelect) {
                         pcaColorSelect.disabled = false;
                     }
                     colorFileData.color_column = null;
+                    document.getElementById('external_color_column').value = '';
+                    updateNumericPaletteVisibility();
                 }
             });
         }
@@ -4217,6 +4365,7 @@
                             }
 
                             renderPCAPlot(data);
+                            updateNumericPaletteVisibility(data);
                             if (data.message) {
                                 showFlashMessage(data.message, 'success');
                             }
@@ -4252,6 +4401,8 @@
                     });
             });
         }
+
+        updateNumericPaletteVisibility();
 
         // PCA Filter button handlers
         document.getElementById('apply-pca-filter')?.addEventListener('click', function () {

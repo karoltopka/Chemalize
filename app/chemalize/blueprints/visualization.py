@@ -923,6 +923,7 @@ def visualize():
                 pca_available = session.get('pca_performed', False)
                 pca_n_components = 0
                 pca_color_options = []
+                pca_color_column_info = {}
                 
                 if pca_available:
                     temp_path = ensure_temp_dir()
@@ -932,6 +933,12 @@ def visualize():
                         pca_n_components = len([col for col in pc_df_check.columns if col.startswith('PC')])
                         # Get columns that can be used for coloring
                         pca_color_options = [col for col in pc_df_check.columns if not col.startswith('PC')]
+                        for col in pca_color_options:
+                            series = pc_df_check[col]
+                            pca_color_column_info[col] = {
+                                "is_numeric": bool(pd.api.types.is_numeric_dtype(series)),
+                                "n_unique": int(series.nunique(dropna=True))
+                            }
                 
                 return render_template(
                     "visualize.html",
@@ -942,7 +949,8 @@ def visualize():
                     title="Visualize",
                     pca_available=pca_available,
                     pca_n_components=pca_n_components,
-                    pca_color_options=pca_color_options
+                    pca_color_options=pca_color_options,
+                    pca_color_column_info=pca_color_column_info
                 )
             except Exception as e:
                 flash(f"Error loading data: {str(e)}", "danger")
@@ -1016,6 +1024,5 @@ def tree():
         mimetype="image/png",
         as_attachment=True
     )
-
 
 
