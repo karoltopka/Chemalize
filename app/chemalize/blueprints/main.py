@@ -71,3 +71,16 @@ def sitemap():
     xml = render_template("sitemap.xml", pages=pages)
     return Response(xml, mimetype="application/xml")
 
+
+@main_bp.route("/robots.txt", methods=["GET"])
+def robots():
+    """
+    robots.txt with sitemap pointer for search engines.
+    """
+    robots_content = "\n".join([
+        "User-agent: *",
+        "Allow: /",
+        f"Sitemap: {url_for('main.sitemap', _external=True)}",
+        "",
+    ])
+    return Response(robots_content, mimetype="text/plain")
