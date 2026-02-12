@@ -653,20 +653,11 @@
             <!-- Axis Label Size Controls -->
             <div class="mt-3">
                 <div class="row align-items-end">
-                    <div class="col-md-3">
-                        <label for="alvadesk-x-axis-label-size" class="form-label">X Axis Label Size:</label>
-                        <input type="number" class="form-control" id="alvadesk-x-axis-label-size"
+                    <div class="col-md-4">
+                        <label for="alvadesk-axis-label-size" class="form-label">Axis Label Size:</label>
+                        <input type="number" class="form-control" id="alvadesk-axis-label-size"
                             value="14" min="8" max="40" step="1">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="alvadesk-y-axis-label-size" class="form-label">Y Axis Label Size:</label>
-                        <input type="number" class="form-control" id="alvadesk-y-axis-label-size"
-                            value="14" min="8" max="40" step="1">
-                    </div>
-                    <div class="col-md-3">
-                        <button type="button" class="btn btn-outline-primary w-100" onclick="applyAlvadeskAxisLabelSizes()">
-                            <i class="fas fa-text-height"></i> Apply Label Sizes
-                        </button>
+                        <small class="text-muted">Updates axes labels immediately.</small>
                     </div>
                 </div>
             </div>
@@ -1754,16 +1745,13 @@
     }
 
     function getAlvadeskAxisLabelSizes() {
-        const xInput = document.getElementById('alvadesk-x-axis-label-size');
-        const yInput = document.getElementById('alvadesk-y-axis-label-size');
+        const axisInput = document.getElementById('alvadesk-axis-label-size');
 
-        const xSize = sanitizeAxisLabelSize(xInput ? xInput.value : 14, 14);
-        const ySize = sanitizeAxisLabelSize(yInput ? yInput.value : 14, 14);
+        const axisSize = sanitizeAxisLabelSize(axisInput ? axisInput.value : 14, 14);
 
-        if (xInput) xInput.value = xSize;
-        if (yInput) yInput.value = ySize;
+        if (axisInput) axisInput.value = axisSize;
 
-        return { xSize, ySize };
+        return { xSize: axisSize, ySize: axisSize };
     }
 
     function applyAlvadeskAxisLabelSizes() {
@@ -3570,6 +3558,13 @@
                 addProjectedToPlot();
             }
         });
+    }
+
+    // Auto-apply axis label size changes (no separate Apply button)
+    const axisLabelSizeInput = document.getElementById('alvadesk-axis-label-size');
+    if (axisLabelSizeInput) {
+        axisLabelSizeInput.addEventListener('input', applyAlvadeskAxisLabelSizes);
+        axisLabelSizeInput.addEventListener('change', applyAlvadeskAxisLabelSizes);
     }
 });
 </script>
