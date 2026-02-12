@@ -862,6 +862,9 @@
                             Show labels on plot
                         </label>
                     </div>
+                    <label class="form-label mt-2" for="projected-label-size">Point Label Size:</label>
+                    <input type="number" class="form-control" id="projected-label-size" name="projected_label_size"
+                        value="10" min="6" max="28" step="1">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Legend Label:</label>
@@ -3193,6 +3196,16 @@
         return displayLabels;
     }
 
+    function getProjectedLabelSize() {
+        const labelSizeInput = document.getElementById('projected-label-size');
+        if (!labelSizeInput) return 10;
+
+        const parsed = parseFloat(labelSizeInput.value);
+        const clamped = !isNaN(parsed) ? Math.min(28, Math.max(6, parsed)) : 10;
+        labelSizeInput.value = clamped;
+        return clamped;
+    }
+
     // Add projected compounds to the plot with unified legend
     function addProjectedToPlot() {
         if (!projectedCompoundsData || !projectedCompoundsData.plot_data) {
@@ -3226,6 +3239,7 @@
         if (showLabelsCheckbox) {
             showLabelsOnPlot = showLabelsCheckbox.checked;
         }
+        const labelFontSize = getProjectedLabelSize();
 
         const colorType = projectedCompoundsData.color_type || 'none';
 
@@ -3263,7 +3277,7 @@
                     hovertext: labels,
                     textposition: showLabelsOnPlot ? 'top center' : undefined,
                     textfont: showLabelsOnPlot ? {
-                        size: 10,
+                        size: labelFontSize,
                         color: '#000'
                     } : undefined,
                     marker: {
@@ -3358,7 +3372,7 @@
                         hovertext: labels,
                         textposition: showLabelsOnPlot ? 'top center' : undefined,
                         textfont: showLabelsOnPlot ? {
-                            size: 10,
+                            size: labelFontSize,
                             color: '#000'
                         } : undefined,
                         marker: markerConfig,
@@ -3388,7 +3402,7 @@
                         hovertext: labels,
                         textposition: showLabelsOnPlot ? 'top center' : undefined,
                         textfont: showLabelsOnPlot ? {
-                            size: 10,
+                            size: labelFontSize,
                             color: '#000'
                         } : undefined,
                         marker: {
@@ -3460,7 +3474,7 @@
                 hovertext: labels,
                 textposition: showLabelsOnPlot ? 'top center' : undefined,
                 textfont: showLabelsOnPlot ? {
-                    size: 10,
+                    size: labelFontSize,
                     color: '#000'
                 } : undefined,
                 marker: {
@@ -3543,6 +3557,15 @@
     const projectedShowLabelsInput = document.getElementById('projected-show-labels');
     if (projectedShowLabelsInput) {
         projectedShowLabelsInput.addEventListener('change', function () {
+            if (showProjectedOnPlot) {
+                addProjectedToPlot();
+            }
+        });
+    }
+
+    const projectedLabelSizeInput = document.getElementById('projected-label-size');
+    if (projectedLabelSizeInput) {
+        projectedLabelSizeInput.addEventListener('change', function () {
             if (showProjectedOnPlot) {
                 addProjectedToPlot();
             }
