@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from werkzeug.utils import secure_filename
 from app.config import get_clean_path, get_temp_path, get_upload_path, get_unified_path, TEMP_DIR, CLEAN_DIR, UPLOAD_DIR, UNIFIED_DIR
-from app.chemalize.utils import read_dataset, clean_temp_folder, check_dataset, get_dataset_info, ensure_temp_dir
+from app.chemalize.utils import read_dataset, clean_temp_folder, check_dataset, get_dataset_info, ensure_temp_dir, reset_analysis_state
 from app.chemalize.preprocessing import generic_preprocessing as gp
 from app.chemalize.preprocessing.generic_preprocessing import get_columns, get_rows, get_dim, get_head, get_description
 
@@ -94,6 +94,7 @@ def preprocess():
                     df = read_dataset(clean_path)
                     df = gp.delete_column(df, selected_columns)
                     df.to_csv(clean_path, index=False)
+                    reset_analysis_state(preserve_temp_csv=False)
                     flash(f"Column(s) {', '.join(selected_columns)} deleted successfully", "success")
             except Exception as e:
                 flash(f"Error: {str(e)}", "danger")
@@ -115,6 +116,7 @@ def preprocess():
                     
                     # Zapisz zmiany
                     df.to_csv(clean_path, index=False)
+                    reset_analysis_state(preserve_temp_csv=False)
                     flash(f"Row(s) {', '.join(selected_rows)} deleted successfully", "success")
             except Exception as e:
                 flash(f"Error deleting rows: {str(e)}", "danger")
@@ -167,6 +169,7 @@ def preprocess():
                     
                     # Zapisz zmiany
                     df.to_csv(clean_path, index=False)
+                    reset_analysis_state(preserve_temp_csv=False)
                     
                     if len(renamed_columns) == 1:
                         flash(f"Column {renamed_columns[0]} renamed successfully", "success")
@@ -202,6 +205,7 @@ def preprocess():
                     
                     # Zapisz zmiany
                     df.to_csv(clean_path, index=False)
+                    reset_analysis_state(preserve_temp_csv=False)
                     flash(f"Column '{old_name}' renamed to '{new_column_name}' successfully", "success")
                     
             except Exception as e:
@@ -577,6 +581,8 @@ def manual_process():
                 # Usuń ścieżkę pliku tymczasowego z sesji
                 if "temp_csv_path" in session:
                     session.pop("temp_csv_path")
+
+                reset_analysis_state(preserve_temp_csv=False)
                 
                 flash(f"File '{new_filename}' has been saved. You can proceed to next step.", "success")
                 return redirect(url_for('preprocessing.preprocess'))  # Lub inny odpowiedni URL
@@ -661,6 +667,8 @@ def manual_process():
                     session["features_transformed"] = True
                 elif action_type == 'handle_missing':
                     session["features_selected"] = True
+
+                reset_analysis_state(preserve_temp_csv=True)
 
                 # Aktualizuj nazwę pliku tymczasowego
                 temp_filename = os.path.basename(temp_path)

@@ -16,6 +16,24 @@ from app.config import (
 # Global variables
 posted = 0
 exts = ["csv", "xlsx", "json", "yaml", "txt", "xls"]
+CHEMALIZE_STATE_KEYS_TO_KEEP = {
+    'user_id',
+    'haha',
+    'csv_name',
+    'fname',
+    'ext',
+    'processed_csv_name',
+    'data_cleaned',
+    'target_transformed',
+    'features_transformed',
+    'features_selected',
+    'no_of_rows',
+    'no_of_cols',
+    'dim',
+    'missing_values',
+    'has_low_variance',
+    'max_correlation',
+}
 
 def clean_temp_folder():
     """
@@ -81,3 +99,22 @@ def get_dataset_info(df=None):
             'n_features': len(df.columns)
         }
     return {}
+
+
+def reset_analysis_state(preserve_temp_csv=True):
+    """
+    Reset derived analysis/visualization state while keeping current preprocessing context.
+    """
+    keep_keys = set(CHEMALIZE_STATE_KEYS_TO_KEEP)
+    if preserve_temp_csv:
+        keep_keys.add('temp_csv_path')
+
+    preserved_values = {}
+    for key in list(session.keys()):
+        if key.startswith('_') or key in keep_keys:
+            preserved_values[key] = session.get(key)
+
+    session.clear()
+
+    for key, value in preserved_values.items():
+        session[key] = value
