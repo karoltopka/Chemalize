@@ -793,6 +793,55 @@ def download_step2_outliers():
         return redirect(url_for('mlr_ga.mlr_ga_analysis'))
 
 
+@mlr_ga_bp.route("/download_split_data")
+def download_split_data():
+    """Download CSV with train/test split assignments"""
+    if not check_dataset():
+        flash('No dataset found', 'danger')
+        return redirect(url_for('mlr_ga.mlr_ga_analysis'))
+
+    train_idx = session.get('mlr_ga_step2_train_idx', [])
+    test_idx = session.get('mlr_ga_step2_test_idx', [])
+
+    if not train_idx and not test_idx:
+        flash('No split data available. Please configure the split first.', 'info')
+        return redirect(url_for('mlr_ga.mlr_ga_analysis'))
+
+    try:
+        clean_path = get_clean_path(session["csv_name"])
+        df = read_dataset(clean_path)
+
+        # Apply Step 1 outlier removal if it was performed
+        step1_clean_indices = session.get('mlr_ga_step1_clean_indices')
+        if step1_clean_indices:
+            df = df.loc[step1_clean_indices].reset_index(drop=True)
+
+        # Create a 'Set' column indicating train or test
+        df['Set'] = ''
+        for idx in train_idx:
+            if idx < len(df):
+                df.at[idx, 'Set'] = 'Train'
+        for idx in test_idx:
+            if idx < len(df):
+                df.at[idx, 'Set'] = 'Test'
+
+        # Move 'Set' column to the front
+        cols = df.columns.tolist()
+        cols.remove('Set')
+        df = df[['Set'] + cols]
+
+        # Save to temp CSV
+        temp_path = ensure_temp_dir()
+        temp_file = os.path.join(temp_path, 'train_test_split.csv')
+        df.to_csv(temp_file, index=False)
+
+        return send_file(temp_file, as_attachment=True, download_name='train_test_split.csv')
+
+    except Exception as e:
+        flash(f'Error generating split file: {str(e)}', 'danger')
+        return redirect(url_for('mlr_ga.mlr_ga_analysis'))
+
+
 @mlr_ga_bp.route("/mlr_ga_advance_to_preprocessing", methods=['POST'])
 def mlr_ga_advance_to_preprocessing():
     """Advance from split_selection to preprocessing after reviewing split histograms"""
@@ -1009,20 +1058,22 @@ def mlr_ga_step2():
         elif split_method == 'systematic':
             # Sorted systematic sampling: sort by Y, then every nth observation goes to test
             # This ensures equal distribution of Y values in both train and test sets
-            # Min and max Y values always go to TEST set (endpoints for validation)
+            # With step=4, every 4th sample → ~25% test
             step = session.get('mlr_ga_systematic_step', 3)
+            include_last = session.get('mlr_ga_include_last_point', False)
 
             # Get indices sorted by Y value
             sorted_indices = y.argsort().tolist() if hasattr(y, 'argsort') else list(np.argsort(y))
 
-            # Keep min (first) and max (last) for TEST
-            min_idx = sorted_indices[0]
-            max_idx = sorted_indices[-1]
-            middle_indices = sorted_indices[1:-1]  # exclude first and last
+            # Every step-th sample goes to test (starting from first = min Y)
+            test_idx = [sorted_indices[i] for i in range(0, len(sorted_indices), step)]
 
-            # Take every nth from middle indices for test, add min/max
-            test_idx = [min_idx, max_idx] + [middle_indices[i] for i in range(0, len(middle_indices), step)]
-            train_idx = [idx for idx in middle_indices if idx not in test_idx]
+            # Optionally ensure last point (max Y) is in test for endpoint coverage
+            if include_last and sorted_indices[-1] not in test_idx:
+                test_idx.append(sorted_indices[-1])
+
+            test_set = set(test_idx)
+            train_idx = [idx for idx in sorted_indices if idx not in test_set]
         elif split_method == 'kennard_stone':
             # Kennard-Stone algorithm: select training samples maximally spread in feature space
             from app.chemalize.modules.mlr import kennard_stone_split
