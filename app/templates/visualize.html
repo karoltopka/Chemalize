@@ -23,7 +23,7 @@
     }
 
     .filter-checkboxes .form-check {
-        padding: 4px 0;
+        padding: 4px 0 4px 1.5rem;
     }
 
     .filter-checkboxes .form-check-label {
@@ -765,6 +765,17 @@
             <div>
                 <h6><i class="fas fa-filter"></i> Active Filter <span id="filter-column-badge"></span></h6>
                 <div id="pca-filter-options"></div>
+                <div class="d-flex align-items-center mt-2 mb-1" style="gap: 12px;">
+                    <span class="text-muted" style="font-size: 0.85rem;">Filtered points:</span>
+                    <div class="form-check form-check-inline mb-0">
+                        <input class="form-check-input" type="radio" name="filterMode" id="filter-mode-hide" value="hide" checked>
+                        <label class="form-check-label" for="filter-mode-hide" style="font-size: 0.85rem;">Hide</label>
+                    </div>
+                    <div class="form-check form-check-inline mb-0">
+                        <input class="form-check-input" type="radio" name="filterMode" id="filter-mode-gray" value="gray">
+                        <label class="form-check-label" for="filter-mode-gray" style="font-size: 0.85rem;">Show as gray</label>
+                    </div>
+                </div>
                 <button id="apply-pca-filter" class="modern-btn btn-sm btn-primary-modern mt-2">
                     <i class="fas fa-check"></i> Apply Filter
                 </button>
@@ -954,6 +965,7 @@
     let originalPCAData = null;
     let currentFilterColumn = null;
     let currentFilterValues = null;
+    let filterMode = 'hide'; // 'hide' = remove from plot, 'gray' = show as gray
     let pcaResizeHandler = null;
     let clickedPoints = new Set(); // Persistent labels on click
 
@@ -1331,6 +1343,62 @@
             return null;
         }
         return colorFileData.merged_data[columnName];
+    }
+
+    function getFilterIndices(pcaData, filterColumn, filterValues) {
+        if (!filterColumn || !filterValues) return null;
+
+        let filterDataArray = null;
+        if (pcaData.external_data && pcaData.external_data[filterColumn]) {
+            filterDataArray = pcaData.external_data[filterColumn];
+        } else {
+            const externalData = getExternalColumnData(filterColumn);
+            if (externalData) {
+                filterDataArray = externalData;
+            } else if (pcaData.hover_column === filterColumn && pcaData.plot_data && pcaData.plot_data[0]) {
+                filterDataArray = pcaData.plot_data[0].hover_text || [];
+            } else if (pcaData.color_by === filterColumn && pcaData.color_data) {
+                filterDataArray = pcaData.color_data;
+            }
+        }
+
+        if (!filterDataArray || filterDataArray.length === 0) return null;
+
+        const isNumericFilter = Array.isArray(filterValues) && filterValues.length === 2 &&
+            typeof filterValues[0] === 'number';
+
+        const keepIndices = [];
+        const excludeIndices = [];
+
+        filterDataArray.forEach((val, idx) => {
+            let keep = false;
+            if (isNumericFilter) {
+                const numVal = parseFloat(val);
+                if (!isNaN(numVal) && numVal >= filterValues[0] && numVal <= filterValues[1]) {
+                    keep = true;
+                }
+            } else {
+                if (filterValues.includes(String(val))) {
+                    keep = true;
+                }
+            }
+            if (keep) keepIndices.push(idx);
+            else excludeIndices.push(idx);
+        });
+
+        return { keepIndices, excludeIndices };
+    }
+
+    function getOriginalFlatXY(pcaData) {
+        if (pcaData.pc_x_raw && pcaData.pc_y_raw) {
+            return { x: pcaData.pc_x_raw, y: pcaData.pc_y_raw };
+        }
+        if (pcaData.plot_data && pcaData.plot_data.length > 0) {
+            if (pcaData.plot_data[0].x && pcaData.plot_data[0].y) {
+                return { x: pcaData.plot_data[0].x, y: pcaData.plot_data[0].y };
+            }
+        }
+        return null;
     }
 
     function filterPCAData(pcaData, filterColumn, filterValues) {
@@ -1855,10 +1923,37 @@
             originalPCAData = JSON.parse(JSON.stringify(pcaData));
         }
 
+        // Compute gray trace data for excluded points (if gray mode)
+        let grayTraceData = null;
+        if (filterMode === 'gray' && applyFilter && currentFilterColumn && currentFilterValues && originalPCAData) {
+            const indices = getFilterIndices(originalPCAData, currentFilterColumn, currentFilterValues);
+            if (indices && indices.excludeIndices.length > 0) {
+                const flatXY = getOriginalFlatXY(originalPCAData);
+                if (flatXY) {
+                    const exIdx = indices.excludeIndices.filter(i => i < flatXY.x.length);
+                    grayTraceData = {
+                        x: exIdx.map(i => flatXY.x[i]),
+                        y: exIdx.map(i => flatXY.y[i])
+                    };
+                    // Try to get hover text for excluded points
+                    let hoverSrc = null;
+                    if (originalPCAData.hover_column && originalPCAData.external_data &&
+                        originalPCAData.external_data[originalPCAData.hover_column]) {
+                        hoverSrc = originalPCAData.external_data[originalPCAData.hover_column];
+                    } else if (originalPCAData.plot_data && originalPCAData.plot_data[0] &&
+                        originalPCAData.plot_data[0].hover_text && originalPCAData.plot_data[0].x) {
+                        hoverSrc = originalPCAData.plot_data[0].hover_text;
+                    }
+                    if (hoverSrc) {
+                        grayTraceData.hover = exIdx.filter(i => i < hoverSrc.length).map(i => hoverSrc[i]);
+                    }
+                }
+            }
+        }
+
         // Apply filtering if requested
         if (applyFilter && currentFilterColumn && currentFilterValues) {
             pcaData = filterPCAData(pcaData, currentFilterColumn, currentFilterValues);
-        } else {
         }
 
         const container = document.getElementById('pca-plot-container');
@@ -2322,6 +2417,30 @@
                 })
             };
             traces.push(trace);
+        }
+
+        // Add gray trace for excluded points (insert first so it renders behind colored traces)
+        if (grayTraceData && grayTraceData.x.length > 0) {
+            const grayTrace = {
+                x: grayTraceData.x,
+                y: grayTraceData.y,
+                mode: 'markers',
+                type: 'scatter',
+                name: 'Filtered out',
+                marker: {
+                    size: currentPointSize,
+                    color: 'lightgray',
+                    opacity: 0.35
+                },
+                showlegend: true
+            };
+            if (grayTraceData.hover && grayTraceData.hover.length > 0) {
+                grayTrace.text = grayTraceData.hover;
+                grayTrace.hovertemplate = `<b>%{text}</b><br>PC${pcaData.pc_x}: %{x:.3f}<br>PC${pcaData.pc_y}: %{y:.3f}<extra>Filtered out</extra>`;
+            } else {
+                grayTrace.hovertemplate = `PC${pcaData.pc_x}: %{x:.3f}<br>PC${pcaData.pc_y}: %{y:.3f}<extra>Filtered out</extra>`;
+            }
+            traces.unshift(grayTrace);
         }
 
         // Add new compounds overlay if available and checkbox is checked
@@ -4412,6 +4531,9 @@
                 return;
             }
 
+            // Read filter mode
+            filterMode = document.querySelector('input[name="filterMode"]:checked')?.value || 'hide';
+
             // Get current filter values based on type
             const filterOptionsDiv = document.getElementById('pca-filter-options');
 
@@ -4433,6 +4555,16 @@
 
             renderPCAPlot(originalPCAData, true);
             showFlashMessage('Filter applied successfully', 'success');
+        });
+
+        // Filter mode radio buttons - auto-apply when switching
+        document.querySelectorAll('input[name="filterMode"]').forEach(radio => {
+            radio.addEventListener('change', function () {
+                filterMode = this.value;
+                if (originalPCAData && currentFilterValues) {
+                    renderPCAPlot(originalPCAData, true);
+                }
+            });
         });
 
         document.getElementById('clear-pca-filter')?.addEventListener('click', function () {
