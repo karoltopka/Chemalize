@@ -2666,6 +2666,10 @@
                     });
                 } else {
                     // No shape - use different symbol to distinguish
+                    // Check if color_data has any valid numeric values
+                    const hasValidColors = pcaData.new_compounds.color_data &&
+                        pcaData.new_compounds.color_data.some(v => v !== null && isFinite(v));
+
                     const newTrace = {
                         x: pcaData.new_compounds.x,
                         y: pcaData.new_compounds.y,
@@ -2674,14 +2678,14 @@
                         name: 'New Compounds',
                         marker: {
                             size: 10,
-                            color: pcaData.new_compounds.color_data,
-                            colorscale: selectedNumericColorscale,
-                            reversescale: reverseNumericPalette,
+                            color: hasValidColors ? pcaData.new_compounds.color_data : 'rgb(110, 110, 110)',
+                            colorscale: hasValidColors ? selectedNumericColorscale : undefined,
+                            reversescale: hasValidColors ? reverseNumericPalette : undefined,
                             showscale: false,
-                            cmin: cmin,
-                            cmax: cmax,
+                            cmin: hasValidColors ? cmin : undefined,
+                            cmax: hasValidColors ? cmax : undefined,
                             symbol: 'diamond',  // Different shape from original circles
-                            line: { width: 1, color: 'rgba(0, 0, 0, 0.3)' },
+                            line: { width: 1, color: hasValidColors ? 'rgba(0, 0, 0, 0.3)' : 'rgba(120, 120, 120, 0.6)' },
                             opacity: 0.8
                         },
                         text: pcaData.new_compounds.labels || null,
@@ -2732,6 +2736,7 @@
                             name: `${shapeCat} (New)`,
                             marker: {
                                 size: 10,
+                                color: 'rgb(110, 110, 110)',
                                 symbol: shapeMap[shapeCat] || 'circle',  // Same shapes as original
                                 line: { width: 1 },
                                 opacity: 0.8
@@ -2952,6 +2957,27 @@
                 scale: Math.max(2, Math.ceil(3200 / plotSize))  // Scale up to ~3200px physical resolution
             }
         }).then(() => {
+            // Apply white text outline (halo) to new compound labels
+            const plotEl = document.getElementById('pca-plotly');
+            if (plotEl) {
+                // Find trace indices that belong to new compounds (name contains "(New)" or "New Compounds")
+                traces.forEach((t, idx) => {
+                    const isNewCompound = t.name && (t.name.includes('(New)') || t.name === 'New Compounds');
+                    if (isNewCompound && t.mode && t.mode.includes('text')) {
+                        // Plotly uses .trace groups; text elements are inside .textpoint
+                        const traceGroup = plotEl.querySelector(`.plot .scatterlayer .trace:nth-child(${idx + 1})`);
+                        if (traceGroup) {
+                            traceGroup.querySelectorAll('.textpoint text').forEach(textEl => {
+                                textEl.style.paintOrder = 'stroke fill';
+                                textEl.style.stroke = 'white';
+                                textEl.style.strokeWidth = '3px';
+                                textEl.style.strokeLinejoin = 'round';
+                            });
+                        }
+                    }
+                });
+            }
+
             // Restore labels for previously clicked points (after plot redraw)
             const initialAnnotations = [];
             clickedPoints.forEach(key => {
