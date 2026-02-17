@@ -2957,26 +2957,26 @@
                 scale: Math.max(2, Math.ceil(3200 / plotSize))  // Scale up to ~3200px physical resolution
             }
         }).then(() => {
-            // Apply white text outline (halo) to new compound labels
-            const plotEl = document.getElementById('pca-plotly');
-            if (plotEl) {
-                // Find trace indices that belong to new compounds (name contains "(New)" or "New Compounds")
-                traces.forEach((t, idx) => {
-                    const isNewCompound = t.name && (t.name.includes('(New)') || t.name === 'New Compounds');
-                    if (isNewCompound && t.mode && t.mode.includes('text')) {
-                        // Plotly uses .trace groups; text elements are inside .textpoint
-                        const traceGroup = plotEl.querySelector(`.plot .scatterlayer .trace:nth-child(${idx + 1})`);
-                        if (traceGroup) {
-                            traceGroup.querySelectorAll('.textpoint text').forEach(textEl => {
-                                textEl.style.paintOrder = 'stroke fill';
-                                textEl.style.stroke = 'white';
-                                textEl.style.strokeWidth = '3px';
-                                textEl.style.strokeLinejoin = 'round';
-                            });
-                        }
+            // Apply white text halo to new compound labels only
+            requestAnimationFrame(() => {
+                const plotEl = document.getElementById('pca-plotly');
+                if (!plotEl) return;
+                const scatterLayer = plotEl.querySelector('.scatterlayer');
+                if (!scatterLayer) return;
+                const traceGroups = scatterLayer.children;
+                for (let idx = 0; idx < traceGroups.length && idx < traces.length; idx++) {
+                    const t = traces[idx];
+                    const isNew = t.name && (t.name.includes('(New)') || t.name === 'New Compounds');
+                    if (isNew && t.mode && t.mode.includes('text')) {
+                        traceGroups[idx].querySelectorAll('.textpoint text').forEach(textEl => {
+                            textEl.style.paintOrder = 'stroke fill';
+                            textEl.style.stroke = 'white';
+                            textEl.style.strokeWidth = '3px';
+                            textEl.style.strokeLinejoin = 'round';
+                        });
                     }
-                });
-            }
+                }
+            });
 
             // Restore labels for previously clicked points (after plot redraw)
             const initialAnnotations = [];
@@ -2989,17 +2989,8 @@
                         x: trace.x[ptIdx],
                         y: trace.y[ptIdx],
                         text: label,
-                        showarrow: true,
-                        arrowhead: 2,
-                        arrowsize: 1,
-                        arrowwidth: 1.5,
-                        arrowcolor: '#333',
-                        ax: 20,
-                        ay: -30,
-                        bgcolor: 'rgba(255, 255, 255, 0.9)',
-                        bordercolor: '#333',
-                        borderwidth: 1,
-                        borderpad: 4,
+                        showarrow: false,
+                        yshift: 10,
                         font: {
                             size: pcaLabelFontSize,
                             color: '#000'
@@ -3046,17 +3037,8 @@
                         x: trace.x[ptIdx],
                         y: trace.y[ptIdx],
                         text: label,
-                        showarrow: true,
-                        arrowhead: 2,
-                        arrowsize: 1,
-                        arrowwidth: 1.5,
-                        arrowcolor: '#333',
-                        ax: 20,
-                        ay: -30,
-                        bgcolor: 'rgba(255, 255, 255, 0.9)',
-                        bordercolor: '#333',
-                        borderwidth: 1,
-                        borderpad: 4,
+                        showarrow: false,
+                        yshift: 10,
                         font: {
                             size: pcaLabelFontSize,
                             color: '#000'
