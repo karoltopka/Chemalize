@@ -798,6 +798,25 @@
             </small>
         </div>
 
+        <!-- Legend Name Editor (shown after plot is generated) -->
+        <div id="pca-legend-editor" style="display: none;" class="mt-2 mb-3">
+            <div style="cursor: pointer; user-select: none;" id="legend-editor-toggle">
+                <h6 class="mb-0">
+                    <i class="fas fa-chevron-right" id="legend-editor-chevron" style="transition: transform 0.2s; font-size: 0.75rem;"></i>
+                    <i class="fas fa-pen-fancy ml-1"></i> Edit Legend Names
+                </h6>
+            </div>
+            <div id="legend-editor-body" style="display: none; margin-top: 8px;">
+                <div id="legend-entries" style="max-height: 250px; overflow-y: auto;"></div>
+                <button id="apply-legend-names" class="modern-btn btn-sm btn-primary-modern mt-2">
+                    <i class="fas fa-check"></i> Apply
+                </button>
+                <button id="reset-legend-names" class="modern-btn btn-sm btn-outline-secondary mt-2">
+                    <i class="fas fa-undo"></i> Reset
+                </button>
+            </div>
+        </div>
+
         <div id="pca-plot-container" class="plot-container"></div>
     </div>
     {% else %}
@@ -966,6 +985,7 @@
     let currentFilterColumn = null;
     let currentFilterValues = null;
     let filterMode = 'hide'; // 'hide' = remove from plot, 'gray' = show as gray
+    let originalLegendNames = []; // Original trace names for reset
     let pcaResizeHandler = null;
     let clickedPoints = new Set(); // Persistent labels on click
 
@@ -3048,6 +3068,9 @@
         // Show label controls after plot is rendered
         document.getElementById('pca-label-controls').style.display = 'block';
 
+        // Populate legend name editor
+        populateLegendEditor(traces);
+
         // Setup filter controls if filter_column is selected
         // Show controls both on initial render AND after applying filter
         if (colorFileData.filter_column) {
@@ -3056,6 +3079,48 @@
             // Hide filter controls if no filter column selected
             document.getElementById('pca-filter-controls').style.display = 'none';
         }
+    }
+
+    function populateLegendEditor(traces) {
+        const editorDiv = document.getElementById('pca-legend-editor');
+        const entriesDiv = document.getElementById('legend-entries');
+        if (!editorDiv || !entriesDiv) return;
+
+        // Only show if there are named traces
+        const namedTraces = traces.filter(t => t.name && t.showlegend !== false);
+        if (namedTraces.length === 0) {
+            editorDiv.style.display = 'none';
+            return;
+        }
+
+        // Store original names (map traceIndex -> name)
+        originalLegendNames = traces.map(t => t.name || '');
+
+        let html = '';
+        traces.forEach((trace, idx) => {
+            if (!trace.name || trace.showlegend === false) return;
+
+            // Get trace color for the indicator dot
+            let dotColor = 'gray';
+            if (trace.marker) {
+                if (typeof trace.marker.color === 'string') {
+                    dotColor = trace.marker.color;
+                } else if (Array.isArray(trace.marker.color) && trace.marker.color.length > 0) {
+                    dotColor = '#888'; // numeric array - use neutral
+                }
+            }
+
+            html += `
+                <div class="d-flex align-items-center mb-1" style="gap: 6px;">
+                    <span style="width: 12px; height: 12px; border-radius: 50%; background: ${dotColor}; flex-shrink: 0; opacity: 0.8;"></span>
+                    <input type="text" class="form-control form-control-sm legend-name-input"
+                           data-trace-idx="${idx}" value="${trace.name.replace(/"/g, '&quot;')}"
+                           style="font-size: 0.85rem; padding: 2px 6px; height: 28px;">
+                </div>`;
+        });
+
+        entriesDiv.innerHTML = html;
+        editorDiv.style.display = 'block';
     }
 
     // Modal function
@@ -4576,6 +4641,52 @@
             currentFilterValues = null;
             renderPCAPlot(originalPCAData, false);
             showFlashMessage('Filter cleared', 'info');
+        });
+
+        // Legend editor toggle
+        document.getElementById('legend-editor-toggle')?.addEventListener('click', function () {
+            const body = document.getElementById('legend-editor-body');
+            const chevron = document.getElementById('legend-editor-chevron');
+            if (body.style.display === 'none') {
+                body.style.display = 'block';
+                chevron.style.transform = 'rotate(90deg)';
+            } else {
+                body.style.display = 'none';
+                chevron.style.transform = 'rotate(0deg)';
+            }
+        });
+
+        // Apply legend names
+        document.getElementById('apply-legend-names')?.addEventListener('click', function () {
+            const plotEl = document.getElementById('pca-plotly');
+            if (!plotEl || !plotEl.data) return;
+
+            const inputs = document.querySelectorAll('.legend-name-input');
+            inputs.forEach(input => {
+                const idx = parseInt(input.dataset.traceIdx);
+                const newName = input.value.trim();
+                if (!isNaN(idx) && idx < plotEl.data.length && newName) {
+                    Plotly.restyle('pca-plotly', { name: newName }, [idx]);
+                }
+            });
+            showFlashMessage('Legend names updated', 'success');
+        });
+
+        // Reset legend names
+        document.getElementById('reset-legend-names')?.addEventListener('click', function () {
+            const plotEl = document.getElementById('pca-plotly');
+            if (!plotEl || !plotEl.data) return;
+
+            const inputs = document.querySelectorAll('.legend-name-input');
+            inputs.forEach(input => {
+                const idx = parseInt(input.dataset.traceIdx);
+                if (!isNaN(idx) && idx < originalLegendNames.length) {
+                    const origName = originalLegendNames[idx];
+                    input.value = origName;
+                    Plotly.restyle('pca-plotly', { name: origName }, [idx]);
+                }
+            });
+            showFlashMessage('Legend names reset', 'info');
         });
 
         // Show all labels button
