@@ -3,7 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="EPI Suiter - web parser and Applicability Domain assessor for EPA EPI Suite output files. Modules: KOWWIN (Log Kow), BIOWIN (biodegradation, 6 models), BCFBAF (bioconcentration/bioaccumulation, Arnot-Gobas trophic estimates), KOCWIN (soil sorption Koc). Per-module AD assessment (IN AD / OUT OF AD). Batch processing, CSV/XLSX export.">
     <title>EPI Suiter - Applicability Domain Analysis</title>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "EPI Suiter",
+      "applicationCategory": "Scientific Software",
+      "applicationSubCategory": "Environmental Fate and Hazard Assessment",
+      "description": "Web-based parser and Applicability Domain assessor for EPA EPI Suite output files. Evaluates prediction reliability for environmental fate properties of organic chemicals.",
+      "featureList": [
+        "KOWWIN: Octanol-water partition coefficient (Log Kow) with fragment contributions",
+        "BIOWIN: Biodegradation probability — 6 models (Biowin1-6): linear/logistic fast biodegradation, ultimate/primary biodegradation timeframes (Hours/Days/Weeks/Months/Recalcitrant), MITI ready biodegradation",
+        "BCFBAF: Bioconcentration factor (Log BCF), bioaccumulation factor (Log BAF), Arnot-Gobas upper/mid/lower trophic level estimates, biotransformation half-life",
+        "KOCWIN: Soil sorption coefficient (Koc) via MCI (Molecular Connectivity Index) and Log Kow dual estimation methods with correction factors",
+        "Per-module Applicability Domain (AD) assessment based on MW ranges, fragment maxima, training/validation set boundaries",
+        "AD status classification: IN AD, OUT OF AD, IN AD with caution",
+        "Batch processing of multiple compounds from single file",
+        "Basic mode (key outputs) and advanced mode (full fragment details)",
+        "CSV and XLSX export",
+        "Metal content detection and prediction warnings",
+        "Per-compound result cards with property tables and assessment badges"
+      ],
+      "author": {"@type": "Person", "name": "Karol Topka Kłończyński"},
+      "programmingLanguage": ["Python", "JavaScript"]
+    }
+    </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">

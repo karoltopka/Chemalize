@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Karol Topka Kłończyński - portfolio. ChemAlize: platforma QSAR/ML do analizy danych chemicznych z walidacją modeli (R², Q², RMSE, LOO, cross-validation), applicability domain (Williams plot), PCA, PCR, MLR, klasyfikacją i klasteryzacją. ScopeHub: asystent wyszukiwania literatury. NanoTox: predykcja toksyczności nanocząstek.">
+    <meta name="description" content="Karol Topka Kłończyński - portfolio. ChemAlize: platforma QSAR/ML z walidacją modeli (R², Q², RMSE, LOO, cross-validation), applicability domain (Williams plot), PCA, PCR, MLR, klasyfikacją i klasteryzacją. EPI Suiter: parser EPA EPI Suite z oceną Applicability Domain — KOWWIN (Log Kow), BIOWIN (biodegradacja, 6 modeli), BCFBAF (BCF/BAF, Arnot-Gobas), KOCWIN (Koc). ScopeHub: asystent wyszukiwania literatury. NanoTox: predykcja toksyczności nanocząstek.">
     <title>TopKarol</title>
     <script type="application/ld+json">
     {
@@ -21,6 +21,13 @@
             "applicationCategory": "Scientific Software",
             "description": "Web platform for chemical data analysis and QSAR modeling without coding. Features: Multiple Linear Regression (MLR) with R², Q², Q²LOO, RMSE, MAE, CCC metrics; Principal Component Regression (PCR); PCA with Alvadesk descriptor group selection (34 groups, 5799 descriptors); 5-fold cross-validation and Leave-One-Out (LOO) validation; Applicability Domain via Williams plot (leverage, h* threshold, standardized residuals); Classification (Logistic Regression, Naive Bayes, SVM/Linear SVC, KNN, Decision Tree, Random Forest) with accuracy, precision, recall, F1-score, confusion matrix; Clustering (K-Means with elbow method, DBSCAN, Hierarchical HCA with dendrograms) with Silhouette Score and Calinski-Harabasz Index; Variance Inflation Factor (VIF); Durbin-Watson statistic; interactive Plotly visualizations; PDF/CSV export.",
             "featureList": ["MLR regression with R², Q², Q²LOO, RMSE, MAE, CCC", "PCR regression", "PCA with Alvadesk descriptor groups", "5-fold cross-validation", "Leave-One-Out validation", "Applicability domain (Williams plot)", "Classification: SVM, RF, KNN, Decision Tree, Logistic Regression, Naive Bayes", "Clustering: K-Means, DBSCAN, HCA", "Silhouette Score, Calinski-Harabasz Index", "Interactive Plotly visualizations", "PDF/CSV report export"]
+          },
+          {
+            "@type": "SoftwareApplication",
+            "name": "EPI Suiter",
+            "applicationCategory": "Scientific Software",
+            "description": "Web-based parser and Applicability Domain (AD) assessor for EPA EPI Suite output files. Parses batch EPI Suite results and evaluates prediction reliability. Supported modules: KOWWIN (Log Kow / octanol-water partition coefficient with fragment contributions), BIOWIN (biodegradation probability — 6 models: linear/logistic fast biodegradation, ultimate/primary biodegradation timeframes, MITI ready biodegradation), BCFBAF (bioconcentration and bioaccumulation factors — Log BCF, Log BAF, Arnot-Gobas upper/mid/lower trophic level estimates, biotransformation half-life), KOCWIN (soil sorption coefficient Koc — dual estimation via MCI and Log Kow methods with correction factors). Each module includes independent Applicability Domain assessment based on molecular weight ranges, fragment maxima, and training/validation set boundaries. Outputs: per-compound result cards, basic/advanced export modes, CSV/XLSX download, batch processing of multiple compounds.",
+            "featureList": ["KOWWIN: Log Kow estimation with fragment contributions and AD assessment", "BIOWIN: 6 biodegradation models (linear, logistic, ultimate, primary, MITI ready)", "BCFBAF: Log BCF, Log BAF, Arnot-Gobas trophic estimates, biotransformation half-life", "KOCWIN: Soil sorption Koc via MCI and Log Kow methods", "Per-module Applicability Domain (AD) assessment", "AD status: IN AD / OUT OF AD / IN AD with caution", "Batch processing of multiple compounds", "Basic and advanced export modes", "CSV and XLSX download", "Metal content detection and warnings"]
           }
         ]
       }
