@@ -807,13 +807,18 @@
                 </h6>
             </div>
             <div id="legend-editor-body" style="display: none; margin-top: 8px;">
-                <div id="legend-entries" style="max-height: 250px; overflow-y: auto;"></div>
-                <button id="apply-legend-names" class="modern-btn btn-sm btn-primary-modern mt-2">
-                    <i class="fas fa-check"></i> Apply
-                </button>
-                <button id="reset-legend-names" class="modern-btn btn-sm btn-outline-secondary mt-2">
-                    <i class="fas fa-undo"></i> Reset
-                </button>
+                <div id="legend-entries" style="max-height: 300px; overflow-y: auto;"></div>
+                <div class="mt-2" style="display: flex; gap: 4px; flex-wrap: wrap;">
+                    <button id="apply-legend-names" class="modern-btn btn-sm btn-primary-modern">
+                        <i class="fas fa-check"></i> Apply Names
+                    </button>
+                    <button id="apply-legend-order" class="modern-btn btn-sm btn-primary-modern">
+                        <i class="fas fa-sort"></i> Apply Order
+                    </button>
+                    <button id="reset-legend-names" class="modern-btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-undo"></i> Reset
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -986,6 +991,7 @@
     let currentFilterValues = null;
     let filterMode = 'hide'; // 'hide' = remove from plot, 'gray' = show as gray
     let originalLegendNames = []; // Original trace names for reset
+    let originalLegendColors = [];
     let pcaResizeHandler = null;
     let clickedPoints = new Set(); // Persistent labels on click
 
@@ -2760,11 +2766,11 @@
                         name: 'New Compounds',
                         marker: {
                             size: 10,
-                            color: 'rgba(220, 38, 38, 0.8)',
+                            color: 'rgba(110, 110, 110, 0.8)',
                             symbol: 'diamond',  // Different shape from original circles
                             line: {
                                 width: 1,
-                                color: 'rgba(127, 29, 29, 1)'
+                                color: 'rgba(120, 120, 120, 1)'
                             }
                         },
                         text: pcaData.new_compounds.labels || null,
@@ -3089,46 +3095,133 @@
         }
     }
 
+    function colorToHex(color) {
+        if (!color) return '#888888';
+        if (/^#[0-9a-fA-F]{6}$/.test(color)) return color;
+        if (/^#[0-9a-fA-F]{3}$/.test(color)) {
+            return '#' + color[1]+color[1] + color[2]+color[2] + color[3]+color[3];
+        }
+        const m = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+        if (m) {
+            return '#' + [m[1],m[2],m[3]].map(v => parseInt(v).toString(16).padStart(2,'0')).join('');
+        }
+        try {
+            const ctx = document.createElement('canvas').getContext('2d');
+            ctx.fillStyle = color;
+            return ctx.fillStyle;
+        } catch(e) {
+            return '#888888';
+        }
+    }
+
     function populateLegendEditor(traces) {
         const editorDiv = document.getElementById('pca-legend-editor');
         const entriesDiv = document.getElementById('legend-entries');
         if (!editorDiv || !entriesDiv) return;
 
-        // Only show if there are named traces
         const namedTraces = traces.filter(t => t.name && t.showlegend !== false);
         if (namedTraces.length === 0) {
             editorDiv.style.display = 'none';
             return;
         }
 
-        // Store original names (map traceIndex -> name)
         originalLegendNames = traces.map(t => t.name || '');
+        originalLegendColors = traces.map(t => {
+            if (t.marker) {
+                if (typeof t.marker.color === 'string') return t.marker.color;
+            }
+            return null;
+        });
+
+        buildLegendEditorRows(traces);
+        editorDiv.style.display = 'block';
+    }
+
+    function buildLegendEditorRows(traces) {
+        const entriesDiv = document.getElementById('legend-entries');
+        if (!entriesDiv) return;
+
+        // Collect visible trace indices
+        const visibleIndices = [];
+        traces.forEach((trace, idx) => {
+            if (trace.name && trace.showlegend !== false) {
+                visibleIndices.push(idx);
+            }
+        });
 
         let html = '';
-        traces.forEach((trace, idx) => {
-            if (!trace.name || trace.showlegend === false) return;
+        visibleIndices.forEach((traceIdx, pos) => {
+            const trace = traces[traceIdx];
 
-            // Get trace color for the indicator dot
-            let dotColor = 'gray';
+            let dotColor = '#888888';
+            let isNumericColor = false;
             if (trace.marker) {
                 if (typeof trace.marker.color === 'string') {
                     dotColor = trace.marker.color;
                 } else if (Array.isArray(trace.marker.color) && trace.marker.color.length > 0) {
-                    dotColor = '#888'; // numeric array - use neutral
+                    isNumericColor = true;
                 }
             }
 
+            const hexColor = colorToHex(dotColor);
+            const isFirst = pos === 0;
+            const isLast = pos === visibleIndices.length - 1;
+
             html += `
-                <div class="d-flex align-items-center mb-1" style="gap: 6px;">
-                    <span style="width: 12px; height: 12px; border-radius: 50%; background: ${dotColor}; flex-shrink: 0; opacity: 0.8;"></span>
+                <div class="legend-editor-row d-flex align-items-center mb-1" data-trace-idx="${traceIdx}" style="gap: 4px;">
+                    <div style="display: flex; flex-direction: column; gap: 1px; flex-shrink: 0;">
+                        <button type="button" class="legend-move-btn" data-dir="up" ${isFirst ? 'disabled' : ''}
+                                style="border: none; background: none; padding: 0 2px; line-height: 1; cursor: pointer; color: ${isFirst ? '#ccc' : '#555'}; font-size: 0.7rem;">
+                            <i class="fas fa-caret-up"></i>
+                        </button>
+                        <button type="button" class="legend-move-btn" data-dir="down" ${isLast ? 'disabled' : ''}
+                                style="border: none; background: none; padding: 0 2px; line-height: 1; cursor: pointer; color: ${isLast ? '#ccc' : '#555'}; font-size: 0.7rem;">
+                            <i class="fas fa-caret-down"></i>
+                        </button>
+                    </div>
+                    <input type="color" class="legend-color-input" data-trace-idx="${traceIdx}"
+                           value="${hexColor}" ${isNumericColor ? 'disabled title="Numeric color scale"' : ''}
+                           style="width: 24px; height: 24px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: ${isNumericColor ? 'not-allowed' : 'pointer'}; flex-shrink: 0;">
                     <input type="text" class="form-control form-control-sm legend-name-input"
-                           data-trace-idx="${idx}" value="${trace.name.replace(/"/g, '&quot;')}"
+                           data-trace-idx="${traceIdx}" value="${trace.name.replace(/"/g, '&quot;')}"
                            style="font-size: 0.85rem; padding: 2px 6px; height: 28px;">
                 </div>`;
         });
 
         entriesDiv.innerHTML = html;
-        editorDiv.style.display = 'block';
+
+        // Attach move button listeners
+        entriesDiv.querySelectorAll('.legend-move-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                if (this.disabled) return;
+                const row = this.closest('.legend-editor-row');
+                const dir = this.dataset.dir;
+                const sibling = dir === 'up' ? row.previousElementSibling : row.nextElementSibling;
+                if (!sibling) return;
+
+                if (dir === 'up') {
+                    row.parentNode.insertBefore(row, sibling);
+                } else {
+                    row.parentNode.insertBefore(sibling, row);
+                }
+
+                // Refresh disabled states
+                refreshMoveButtons(entriesDiv);
+            });
+        });
+    }
+
+    function refreshMoveButtons(container) {
+        const rows = container.querySelectorAll('.legend-editor-row');
+        rows.forEach((row, pos) => {
+            const btns = row.querySelectorAll('.legend-move-btn');
+            btns.forEach(btn => {
+                const isUp = btn.dataset.dir === 'up';
+                const shouldDisable = isUp ? pos === 0 : pos === rows.length - 1;
+                btn.disabled = shouldDisable;
+                btn.style.color = shouldDisable ? '#ccc' : '#555';
+            });
+        });
     }
 
     // Modal function
@@ -4664,7 +4757,7 @@
             }
         });
 
-        // Apply legend names
+        // Apply legend names and colors
         document.getElementById('apply-legend-names')?.addEventListener('click', function () {
             const plotEl = document.getElementById('pca-plotly');
             if (!plotEl || !plotEl.data) return;
@@ -4677,10 +4770,64 @@
                     Plotly.restyle('pca-plotly', { name: newName }, [idx]);
                 }
             });
-            showFlashMessage('Legend names updated', 'success');
+
+            const colorInputs = document.querySelectorAll('.legend-color-input:not(:disabled)');
+            colorInputs.forEach(input => {
+                const idx = parseInt(input.dataset.traceIdx);
+                const newColor = input.value;
+                if (!isNaN(idx) && idx < plotEl.data.length) {
+                    Plotly.restyle('pca-plotly', { 'marker.color': newColor }, [idx]);
+                }
+            });
+            showFlashMessage('Legend updated', 'success');
         });
 
-        // Reset legend names
+        // Apply legend order
+        document.getElementById('apply-legend-order')?.addEventListener('click', function () {
+            const plotEl = document.getElementById('pca-plotly');
+            if (!plotEl || !plotEl.data) return;
+
+            // Read the current row order from the editor DOM
+            const rows = document.querySelectorAll('#legend-entries .legend-editor-row');
+            const desiredOrder = Array.from(rows).map(r => parseInt(r.dataset.traceIdx));
+
+            // Build the full reorder: traces not in legend keep their relative position
+            // but legend traces are reordered as the user arranged them
+            const totalTraces = plotEl.data.length;
+            const inEditor = new Set(desiredOrder);
+
+            // Current indices of all traces: [0, 1, 2, ...]
+            // We need to produce a new ordering array for Plotly.moveTraces
+            // Strategy: build new order by going through current positions,
+            // replacing legend-trace slots with the desired order
+            const currentOrder = Array.from({ length: totalTraces }, (_, i) => i);
+            const legendSlots = currentOrder.filter(i => inEditor.has(i));
+
+            // Map: old legend slot positions -> new trace indices
+            const newOrder = [];
+            let legendPos = 0;
+            for (let i = 0; i < totalTraces; i++) {
+                if (inEditor.has(i)) {
+                    newOrder.push(desiredOrder[legendPos]);
+                    legendPos++;
+                } else {
+                    newOrder.push(i);
+                }
+            }
+
+            // Plotly.moveTraces takes (gd, currentIndices, newIndices)
+            Plotly.moveTraces('pca-plotly', currentOrder, newOrder).then(() => {
+                const oldNames = [...originalLegendNames];
+                const oldColors = [...originalLegendColors];
+                originalLegendNames = newOrder.map(i => oldNames[i]);
+                originalLegendColors = newOrder.map(i => oldColors[i]);
+
+                buildLegendEditorRows(plotEl.data);
+                showFlashMessage('Legend order updated', 'success');
+            });
+        });
+
+        // Reset legend names and colors
         document.getElementById('reset-legend-names')?.addEventListener('click', function () {
             const plotEl = document.getElementById('pca-plotly');
             if (!plotEl || !plotEl.data) return;
@@ -4694,7 +4841,17 @@
                     Plotly.restyle('pca-plotly', { name: origName }, [idx]);
                 }
             });
-            showFlashMessage('Legend names reset', 'info');
+
+            const colorInputs = document.querySelectorAll('.legend-color-input:not(:disabled)');
+            colorInputs.forEach(input => {
+                const idx = parseInt(input.dataset.traceIdx);
+                if (!isNaN(idx) && idx < originalLegendColors.length && originalLegendColors[idx] !== null) {
+                    const origColor = originalLegendColors[idx];
+                    input.value = colorToHex(origColor);
+                    Plotly.restyle('pca-plotly', { 'marker.color': origColor }, [idx]);
+                }
+            });
+            showFlashMessage('Legend reset', 'info');
         });
 
         // Show all labels button
