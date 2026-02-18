@@ -164,7 +164,6 @@ def perform_pca():
 
     # Store identifier columns to add back after PCA
     identifier_cols = df.select_dtypes(exclude=['number']).columns.tolist()
-    print(f"\n🔍 PCA: Found {len(identifier_cols)} identifier columns: {identifier_cols}")
 
     # ===========================
     # Check for Correlation-based Feature Selection FIRST
@@ -200,14 +199,6 @@ def perform_pca():
                 # Get summary for logging
                 summary = get_group_summary(custom_groups, selected_group_ids)
 
-                print(f"\n📊 DESCRIPTOR GROUPS FILTERING:")
-                print(f"   Selected groups: {summary['num_groups']}")
-                print(f"   Group names: {', '.join(summary['group_names'])}")
-                print(f"   Descriptors used: {summary['total_descriptors']}")
-                print(f"   Descriptor columns kept: {len(descriptor_columns_kept)}")
-                print(f"   Original DataFrame shape: {df.shape}")
-                print(f"   Filtered DataFrame shape: {df_filtered.shape}")
-
                 # Use filtered dataframe for PCA
                 df = df_filtered
                 descriptor_groups_used = True
@@ -220,11 +211,8 @@ def perform_pca():
                 flash(f"PCA performed on {summary['num_groups']} descriptor groups ({summary['total_descriptors']} descriptors)", 'info')
 
             except Exception as e:
-                print(f"❌ Error filtering by descriptor groups: {e}")
                 flash(f"Warning: Could not apply descriptor groups filter: {str(e)}", 'warning')
                 descriptor_groups_used = False
-        else:
-            print("⚠️  Selected groups provided but no custom groups found in session")
 
     if not descriptor_groups_used:
         session['pca_descriptor_groups_used'] = False
@@ -308,20 +296,15 @@ def perform_pca():
         # ✨ ADD IDENTIFIER COLUMNS TO PCA COMPONENTS FILE ✨
         pca_components_path = os.path.join(ensure_temp_dir(), 'pca_components.csv')
         if os.path.exists(pca_components_path) and identifier_cols:
-            print(f"\n✨ Adding identifier columns to PCA file...")
             pca_df = pd.read_csv(pca_components_path)
-            print(f"   Before: {list(pca_df.columns)}")
 
             # Add each identifier column
             for col in identifier_cols:
                 if col in df.columns and col not in pca_df.columns:
                     pca_df[col] = df[col].reset_index(drop=True)
-                    print(f"   ✓ Added: {col}")
 
             # Save back
             pca_df.to_csv(pca_components_path, index=False)
-            print(f"   After: {list(pca_df.columns)}")
-            print(f"✅ Saved PCA file with {len(pca_df.columns)} total columns\n")
 
         # Add timestamp to prevent browser caching of images
         timestamp = int(time.time() * 1000)  # milliseconds for better uniqueness
