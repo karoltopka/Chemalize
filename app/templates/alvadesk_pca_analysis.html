@@ -795,6 +795,30 @@
             </div>
         </div>
 
+        <!-- Legend Editor -->
+        <div id="alvadesk-legend-editor" style="display: none;" class="mt-2 mb-3">
+            <div style="cursor: pointer; user-select: none;" id="alvadesk-legend-editor-toggle">
+                <h6 class="mb-0">
+                    <i class="fas fa-chevron-right" id="alvadesk-legend-editor-chevron" style="transition: transform 0.2s; font-size: 0.75rem;"></i>
+                    <i class="fas fa-pen-fancy ml-1"></i> Edit Legend Names
+                </h6>
+            </div>
+            <div id="alvadesk-legend-editor-body" style="display: none; margin-top: 8px;">
+                <div id="alvadesk-legend-entries" style="max-height: 300px; overflow-y: auto;"></div>
+                <div class="mt-2" style="display: flex; gap: 4px; flex-wrap: wrap;">
+                    <button id="alvadesk-apply-legend-names" class="modern-btn btn-sm btn-primary-modern">
+                        <i class="fas fa-check"></i> Apply Names
+                    </button>
+                    <button id="alvadesk-apply-legend-order" class="modern-btn btn-sm btn-primary-modern">
+                        <i class="fas fa-sort"></i> Apply Order
+                    </button>
+                    <button id="alvadesk-reset-legend-names" class="modern-btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-undo"></i> Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Filtering Controls (shown when filter available) -->
         <div id="alvadesk-filter-section" class="mt-3" style="display: none;">
             <div class="modern-card-inner">
@@ -967,6 +991,8 @@
     let currentAlvadeskFilterColumn = null;
     let currentAlvadeskFilterValues = null;
     let alvadeskFilterMode = 'hide'; // 'hide' = remove from plot, 'gray' = show as gray
+    let originalAlvadeskLegendNames = [];
+    let originalAlvadeskLegendColors = [];
 
     // Update selected groups count
     function updateSelectedCount() {
@@ -2303,6 +2329,9 @@
             }
         });
 
+        // Populate legend editor
+        populateAlvadeskLegendEditor(traces);
+
         // Add resize listener with explicit width/height to maintain square
         let resizeTimer;
         window.addEventListener('resize', function () {
@@ -2319,6 +2348,134 @@
             }, 250);
         });
         }, 50);  // End of setTimeout
+    }
+
+    function colorToHex(color) {
+        if (!color) return '#888888';
+        // Already hex
+        if (/^#[0-9a-fA-F]{6}$/.test(color)) return color;
+        if (/^#[0-9a-fA-F]{3}$/.test(color)) {
+            return '#' + color[1]+color[1] + color[2]+color[2] + color[3]+color[3];
+        }
+        // rgb/rgba
+        const m = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+        if (m) {
+            return '#' + [m[1],m[2],m[3]].map(v => parseInt(v).toString(16).padStart(2,'0')).join('');
+        }
+        // Named colors - use canvas
+        try {
+            const ctx = document.createElement('canvas').getContext('2d');
+            ctx.fillStyle = color;
+            return ctx.fillStyle; // returns hex
+        } catch(e) {
+            return '#888888';
+        }
+    }
+
+    function populateAlvadeskLegendEditor(traces) {
+        const editorDiv = document.getElementById('alvadesk-legend-editor');
+        const entriesDiv = document.getElementById('alvadesk-legend-entries');
+        if (!editorDiv || !entriesDiv) return;
+
+        const namedTraces = traces.filter(t => t.name && t.showlegend !== false);
+        if (namedTraces.length === 0) {
+            editorDiv.style.display = 'none';
+            return;
+        }
+
+        originalAlvadeskLegendNames = traces.map(t => t.name || '');
+        originalAlvadeskLegendColors = traces.map(t => {
+            if (t.marker) {
+                if (typeof t.marker.color === 'string') return t.marker.color;
+            }
+            return null;
+        });
+        buildAlvadeskLegendEditorRows(traces);
+        editorDiv.style.display = 'block';
+    }
+
+    function buildAlvadeskLegendEditorRows(traces) {
+        const entriesDiv = document.getElementById('alvadesk-legend-entries');
+        if (!entriesDiv) return;
+
+        const visibleIndices = [];
+        traces.forEach((trace, idx) => {
+            if (trace.name && trace.showlegend !== false) {
+                visibleIndices.push(idx);
+            }
+        });
+
+        let html = '';
+        visibleIndices.forEach((traceIdx, pos) => {
+            const trace = traces[traceIdx];
+            let dotColor = '#888888';
+            let isNumericColor = false;
+            if (trace.marker) {
+                if (typeof trace.marker.color === 'string') {
+                    dotColor = trace.marker.color;
+                } else if (Array.isArray(trace.marker.color) && trace.marker.color.length > 0) {
+                    isNumericColor = true;
+                }
+            }
+
+            // Convert color formats to hex for the color input
+            const hexColor = colorToHex(dotColor);
+
+            const isFirst = pos === 0;
+            const isLast = pos === visibleIndices.length - 1;
+
+            html += `
+                <div class="alvadesk-legend-editor-row d-flex align-items-center mb-1" data-trace-idx="${traceIdx}" style="gap: 4px;">
+                    <div style="display: flex; flex-direction: column; gap: 1px; flex-shrink: 0;">
+                        <button type="button" class="alvadesk-legend-move-btn" data-dir="up" ${isFirst ? 'disabled' : ''}
+                                style="border: none; background: none; padding: 0 2px; line-height: 1; cursor: pointer; color: ${isFirst ? '#ccc' : '#555'}; font-size: 0.7rem;">
+                            <i class="fas fa-caret-up"></i>
+                        </button>
+                        <button type="button" class="alvadesk-legend-move-btn" data-dir="down" ${isLast ? 'disabled' : ''}
+                                style="border: none; background: none; padding: 0 2px; line-height: 1; cursor: pointer; color: ${isLast ? '#ccc' : '#555'}; font-size: 0.7rem;">
+                            <i class="fas fa-caret-down"></i>
+                        </button>
+                    </div>
+                    <input type="color" class="alvadesk-legend-color-input" data-trace-idx="${traceIdx}"
+                           value="${hexColor}" ${isNumericColor ? 'disabled title="Numeric color scale"' : ''}
+                           style="width: 24px; height: 24px; padding: 0; border: 1px solid #ccc; border-radius: 4px; cursor: ${isNumericColor ? 'not-allowed' : 'pointer'}; flex-shrink: 0;">
+                    <input type="text" class="form-control form-control-sm alvadesk-legend-name-input"
+                           data-trace-idx="${traceIdx}" value="${trace.name.replace(/"/g, '&quot;')}"
+                           style="font-size: 0.85rem; padding: 2px 6px; height: 28px;">
+                </div>`;
+        });
+
+        entriesDiv.innerHTML = html;
+
+        entriesDiv.querySelectorAll('.alvadesk-legend-move-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                if (this.disabled) return;
+                const row = this.closest('.alvadesk-legend-editor-row');
+                const dir = this.dataset.dir;
+                const sibling = dir === 'up' ? row.previousElementSibling : row.nextElementSibling;
+                if (!sibling) return;
+
+                if (dir === 'up') {
+                    row.parentNode.insertBefore(row, sibling);
+                } else {
+                    row.parentNode.insertBefore(sibling, row);
+                }
+                refreshAlvadeskMoveButtons(entriesDiv);
+            });
+        });
+    }
+
+    function refreshAlvadeskMoveButtons(container) {
+        const rows = container.querySelectorAll('.alvadesk-legend-editor-row');
+        rows.forEach((row, pos) => {
+            const btns = row.querySelectorAll('.alvadesk-legend-move-btn');
+            btns.forEach(btn => {
+                const isUp = btn.dataset.dir === 'up';
+                const shouldDisable = isUp ? pos === 0 : pos === rows.length - 1;
+                btn.disabled = shouldDisable;
+                btn.style.color = shouldDisable ? '#ccc' : '#555';
+            });
+        });
     }
 
     function saveAlvadeskColoredPlot() {
@@ -3659,6 +3816,101 @@
         axisLabelSizeInput.addEventListener('input', applyAlvadeskAxisLabelSizes);
         axisLabelSizeInput.addEventListener('change', applyAlvadeskAxisLabelSizes);
     }
+
+    // Legend editor toggle
+    document.getElementById('alvadesk-legend-editor-toggle')?.addEventListener('click', function () {
+        const body = document.getElementById('alvadesk-legend-editor-body');
+        const chevron = document.getElementById('alvadesk-legend-editor-chevron');
+        if (body.style.display === 'none') {
+            body.style.display = 'block';
+            chevron.style.transform = 'rotate(90deg)';
+        } else {
+            body.style.display = 'none';
+            chevron.style.transform = 'rotate(0deg)';
+        }
+    });
+
+    // Apply legend names and colors
+    document.getElementById('alvadesk-apply-legend-names')?.addEventListener('click', function () {
+        const plotEl = document.getElementById('pca-plotly');
+        if (!plotEl || !plotEl.data) return;
+
+        const inputs = document.querySelectorAll('.alvadesk-legend-name-input');
+        inputs.forEach(input => {
+            const idx = parseInt(input.dataset.traceIdx);
+            const newName = input.value.trim();
+            if (!isNaN(idx) && idx < plotEl.data.length && newName) {
+                Plotly.restyle('pca-plotly', { name: newName }, [idx]);
+            }
+        });
+
+        const colorInputs = document.querySelectorAll('.alvadesk-legend-color-input:not(:disabled)');
+        colorInputs.forEach(input => {
+            const idx = parseInt(input.dataset.traceIdx);
+            const newColor = input.value;
+            if (!isNaN(idx) && idx < plotEl.data.length) {
+                Plotly.restyle('pca-plotly', { 'marker.color': newColor }, [idx]);
+            }
+        });
+    });
+
+    // Apply legend order
+    document.getElementById('alvadesk-apply-legend-order')?.addEventListener('click', function () {
+        const plotEl = document.getElementById('pca-plotly');
+        if (!plotEl || !plotEl.data) return;
+
+        const rows = document.querySelectorAll('#alvadesk-legend-entries .alvadesk-legend-editor-row');
+        const desiredOrder = Array.from(rows).map(r => parseInt(r.dataset.traceIdx));
+
+        const totalTraces = plotEl.data.length;
+        const inEditor = new Set(desiredOrder);
+        const currentOrder = Array.from({ length: totalTraces }, (_, i) => i);
+
+        const newOrder = [];
+        let legendPos = 0;
+        for (let i = 0; i < totalTraces; i++) {
+            if (inEditor.has(i)) {
+                newOrder.push(desiredOrder[legendPos]);
+                legendPos++;
+            } else {
+                newOrder.push(i);
+            }
+        }
+
+        Plotly.moveTraces('pca-plotly', currentOrder, newOrder).then(() => {
+            const oldNames = [...originalAlvadeskLegendNames];
+            const oldColors = [...originalAlvadeskLegendColors];
+            originalAlvadeskLegendNames = newOrder.map(i => oldNames[i]);
+            originalAlvadeskLegendColors = newOrder.map(i => oldColors[i]);
+            buildAlvadeskLegendEditorRows(plotEl.data);
+        });
+    });
+
+    // Reset legend names and colors
+    document.getElementById('alvadesk-reset-legend-names')?.addEventListener('click', function () {
+        const plotEl = document.getElementById('pca-plotly');
+        if (!plotEl || !plotEl.data) return;
+
+        const inputs = document.querySelectorAll('.alvadesk-legend-name-input');
+        inputs.forEach(input => {
+            const idx = parseInt(input.dataset.traceIdx);
+            if (!isNaN(idx) && idx < originalAlvadeskLegendNames.length) {
+                const origName = originalAlvadeskLegendNames[idx];
+                input.value = origName;
+                Plotly.restyle('pca-plotly', { name: origName }, [idx]);
+            }
+        });
+
+        const colorInputs = document.querySelectorAll('.alvadesk-legend-color-input:not(:disabled)');
+        colorInputs.forEach(input => {
+            const idx = parseInt(input.dataset.traceIdx);
+            if (!isNaN(idx) && idx < originalAlvadeskLegendColors.length && originalAlvadeskLegendColors[idx] !== null) {
+                const origColor = originalAlvadeskLegendColors[idx];
+                input.value = colorToHex(origColor);
+                Plotly.restyle('pca-plotly', { 'marker.color': origColor }, [idx]);
+            }
+        });
+    });
 });
 </script>
 {% endblock %}
