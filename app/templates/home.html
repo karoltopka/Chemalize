@@ -3,7 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ChemAlize - web platform for chemical data analysis and QSAR modeling. MLR/PCR regression (R², Q², Q²LOO, RMSE, MAE, CCC), cross-validation (5-fold, LOO), applicability domain (Williams plot), PCA with Alvadesk descriptors, classification (SVM, RF, KNN, Logistic Regression, Naive Bayes, Decision Tree), clustering (K-Means, DBSCAN, HCA) with Silhouette and Calinski-Harabasz metrics. Interactive Plotly visualizations.">
     <title>ChemAlize - Advanced Chemical Analysis</title>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "ChemAlize",
+      "applicationCategory": "Scientific Software",
+      "description": "Web-based QSAR modeling and chemical data analysis platform with comprehensive ML pipeline and model validation.",
+      "featureList": [
+        "Multiple Linear Regression (MLR) with R², Q², Q²LOO, RMSE, MAE, CCC metrics",
+        "Principal Component Regression (PCR) with train/test validation",
+        "PCA with Alvadesk descriptor group selection (34 groups, 5799 descriptors)",
+        "5-fold cross-validation and Leave-One-Out (LOO) validation",
+        "Applicability Domain assessment via Williams plot (leverage analysis, h* threshold)",
+        "Concordance Correlation Coefficient (CCC) for external validation",
+        "Variance Inflation Factor (VIF) for multicollinearity detection",
+        "Durbin-Watson statistic for residual autocorrelation",
+        "Residual analysis with Q-Q plots and standardized residuals",
+        "Classification: Logistic Regression, Naive Bayes, Linear SVC (SVM), KNN, Decision Tree, Random Forest",
+        "Classification metrics: accuracy, precision, recall, F1-score, confusion matrix",
+        "K-Fold cross-validation for classifiers",
+        "Clustering: K-Means (elbow method), DBSCAN (k-distance graph), Hierarchical HCA (dendrograms)",
+        "Clustering metrics: Silhouette Score, Calinski-Harabasz Index",
+        "Interactive Plotly visualizations",
+        "Automated data preprocessing with scaling and encoding",
+        "PDF report generation and CSV export"
+      ],
+      "author": {"@type": "Person", "name": "Karol Topka Kłończyński"},
+      "programmingLanguage": ["Python", "JavaScript"],
+      "softwareRequirements": "Flask, scikit-learn, Plotly, pandas, numpy, scipy, statsmodels"
+    }
+    </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
