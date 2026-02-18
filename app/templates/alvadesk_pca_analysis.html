@@ -2932,7 +2932,7 @@
         // Calculate data range for jitter scaling
         let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
         plotDiv.data.forEach(trace => {
-            if (trace.x && trace.y && trace.name !== 'New Compounds') {
+            if (trace.x && trace.y && trace.name !== 'New Compounds' && trace.name !== 'Filtered out') {
                 trace.x.forEach(v => { if (v < xMin) xMin = v; if (v > xMax) xMax = v; });
                 trace.y.forEach(v => { if (v < yMin) yMin = v; if (v > yMax) yMax = v; });
             }
@@ -2956,7 +2956,7 @@
         const newSize = [];
 
         plotDiv.data.forEach((trace, traceIdx) => {
-            if (trace.x && trace.y && trace.name !== 'New Compounds') {
+            if (trace.x && trace.y && trace.name !== 'New Compounds' && trace.name !== 'Filtered out') {
                 const origX = originalPointPositions[traceIdx].x;
                 const origY = originalPointPositions[traceIdx].y;
 
@@ -2979,7 +2979,7 @@
         const sizeUpdates = [];
 
         plotDiv.data.forEach((trace, traceIdx) => {
-            if (trace.x && trace.y && trace.name !== 'New Compounds') {
+            if (trace.x && trace.y && trace.name !== 'New Compounds' && trace.name !== 'Filtered out') {
                 traceIndices.push(traceIdx);
 
                 const origX = originalPointPositions[traceIdx].x;
@@ -3006,6 +3006,13 @@
                 'marker.size': sizeUpdates
             }, traceIndices);
         }
+
+        // Update size for "Filtered out" trace (but keep its own opacity)
+        plotDiv.data.forEach((trace, traceIdx) => {
+            if (trace.name === 'Filtered out') {
+                Plotly.restyle(plotDiv, { 'marker.size': markerSize }, [traceIdx]);
+            }
+        });
 
     }
 
@@ -3035,7 +3042,7 @@
         // Collect all points with their trace and point indices
         const points = [];
         plotDiv.data.forEach((trace, traceIdx) => {
-            if (trace.x && trace.y && trace.name !== 'New Compounds') {
+            if (trace.x && trace.y && trace.name !== 'New Compounds' && trace.name !== 'Filtered out') {
                 trace.x.forEach((x, pointIdx) => {
                     points.push({
                         x: x,
