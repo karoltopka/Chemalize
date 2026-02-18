@@ -803,6 +803,17 @@
                 <!-- Filter controls will be populated dynamically -->
                 <div id="alvadesk-filter-options"></div>
 
+                <div class="d-flex align-items-center mt-2 mb-1" style="gap: 12px;">
+                    <span class="text-muted" style="font-size: 0.85rem;">Filtered points:</span>
+                    <div class="form-check form-check-inline mb-0">
+                        <input class="form-check-input" type="radio" name="alvadeskFilterMode" id="alvadesk-filter-mode-hide" value="hide" checked>
+                        <label class="form-check-label" for="alvadesk-filter-mode-hide" style="font-size: 0.85rem;">Hide</label>
+                    </div>
+                    <div class="form-check form-check-inline mb-0">
+                        <input class="form-check-input" type="radio" name="alvadeskFilterMode" id="alvadesk-filter-mode-gray" value="gray">
+                        <label class="form-check-label" for="alvadesk-filter-mode-gray" style="font-size: 0.85rem;">Show as gray</label>
+                    </div>
+                </div>
                 <button type="button" class="btn btn-sm btn-primary mt-2" onclick="applyAlvadeskFilter()">
                     <i class="fas fa-check"></i> Apply Filter
                 </button>
@@ -955,6 +966,7 @@
     let originalAlvadeskPCAData = null;
     let currentAlvadeskFilterColumn = null;
     let currentAlvadeskFilterValues = null;
+    let alvadeskFilterMode = 'hide'; // 'hide' = remove from plot, 'gray' = show as gray
 
     // Update selected groups count
     function updateSelectedCount() {
@@ -1186,6 +1198,45 @@
             internalSection.style.display = 'block';
             externalSection.style.display = 'none';
         }
+    }
+
+    // Compute keep/exclude indices for gray mode
+    function getAlvadeskFilterIndices(pcaData, filterColumn, filterValues) {
+        if (!filterColumn || !filterValues) return null;
+
+        let filterDataArray = null;
+        if (pcaData.external_data && pcaData.external_data[filterColumn]) {
+            filterDataArray = pcaData.external_data[filterColumn];
+        } else if (pcaData.color_by === filterColumn && pcaData.color_data) {
+            filterDataArray = pcaData.color_data;
+        }
+        if (!filterDataArray || filterDataArray.length === 0) return null;
+
+        const keepIndices = [];
+        const excludeIndices = [];
+
+        if (Array.isArray(filterValues)) {
+            filterDataArray.forEach((value, idx) => {
+                const valueStr = String(value);
+                const matches = filterValues.some(fv => {
+                    if (valueStr === String(fv)) return true;
+                    const vn = parseFloat(value), fn = parseFloat(fv);
+                    return !isNaN(vn) && !isNaN(fn) && Math.abs(vn - fn) < 0.0001;
+                });
+                if (matches) keepIndices.push(idx);
+                else excludeIndices.push(idx);
+            });
+        } else if (filterValues.min !== undefined && filterValues.max !== undefined) {
+            filterDataArray.forEach((value, idx) => {
+                const numVal = parseFloat(value);
+                if (!isNaN(numVal) && numVal >= filterValues.min && numVal <= filterValues.max) {
+                    keepIndices.push(idx);
+                } else {
+                    excludeIndices.push(idx);
+                }
+            });
+        }
+        return { keepIndices, excludeIndices };
     }
 
     // Advanced filter function (from visualize.html)
@@ -2217,6 +2268,27 @@
             }]
         };
 
+        // Add gray trace for excluded points (gray mode)
+        if (alvadeskFilterMode === 'gray' && data.filter_info && originalAlvadeskPCAData) {
+            const indices = getAlvadeskFilterIndices(originalAlvadeskPCAData, currentAlvadeskFilterColumn, currentAlvadeskFilterValues);
+            if (indices && indices.excludeIndices.length > 0 && originalAlvadeskPCAData.pc_x_raw && originalAlvadeskPCAData.pc_y_raw) {
+                const grayX = indices.excludeIndices.filter(i => i < originalAlvadeskPCAData.pc_x_raw.length).map(i => originalAlvadeskPCAData.pc_x_raw[i]);
+                const grayY = indices.excludeIndices.filter(i => i < originalAlvadeskPCAData.pc_y_raw.length).map(i => originalAlvadeskPCAData.pc_y_raw[i]);
+                if (grayX.length > 0) {
+                    traces.unshift({
+                        x: grayX,
+                        y: grayY,
+                        mode: 'markers',
+                        type: 'scatter',
+                        name: 'Filtered out',
+                        marker: { size: 8, color: 'lightgray', opacity: 0.35 },
+                        hovertemplate: `PC${data.pc_x}: %{x:.3f}<br>PC${data.pc_y}: %{y:.3f}<extra>Filtered out</extra>`,
+                        showlegend: true
+                    });
+                }
+            }
+        }
+
         Plotly.newPlot(plotDiv, traces, layout, {
             responsive: false,
             displayModeBar: true,
@@ -2485,6 +2557,9 @@
             return;
         }
 
+        // Read filter mode
+        alvadeskFilterMode = document.querySelector('input[name="alvadeskFilterMode"]:checked')?.value || 'hide';
+
         try {
             // Get filter values based on control type
             let filterValues = null;
@@ -2563,6 +2638,17 @@
         renderAlvadeskPCAPlot(originalAlvadeskPCAData);
 
     }
+
+    // Filter mode radio buttons - auto-apply when switching
+    document.querySelectorAll('input[name="alvadeskFilterMode"]').forEach(radio => {
+        radio.addEventListener('change', function () {
+            alvadeskFilterMode = this.value;
+            if (originalAlvadeskPCAData && currentAlvadeskFilterValues) {
+                const filteredData = filterAlvadeskPCAData(originalAlvadeskPCAData, currentAlvadeskFilterColumn, currentAlvadeskFilterValues);
+                renderAlvadeskPCAPlot(filteredData);
+            }
+        });
+    });
 
     // Generate biplot with loading vectors
     function generateAlvadeskBiplot() {
@@ -3250,7 +3336,7 @@
                 const displayLabels = computeDisplayLabels(x, y, labels);
 
                 // Determine color
-                let markerColor = categoryData.color || '#dc3545';
+                let markerColor = categoryData.color || '#6e6e6e';
                 let markerOpacity = categoryData.opacity || 1.0;
 
                 const newTrace = {
@@ -3468,9 +3554,9 @@
                 marker: {
                     symbol: 'diamond',
                     size: markerSize,
-                    color: '#dc3545',
+                    color: '#6e6e6e',
                     line: {
-                        color: '#fff',
+                        color: '#787878',
                         width: 2
                     }
                 },
