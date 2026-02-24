@@ -993,6 +993,7 @@
     let alvadeskFilterMode = 'hide'; // 'hide' = remove from plot, 'gray' = show as gray
     let originalAlvadeskLegendNames = [];
     let originalAlvadeskLegendColors = [];
+    let userAlvadeskLegendCustomizations = {}; // { origTraceName: { name, color } } - survives re-renders
 
     // Update selected groups count
     function updateSelectedCount() {
@@ -2392,6 +2393,9 @@
         });
         buildAlvadeskLegendEditorRows(traces);
         editorDiv.style.display = 'block';
+
+        // Re-apply any saved user customizations (survives filter/gray re-renders)
+        _reapplyAlvadeskLegendCustomizations();
     }
 
     function buildAlvadeskLegendEditorRows(traces) {
@@ -2476,6 +2480,71 @@
                 btn.style.color = shouldDisable ? '#ccc' : '#555';
             });
         });
+    }
+
+    function _savePendingAlvadeskLegendInputs() {
+        document.querySelectorAll('.alvadesk-legend-name-input').forEach(input => {
+            const idx = parseInt(input.dataset.traceIdx);
+            const newName = input.value.trim();
+            const origName = originalAlvadeskLegendNames[idx];
+            if (origName !== undefined && newName && newName !== origName) {
+                if (!userAlvadeskLegendCustomizations[origName]) userAlvadeskLegendCustomizations[origName] = {};
+                userAlvadeskLegendCustomizations[origName].name = newName;
+            }
+        });
+        document.querySelectorAll('.alvadesk-legend-color-input:not(:disabled)').forEach(input => {
+            const idx = parseInt(input.dataset.traceIdx);
+            const newColor = input.value;
+            const origName = originalAlvadeskLegendNames[idx];
+            const origColor = originalAlvadeskLegendColors[idx];
+            if (origName !== undefined && origColor && colorToHex(origColor) !== newColor) {
+                if (!userAlvadeskLegendCustomizations[origName]) userAlvadeskLegendCustomizations[origName] = {};
+                userAlvadeskLegendCustomizations[origName].color = newColor;
+            }
+        });
+    }
+
+    function _reapplyAlvadeskLegendCustomizations() {
+        if (Object.keys(userAlvadeskLegendCustomizations).length === 0) return;
+
+        const plotEl = document.getElementById('pca-plotly');
+        if (!plotEl || !plotEl.data) return;
+
+        const nameIndices = [];
+        const nameValues = [];
+        const colorIndices = [];
+        const colorValues = [];
+
+        for (let idx = 0; idx < originalAlvadeskLegendNames.length; idx++) {
+            const origName = originalAlvadeskLegendNames[idx];
+            if (!origName) continue;
+            const custom = userAlvadeskLegendCustomizations[origName];
+            if (!custom) continue;
+
+            if (custom.name) {
+                const nameInput = document.querySelector(`.alvadesk-legend-name-input[data-trace-idx="${idx}"]`);
+                if (nameInput) {
+                    nameInput.value = custom.name;
+                    nameIndices.push(idx);
+                    nameValues.push(custom.name);
+                }
+            }
+            if (custom.color) {
+                const colorInput = document.querySelector(`.alvadesk-legend-color-input[data-trace-idx="${idx}"]:not(:disabled)`);
+                if (colorInput) {
+                    colorInput.value = colorToHex(custom.color);
+                    colorIndices.push(idx);
+                    colorValues.push(custom.color);
+                }
+            }
+        }
+
+        if (nameIndices.length > 0) {
+            Plotly.restyle('pca-plotly', { name: nameValues }, nameIndices);
+        }
+        if (colorIndices.length > 0) {
+            Plotly.restyle('pca-plotly', { 'marker.color': colorValues }, colorIndices);
+        }
     }
 
     function saveAlvadeskColoredPlot() {
@@ -3830,34 +3899,60 @@
         }
     });
 
-    // Apply legend names and colors
+    // Apply legend names and colors (batched for reliability)
     document.getElementById('alvadesk-apply-legend-names')?.addEventListener('click', function () {
         const plotEl = document.getElementById('pca-plotly');
         if (!plotEl || !plotEl.data) return;
 
-        const inputs = document.querySelectorAll('.alvadesk-legend-name-input');
-        inputs.forEach(input => {
+        const nameIndices = [];
+        const nameValues = [];
+        const colorIndices = [];
+        const colorValues = [];
+
+        document.querySelectorAll('.alvadesk-legend-name-input').forEach(input => {
             const idx = parseInt(input.dataset.traceIdx);
             const newName = input.value.trim();
             if (!isNaN(idx) && idx < plotEl.data.length && newName) {
-                Plotly.restyle('pca-plotly', { name: newName }, [idx]);
+                nameIndices.push(idx);
+                nameValues.push(newName);
+                const origName = originalAlvadeskLegendNames[idx];
+                if (origName) {
+                    if (!userAlvadeskLegendCustomizations[origName]) userAlvadeskLegendCustomizations[origName] = {};
+                    userAlvadeskLegendCustomizations[origName].name = newName;
+                }
             }
         });
 
-        const colorInputs = document.querySelectorAll('.alvadesk-legend-color-input:not(:disabled)');
-        colorInputs.forEach(input => {
+        document.querySelectorAll('.alvadesk-legend-color-input:not(:disabled)').forEach(input => {
             const idx = parseInt(input.dataset.traceIdx);
             const newColor = input.value;
             if (!isNaN(idx) && idx < plotEl.data.length) {
-                Plotly.restyle('pca-plotly', { 'marker.color': newColor }, [idx]);
+                colorIndices.push(idx);
+                colorValues.push(newColor);
+                const origName = originalAlvadeskLegendNames[idx];
+                if (origName) {
+                    if (!userAlvadeskLegendCustomizations[origName]) userAlvadeskLegendCustomizations[origName] = {};
+                    userAlvadeskLegendCustomizations[origName].color = newColor;
+                }
             }
         });
+
+        if (nameIndices.length > 0) {
+            Plotly.restyle('pca-plotly', { name: nameValues }, nameIndices);
+        }
+        if (colorIndices.length > 0) {
+            Plotly.restyle('pca-plotly', { 'marker.color': colorValues }, colorIndices);
+        }
+        showFlashMessage('Legend updated', 'success');
     });
 
     // Apply legend order
     document.getElementById('alvadesk-apply-legend-order')?.addEventListener('click', function () {
         const plotEl = document.getElementById('pca-plotly');
         if (!plotEl || !plotEl.data) return;
+
+        // Save any pending (unapplied) input changes before reordering
+        _savePendingAlvadeskLegendInputs();
 
         const rows = document.querySelectorAll('#alvadesk-legend-entries .alvadesk-legend-editor-row');
         const desiredOrder = Array.from(rows).map(r => parseInt(r.dataset.traceIdx));
@@ -3866,6 +3961,7 @@
         const inEditor = new Set(desiredOrder);
         const currentOrder = Array.from({ length: totalTraces }, (_, i) => i);
 
+        // newOrder[position] = sourceTraceIndex (which trace goes into this slot)
         const newOrder = [];
         let legendPos = 0;
         for (let i = 0; i < totalTraces; i++) {
@@ -3877,39 +3973,62 @@
             }
         }
 
-        Plotly.moveTraces('pca-plotly', currentOrder, newOrder).then(() => {
+        // Plotly.moveTraces expects: trace currentIndices[i] → position newIndices[i]
+        // newOrder is the inverse: position i ← trace newOrder[i]
+        // So we need to invert the permutation
+        const moveDestinations = new Array(totalTraces);
+        for (let i = 0; i < totalTraces; i++) {
+            moveDestinations[newOrder[i]] = i;
+        }
+
+        Plotly.moveTraces('pca-plotly', currentOrder, moveDestinations).then(() => {
             const oldNames = [...originalAlvadeskLegendNames];
             const oldColors = [...originalAlvadeskLegendColors];
             originalAlvadeskLegendNames = newOrder.map(i => oldNames[i]);
             originalAlvadeskLegendColors = newOrder.map(i => oldColors[i]);
             buildAlvadeskLegendEditorRows(plotEl.data);
+            _reapplyAlvadeskLegendCustomizations();
+            showFlashMessage('Legend order updated', 'success');
         });
     });
 
-    // Reset legend names and colors
+    // Reset legend names and colors (batched)
     document.getElementById('alvadesk-reset-legend-names')?.addEventListener('click', function () {
         const plotEl = document.getElementById('pca-plotly');
         if (!plotEl || !plotEl.data) return;
 
-        const inputs = document.querySelectorAll('.alvadesk-legend-name-input');
-        inputs.forEach(input => {
+        userAlvadeskLegendCustomizations = {};
+
+        const nameIndices = [];
+        const nameValues = [];
+        const colorIndices = [];
+        const colorValues = [];
+
+        document.querySelectorAll('.alvadesk-legend-name-input').forEach(input => {
             const idx = parseInt(input.dataset.traceIdx);
             if (!isNaN(idx) && idx < originalAlvadeskLegendNames.length) {
-                const origName = originalAlvadeskLegendNames[idx];
-                input.value = origName;
-                Plotly.restyle('pca-plotly', { name: origName }, [idx]);
+                input.value = originalAlvadeskLegendNames[idx];
+                nameIndices.push(idx);
+                nameValues.push(originalAlvadeskLegendNames[idx]);
             }
         });
 
-        const colorInputs = document.querySelectorAll('.alvadesk-legend-color-input:not(:disabled)');
-        colorInputs.forEach(input => {
+        document.querySelectorAll('.alvadesk-legend-color-input:not(:disabled)').forEach(input => {
             const idx = parseInt(input.dataset.traceIdx);
             if (!isNaN(idx) && idx < originalAlvadeskLegendColors.length && originalAlvadeskLegendColors[idx] !== null) {
-                const origColor = originalAlvadeskLegendColors[idx];
-                input.value = colorToHex(origColor);
-                Plotly.restyle('pca-plotly', { 'marker.color': origColor }, [idx]);
+                input.value = colorToHex(originalAlvadeskLegendColors[idx]);
+                colorIndices.push(idx);
+                colorValues.push(originalAlvadeskLegendColors[idx]);
             }
         });
+
+        if (nameIndices.length > 0) {
+            Plotly.restyle('pca-plotly', { name: nameValues }, nameIndices);
+        }
+        if (colorIndices.length > 0) {
+            Plotly.restyle('pca-plotly', { 'marker.color': colorValues }, colorIndices);
+        }
+        showFlashMessage('Legend reset', 'info');
     });
 });
 </script>
