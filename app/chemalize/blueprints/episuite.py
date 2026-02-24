@@ -103,7 +103,8 @@ BASIC_DATA_COLUMNS = IDENTITY_COLUMNS + [
     'KOWWIN_Log_Kow_Assessment',
     'BIOWIN_Biowin3_Rating',
     'BIOWIN_Biowin3_Prediction',
-    'BIOWIN_Biowin34_AD_Status',
+    'BIOWIN_Biowin3_AD_Status',
+    'BIOWIN_Biowin4_AD_Status',
     'BIOWIN_Biowin5_Probability',
     'BIOWIN_Biowin5_Prediction',
     'BIOWIN_Biowin6_Probability',
@@ -366,7 +367,8 @@ def parse_epi_suite_file(filepath):
 
             group_prefix_map = {
                 'Biowin1_2': 'Biowin12',
-                'Biowin3_4': 'Biowin34',
+                'Biowin3': 'Biowin3',
+                'Biowin4': 'Biowin4',
                 'Biowin5_6': 'Biowin56',
             }
             for group_key, group_result in biowin_ad['groups'].items():

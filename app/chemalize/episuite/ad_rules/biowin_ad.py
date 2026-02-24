@@ -6,7 +6,8 @@ Evaluates the applicability domain (AD) for the BIOWIN suite of models by
 grouping the models according to their shared training sets:
 
 * Biowin1 & Biowin2 (fast biodegradation probability; 295-compound training set)
-* Biowin3 & Biowin4 (ultimate/primary timeframe survey; 200-compound training set)
+* Biowin3 (ultimate biodegradation timeframe survey; 200-compound training set)
+* Biowin4 (primary biodegradation timeframe survey; 295-compound training set)
 * Biowin5 & Biowin6 (MITI ready biodegradation probability; 589-compound training set)
 
 Each group is checked independently so downstream consumers can report
@@ -24,6 +25,88 @@ def _normalize_fragment_description(description: str) -> str:
 
 # Fragment maxima derived from Appendix A (Biowin 1 & 2 training set).
 FRAGMENT_MAX_COUNTS_LINEAR_RAW: Dict[str, int] = {
+    'Nitroso [-N-N=O]': 1,
+    'Linear C4 terminal chain [CCC-CH3]': 3,
+    'Aliphatic alcohol [-OH]': 3,
+    'Aromatic alcohol [-OH]': 3,
+    'Aliphatic acid [-C(=O)-OH]': 4,
+    'Aromatic acid [-C(=O)-OH]': 2,
+    'Aldehyde [-CHO]': 1,
+    'Ester [-C(=O)-O-C]': 3,
+    'Amide [-C(=O)-N or -C(=S)-N]': 1,
+    'Triazine ring (symmetric)': 1,
+    'Aliphatic chloride [-CL]': 6,
+    'Aromatic chloride [-CL]': 6,
+    'Aliphatic bromide [-Br]': 6,
+    'Aromatic bromide [-Br]': 6,
+    'Aromatic iodide [-I]': 1,
+    'Aromatic fluoride [-F]': 1,
+    'Carbon with 4 single bonds & no hydrogens': 2,
+    'Aromatic nitro [-NO2]': 2,
+    'Aliphatic amine [-NH2 or -NH-]': 2,
+    'Aromatic amine [-NH2 or -NH-]': 3,
+    'Cyanide / Nitriles [-C#N]': 2,
+    'Sulfonic acid / salt -> aromatic attach': 3,
+    'Sulfonic acid / salt -> aliphatic attach': 1,
+    'Polyaromatic hydrocarbon (4 or more rings)': 1,
+    'Pyridine ring': 1,
+    'Aromatic ether [-O-aromatic carbon]': 2,
+    'Aliphatic ether [C-O-C]': 2,
+    'Ketone [-C-C(=O)-C-]': 2,
+    'Tertiary amine': 4,
+    'Phosphate ester': 1,
+    'Alkyl substituent on aromatic ring': 3,
+    'Azo group [-N=N-]': 1,
+    'Carbamate or Thiocarbamate': 1,
+    'Trifluoromethyl group [-CF3]': 1,
+    'Unsubstituted aromatic (3 or less rings)': 1,
+    'Unsubstituted phenyl group (C6H5-)': 2,
+}
+
+
+# Fragment maxima derived from Appendix A BIOWIN 3 (200-compound training set).
+FRAGMENT_MAX_COUNTS_BIOWIN3_RAW: Dict[str, int] = {
+    'Nitroso [-N-N=O]': 1,
+    'Linear C4 terminal chain [CCC-CH3]': 3,
+    'Aliphatic alcohol [-OH]': 4,
+    'Aromatic alcohol [-OH]': 3,
+    'Aliphatic acid [-C(=O)-OH]': 1,
+    'Aromatic acid [-C(=O)-OH]': 1,
+    'Aldehyde [-CHO]': 1,
+    'Ester [-C(=O)-O-C]': 4,
+    'Amide [-C(=O)-N or -C(=S)-N]': 1,
+    'Triazine ring (symmetric)': 1,
+    'Aliphatic chloride [-CL]': 3,
+    'Aromatic chloride [-CL]': 6,
+    'Aliphatic bromide [-Br]': 6,
+    'Aromatic bromide [-Br]': 5,
+    'Aromatic iodide [-I]': 2,
+    'Aromatic fluoride [-F]': 1,
+    'Carbon with 4 single bonds & no hydrogens': 3,
+    'Aromatic nitro [-NO2]': 2,
+    'Aliphatic amine [-NH2 or -NH-]': 1,
+    'Aromatic amine [-NH2 or -NH-]': 2,
+    'Cyanide / Nitriles [-C#N]': 2,
+    'Sulfonic acid / salt -> aromatic attach': 2,
+    'Sulfonic acid / salt -> aliphatic attach': 2,
+    'Polyaromatic hydrocarbon (4 or more rings)': 1,
+    'Pyridine ring': 1,
+    'Aromatic ether [-O-aromatic carbon]': 1,
+    'Aliphatic ether [C-O-C]': 5,
+    'Ketone [-C-C(=O)-C-]': 4,
+    'Tertiary amine': 2,
+    'Phosphate ester': 1,
+    'Alkyl substituent on aromatic ring': 2,
+    'Azo group [-N=N-]': 1,
+    'Carbamate or Thiocarbamate': 1,
+    'Trifluoromethyl group [-CF3]': 1,
+    'Unsubstituted aromatic (3 or less rings)': 1,
+    'Unsubstituted phenyl group (C6H5-)': 3,
+}
+
+
+# Fragment maxima derived from Appendix A BIOWIN 4 (295-compound training set).
+FRAGMENT_MAX_COUNTS_BIOWIN4_RAW: Dict[str, int] = {
     'Nitroso [-N-N=O]': 1,
     'Linear C4 terminal chain [CCC-CH3]': 3,
     'Aliphatic alcohol [-OH]': 3,
@@ -131,16 +214,14 @@ def _normalize_fragment_dict(raw: Dict[str, int]) -> Dict[str, int]:
 
 
 FRAGMENT_MAX_COUNTS_LINEAR = _normalize_fragment_dict(FRAGMENT_MAX_COUNTS_LINEAR_RAW)
+FRAGMENT_MAX_COUNTS_BIOWIN3 = _normalize_fragment_dict(FRAGMENT_MAX_COUNTS_BIOWIN3_RAW)
+FRAGMENT_MAX_COUNTS_BIOWIN4 = _normalize_fragment_dict(FRAGMENT_MAX_COUNTS_BIOWIN4_RAW)
 FRAGMENT_MAX_COUNTS_MITI = _normalize_fragment_dict(FRAGMENT_MAX_COUNTS_MITI_RAW)
 
 MW_RANGE_LINEAR: Tuple[float, float] = (31.06, 697.7)
+MW_RANGE_BIOWIN3: Tuple[float, float] = (53.06, 697.65)
+MW_RANGE_BIOWIN4: Tuple[float, float] = (31.06, 697.7)
 MW_RANGE_MITI: Tuple[float, float] = (31.06, 697.7)
-
-# Rating (dependent variable) ranges for Biowin3 and Biowin4.
-DEPENDENT_RANGES_SURVEY: Dict[str, Tuple[float, float]] = {
-    'Biowin3': (1.44, 3.89),
-    'Biowin4': (2.37, 4.57),
-}
 
 
 MODEL_GROUPS = {
@@ -151,14 +232,19 @@ MODEL_GROUPS = {
         'fragment_max_counts': FRAGMENT_MAX_COUNTS_LINEAR,
         'dependent_ranges': {},
     },
-    'Biowin3_4': {
-        'label': 'Biowin 3-4',
-        'models': ('Biowin3', 'Biowin4'),
-        # Training set uses the same 36 fragments; documentation references the
-        # same MW bounds as Biowin1/2.
-        'mw_range': MW_RANGE_LINEAR,
-        'fragment_max_counts': FRAGMENT_MAX_COUNTS_LINEAR,
-        'dependent_ranges': DEPENDENT_RANGES_SURVEY,
+    'Biowin3': {
+        'label': 'Biowin 3',
+        'models': ('Biowin3',),
+        'mw_range': MW_RANGE_BIOWIN3,
+        'fragment_max_counts': FRAGMENT_MAX_COUNTS_BIOWIN3,
+        'dependent_ranges': {'Biowin3': (1.44, 3.89)},
+    },
+    'Biowin4': {
+        'label': 'Biowin 4',
+        'models': ('Biowin4',),
+        'mw_range': MW_RANGE_BIOWIN4,
+        'fragment_max_counts': FRAGMENT_MAX_COUNTS_BIOWIN4,
+        'dependent_ranges': {'Biowin4': (2.37, 4.57)},
     },
     'Biowin5_6': {
         'label': 'Biowin 5-6',
@@ -408,14 +494,23 @@ def get_module_info() -> Dict:
                 },
                 'fragment_count_source': 'Appendix A (Biowin 1 & 2)',
             },
-            'Biowin3_4': {
+            'Biowin3': {
                 'size': 200,
                 'molecular_weight_range': {
-                    'min': MW_RANGE_LINEAR[0],
-                    'max': MW_RANGE_LINEAR[1],
+                    'min': MW_RANGE_BIOWIN3[0],
+                    'max': MW_RANGE_BIOWIN3[1],
                 },
-                'dependent_variable_ranges': DEPENDENT_RANGES_SURVEY,
-                'fragment_count_source': 'Appendix A (shared fragment library)',
+                'dependent_variable_ranges': {'Biowin3': (1.44, 3.89)},
+                'fragment_count_source': 'Appendix A (Biowin 3)',
+            },
+            'Biowin4': {
+                'size': 295,
+                'molecular_weight_range': {
+                    'min': MW_RANGE_BIOWIN4[0],
+                    'max': MW_RANGE_BIOWIN4[1],
+                },
+                'dependent_variable_ranges': {'Biowin4': (2.37, 4.57)},
+                'fragment_count_source': 'Appendix A (Biowin 4)',
             },
             'Biowin5_6': {
                 'size': 589,
@@ -423,8 +518,9 @@ def get_module_info() -> Dict:
             },
         },
         'notes': (
-            'Fragment maxima sourced from EPI Suite appendices. MITI (Biowin5/6) '
-            'does not publish molecular-weight limits; those checks are recorded '
-            'for reference but not enforced.'
+            'Fragment maxima sourced from EPI Suite appendices. Biowin3 and '
+            'Biowin4 use separate training sets with distinct fragment maxima '
+            'and MW ranges. MITI (Biowin5/6) does not publish molecular-weight '
+            'limits; those checks are recorded for reference but not enforced.'
         ),
     }
