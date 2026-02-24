@@ -584,6 +584,13 @@
             <!-- New Compounds Status -->
             <div id="new-compounds-status"></div>
 
+            <!-- Download New Compounds PC Scores (shown after successful projection) -->
+            <div id="new-compounds-download" style="display: none;" class="mt-2 mb-2">
+                <a href="/chemalize/download_new_compounds_scores" class="modern-btn btn-sm btn-primary-modern">
+                    <i class="fas fa-download"></i> Download New Compounds PC Scores
+                </a>
+            </div>
+
             <!-- Toggle Overlay Checkbox -->
             <div class="form-check mt-3" id="overlay-toggle-container" style="display: none;">
                 <input type="checkbox" class="form-check-input" id="show-overlay-checkbox" checked>
@@ -4320,11 +4327,12 @@
                                 </div>
                             `;
 
-                            // Show overlay toggle checkbox
+                            // Show overlay toggle checkbox and download button
                             document.getElementById('overlay-toggle-container').style.display = 'block';
                             document.getElementById('show-overlay-checkbox').checked = true;
                             document.getElementById('overlay-labels-container').style.display = 'block';
                             document.getElementById('show-overlay-labels').checked = false;
+                            document.getElementById('new-compounds-download').style.display = 'block';
 
                             showFlashMessage(`${data.n_compounds} new compounds ready to visualize!`, 'success');
 

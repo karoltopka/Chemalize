@@ -1026,3 +1026,26 @@ def tree():
     )
 
 
+@visualization_bp.route("/download_new_compounds_scores")
+@nocache
+def download_new_compounds_scores():
+    """Download PC scores for projected new compounds."""
+    if not session.get('new_compounds_loaded'):
+        flash('No new compounds projected yet!', 'danger')
+        return redirect(url_for('visualization.visualize'))
+
+    temp_path = ensure_temp_dir()
+    new_pc_path = os.path.join(temp_path, 'pca_new_compounds.csv')
+
+    if not os.path.exists(new_pc_path):
+        flash('New compounds scores file not found. Please re-upload and project.', 'danger')
+        return redirect(url_for('visualization.visualize'))
+
+    return send_file(
+        new_pc_path,
+        as_attachment=True,
+        download_name='new_compounds_pc_scores.csv',
+        mimetype='text/csv',
+    )
+
+
