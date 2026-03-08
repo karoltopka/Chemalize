@@ -11,13 +11,11 @@ login_manager = LoginManager()
 app = Flask(__name__)
 
 # --- KONFIGURACJA ---
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "HelloWorld")
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", "sqlite:///chemalize.db")
+app.config["SECRET_KEY"] = "HelloWorld"
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///chemalize.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-# Large file upload configuration (important for Cloudflare Tunnel)
-app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_CONTENT_LENGTH", 524288000))  # 500MB default
-app.config["UPLOAD_CHUNK_SIZE"] = int(os.getenv("CHUNK_SIZE", 5242880))  # 5MB chunks
+app.config["MAX_CONTENT_LENGTH"] = 524288000  # 500MB
+app.config["UPLOAD_CHUNK_SIZE"] = 5242880  # 5MB chunks
 
 app.config.update(SESSION_CONFIG)
 

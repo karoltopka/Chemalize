@@ -46,12 +46,12 @@ LM_STUDIO_TIMEOUT = int(os.getenv('LLM_TIMEOUT', '60'))  # seconds
 
 # OpenWebUI configuration
 OPENWEBUI_URL = os.getenv('OPENWEBUI_URL', "http://localhost:8080/api/chat/completions")
-OPENWEBUI_API_KEY = os.getenv('OPENWEBUI_API_KEY', 'REMOVED_API_KEY')  # API key
+OPENWEBUI_API_KEY = os.getenv('OPENWEBUI_API_KEY', '')
 OPENWEBUI_MODEL = os.getenv('OPENWEBUI_MODEL', 'gemma3:12b')  # Model name in OpenWebUI
 OPENWEBUI_TIMEOUT = int(os.getenv('OPENWEBUI_TIMEOUT', '180'))  # seconds (default 180 for reasoning models like DeepSeek-R1)
 
 # Google AI Studio configuration
-GOOGLE_AI_STUDIO_API_KEY = os.getenv('GOOGLE_AI_STUDIO_API_KEY', 'REMOVED_API_KEY')
+GOOGLE_AI_STUDIO_API_KEY = os.getenv('GOOGLE_AI_STUDIO_API_KEY', '')
 GOOGLE_AI_STUDIO_MODEL = os.getenv('GOOGLE_AI_STUDIO_MODEL', 'gemini-2.5-flash')  # Older model, less strict safety filters
 GOOGLE_AI_STUDIO_TIMEOUT = int(os.getenv('GOOGLE_AI_STUDIO_TIMEOUT', '60'))  # seconds
 
